@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poisson Process Sample Generator</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <h1>Poisson Process Sample Generator</h1>
+    <form id="form">
+        <label for="lambda_rate">Lambda (λ):</label>
+        <input type="number" step="any" id="lambda_rate" name="lambda_rate" required>
+        <br>
+        <label for="T">Time Interval (T):</label>
+        <input type="number" step="any" id="T" name="T" required>
+        <br>
+        <label for="method">Sampling Method:</label>
+        <select id="method" name="method">
+            <option value="approach1">Approach 1</option>
+            <option value="approach2">Approach 2</option>
+        </select>
+        <br>
+        <button type="submit">Generate</button>
+    </form>
+    <div id="plot"></div>
+
+    <script>
+        document.getElementById('form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            fetch('/generate', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                const plotDiv = document.getElementById('plot');
+                const graph = JSON.parse(data);
+                Plotly.newPlot(plotDiv, graph.data, graph.layout);
+            });
+        });
+    </script>
+</body>
+</html>
