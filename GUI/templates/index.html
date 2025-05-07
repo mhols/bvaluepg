@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Zahlen Generator</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <h1>Zahlen Generator für Logistische Regression</h1>
+
+    <h3>Daten erzeugen</h3>
+    <label>Erzeuge Zahlen (n): <input id="n" type="number" value="100"></label><br>
+    <label>Parameter1 (β₀): <input id="param1" type="number" value="1.0"></label><br>
+    <label>Parameter2 (β₁): <input id="param2" type="number" value="-2.0"></label><br>
+    <button onclick="generate()">Generiere Zufallszahlen</button>
+
+    <h3>Modelle anwenden</h3>
+    <button onclick="applyPolya()">PolyaGamma DataAugmentation</button>
+    <button onclick="runGibbs()">Gibbs Sampling</button>
+
+    <h3>Gibbs Sampler Einstellungen</h3>
+    <label>Anzahl Samples: <input id="samples" type="number" value="500"></label><br>
+    <label>Burn-in: <input id="burnin" type="number" value="100"></label><br>
+
+    <hr>
+
+    <h3>Ausgabe</h3>
+    <pre id="output"></pre>
+
+    <h3>Visualisierungen</h3>
+    <div id="plots">
+        <h4>Trace Plot</h4>
+        <div id="traceplot"></div>
+        <h4>Posterior Histogramm</h4>
+        <div id="histplot"></div>
+    </div>
+
+    <script>
+        let cachedX = null;
+        let cachedY = null;
+
+        function generate() {
+            fetch('/generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    n: document.getElementById('n').value,
+                    param1: document.getElementById('param1').value,
+                    param2: document.getElementById('param2').value
+                })
+            }).then(res => res.json())
+              .then(data => {
+                cachedX = data.X;
+                cachedY = data.y;
+                document.getElementById('output').textContent = "Generierte Daten:\n" + JSON.stringify(data, null, 2);
+              });
+        }
+
+        function applyPolya() {
+            if (!cachedX || !cachedY) return alert("Bitte zuerst Daten generieren.");
+            fetch('/polya', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ X: cachedX, y: cachedY })
+            }).then(res => res.json())
+              .then(data => {
+                document.getElementById('output').textContent += "\nPolya-Gamma Schätzung:\n" + JSON.stringify(data, null, 2);
+              });
+        }
+
+        function runGibbs() {
+            if (!cachedX || !cachedY) return alert("Bitte zuerst Daten generieren.");
+            fetch('/gibbs', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    X: cachedX,
+                    y: cachedY,
+                    num_samples: document.getElementById('samples').value,
+                    burn_in: document.getElementById('burnin').value
+                })
+            }).then(res => res.json())
+              .then(data => {
+                document.getElementById('output').textContent += "\nGibbs Sampling Schätzung (Mittelwert):\n" + JSON.stringify(data.gibbs_mean_beta, null, 2);
+
+                Plotly.newPlot('traceplot', data.trace_plot_data, { title: 'Traceplots' });
+                Plotly.newPlot('histplot', data.hist_plot_data, { title: 'Posterior-Histogramme' });
+              });
+        }
+    </script>
+</body>
+</html>

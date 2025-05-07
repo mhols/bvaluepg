@@ -1,0 +1,104 @@
+
+\documentclass{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+
+\title{Polya-Gamma Verteilung und Data Augmentation}
+\subtitle{Anwendung in der Erdbeben-Vorhersage}
+\author{Vortragender: [Dein Name]}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{Inhalt}
+  \tableofcontents
+\end{frame}
+
+\section{Einleitung}
+\begin{frame}{Einleitung}
+  \begin{itemize}
+    \item Motivation: Warum Erdbeben-Vorhersage?
+    \item Herausforderung: Komplexität und Unsicherheit in seismischen Daten
+    \item Ziel: Einsatz der Polya-Gamma Verteilung zur Datenaugmentation
+  \end{itemize}
+\end{frame}
+
+\section{Polya-Gamma Verteilung}
+\begin{frame}{Was ist die Polya-Gamma Verteilung?}
+  \begin{itemize}
+    \item Einführung durch Polson, Scott und Windle (2013)
+    \item Wird verwendet zur Vereinfachung von logistischen Modellen
+    \item Eigenschaften:
+    \begin{itemize}
+      \item Symmetrische Verteilung
+      \item Verwendbar in Gibbs-Sampling Algorithmen
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Mathematische Definition}
+  Eine Zufallsvariable $X$ folgt einer Polya-Gamma Verteilung $PG(b, c)$, wenn ihre Dichte gegeben ist durch:
+  \[ X \sim PG(b, c) \]
+  \[ X = \frac{1}{2 \pi^2} \sum_{k=1}^{\infty} \frac{G_k}{(k-1/2)^2 + c^2/(4\pi^2)} \]
+  wobei $G_k$ unabhängige Gamma-Verteilungen sind.
+\end{frame}
+
+\section{Data Augmentation mit Polya-Gamma}
+\begin{frame}{Data Augmentation mit Polya-Gamma}
+  \begin{itemize}
+    \item Nützlich zur Vereinfachung von posterioren Verteilungen
+    \item Ermöglicht effizienteres Gibbs-Sampling
+    \item Anwendungsbeispiel: Binäre und zensierte Daten
+  \end{itemize}
+\end{frame}
+
+\section{Anwendung in der Erdbeben-Vorhersage}
+\begin{frame}{Erdbeben-Vorhersage mit Polya-Gamma}
+  \begin{itemize}
+    \item Seismische Daten: Hohe Unsicherheit und Nichtlinearität
+    \item Modellierung der Auftretenswahrscheinlichkeit von Erdbeben
+    \item Verwendung von logistischen Regressionsmodellen mit Polya-Gamma Data Augmentation
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Vorteile und Herausforderungen}
+  \begin{itemize}
+    \item Vorteile:
+    \begin{itemize}
+      \item Stabilere Schätzung der Modellparameter
+      \item Effizientere Sampling-Algorithmen
+    \end{itemize}
+    \item Herausforderungen:
+    \begin{itemize}
+      \item Hohe Rechenkosten bei großen Datensätzen
+      \item Komplexität der Modellvalidierung
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\section{Fazit und Diskussion}
+\begin{frame}{Fazit und Diskussion}
+  \begin{itemize}
+    \item Polya-Gamma Verteilung bietet elegante Lösung für logistische Modelle
+    \item Vielversprechend in der Erdbeben-Vorhersage, aber herausfordernd
+    \item Zukünftige Forschung:
+    \begin{itemize}
+      \item Optimierung der Rechenleistung
+      \item Erweiterung auf komplexere seismische Modelle
+    \end{itemize}
+  \end{itemize}
+\end{frame}
+
+\begin{frame}{Fragen und Diskussion}
+  \centering
+  \Huge{Vielen Dank! \\ Fragen?}
+\end{frame}
+
+\end{document}
