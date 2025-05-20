@@ -5,8 +5,8 @@ last modified: 2025-05-16
 '''
 
 """
-Bayessche logistische Regression mit Polya-Gamma-Datenaugmentation
-
+Bayessche logistische Regression mit Pólya-Gamma-Datenaugmentation
+==================================================================
 
 Problemstellung:
 ----------------
@@ -18,7 +18,7 @@ ein Ball in Bin 1 landet, hängt von einem Merkmalsvektor x_i ab.
 Modell:
 -------
 - Zielvariable: y_i ∈ {0, 1}
-- Merkmale: x_i ∈ R^p
+- Merkmale: x_i ∈ ℝ^p
 - Logistische Regression:
     p(y_i = 1 | x_i, β) = σ(x_i^T β), wobei σ(z) = 1 / (1 + exp(-z))
 
@@ -36,20 +36,15 @@ Gibbs-Sampler:
 Dieses Skript simuliert Daten, führt einen Gibbs-Sampler aus und speichert die Posterior-Samples.
 """
 
-#%%
-
 import numpy as np
 from scipy.stats import norm, multivariate_normal
 import matplotlib.pyplot as plt
-##@@@import py_polya
-
-#%%
 
 # -------------------------------
 # Hilfsfunktion: Approximation von PG(1, z)
 # -------------------------------
 
-def sample_pg_approx(z, trunc=100):
+def sample_pg_approx(z, trunc=200):
     """
     Approximiert einen Polya-Gamma(1, z) Draw nach Devroye (2014),
     durch Trunkierung der unendlichen Summe.
@@ -68,45 +63,24 @@ def sample_pg_approx(z, trunc=100):
 np.random.seed(42)
 n = 50            # Anzahl Bälle / Beobachtungen
 p = 1             # Anzahl Merkmale
-X = np.random.randn(n, p)  # Zufällige Merkmalsmatrix - andere Featrures vorgeben
-X = (X - X.mean(axis=0)) / X.std(axis=0)  # Standardisierung von X
+X = np.random.randn(n, p)  # Zufällige Merkmalsmatrix
 
-
-for beta in [3.,1.5,0.5]:
-    X= np.linspace(-2,2,50).reshape([50,1])
-    # beta_true = np.array([1.5, -2.0])  # Wahres β
-    beta_true = np.array([beta])
-    
-    logits = X @ beta_true
-    
-    probs = 1 / (1 + np.exp(-logits))  # σ(Xβ)
-    y = np.random.binomial(1, probs)   # Binäre Zielvariablen
-    
-    
-    
-    plt.plot(X,probs,'.r')
-
-
-#%%
-plt.plot(y,'*b')
-
-#%%
-
-# nur Intercept beta0
-
-
+# beta_true = np.array([1.5, -2.0])  # Wahres β
+beta_true = np.array([1.5])
+logits = X @ beta_true
+probs = 1 / (1 + np.exp(-logits))  # σ(Xβ)
+y = np.random.binomial(1, probs)   # Binäre Zielvariablen
 
 # -------------------------------
 # 2. Gibbs-Sampler Setup
 # -------------------------------
 
-n_iter = 500
-burn_in = 100
+n_iter = 100
 beta_samples = np.zeros((n_iter, p))
 beta = np.zeros(p)  # Initialwert
 # anderen Startwert
 beta = np.ones(p)
-tau2 = 0.5         # Priorvarianz
+tau2 = 10.0         # Priorvarianz
 
 for t in range(n_iter):
     # a) Ziehe ω_i | β
@@ -121,16 +95,15 @@ for t in range(n_iter):
     
     #wende cholesky auf weisses rauschen
     #linalg.solve
-    beta = np.atleast_1d(multivariate_normal.rvs(mean=mu_post, cov=Sigma_post))
+    beta = multivariate_normal.rvs(mean=mu_post, cov=Sigma_post)
     beta_samples[t, :] = beta
+    beta = np.array([b
 
 # -------------------------------
 # 3. Plot Posteriorverteilungen
 # -------------------------------
 
 fig, axes = plt.subplots(1, p, figsize=(12, 4))
-if p == 1:
-    axes = [axes]
 for j in range(p):
     axes[j].hist(beta_samples[:, j], bins=30, density=True, alpha=0.7, label=f"β{j}")
     axes[j].axvline(beta_true[j], color='r', linestyle='--', label='true β')
@@ -139,19 +112,3 @@ for j in range(p):
 # plt.tight_layout()
 # plt.savefig("posterior_beta_bins.png")
 plt.show()
-
-# -------------------------------
-# 4. Traceplot (nur für β0, falls p ≥ 1)
-# -------------------------------
-plt.figure(figsize=(10, 4))
-plt.plot(beta_samples[:, 0])
-plt.axvline(burn_in, color='r', linestyle='--', label='Burn-in-Grenze')
-plt.title("Traceplot von β₀")
-plt.xlabel("Iteration")
-plt.ylabel("Wert von β₀")
-plt.legend()
-plt.tight_layout()
-plt.show()
-
-# Optional: Post-Burn-in-Samples für spätere Auswertung
-beta_samples_post = beta_samples[burn_in:, :]
