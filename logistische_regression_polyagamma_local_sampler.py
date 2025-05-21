@@ -61,6 +61,8 @@ def sample_pg_approx(z, trunc=100):
         out += np.random.gamma(1.0, 1.0) / (lam**2 + (z**2) / 4.0)
     return 0.25 * out
 
+#%%
+
 # -------------------------------
 # 1. Simuliere die Daten
 # -------------------------------
@@ -72,7 +74,7 @@ X = np.random.randn(n, p)  # Zufällige Merkmalsmatrix - andere Featrures vorgeb
 X = (X - X.mean(axis=0)) / X.std(axis=0)  # Standardisierung von X
 
 
-for beta in [3.,1.5,0.5]:
+for beta in [0.5,1.5,3.]:
     X= np.linspace(-2,2,50).reshape([50,1])
     # beta_true = np.array([1.5, -2.0])  # Wahres β
     beta_true = np.array([beta])
@@ -106,7 +108,7 @@ beta_samples = np.zeros((n_iter, p))
 beta = np.zeros(p)  # Initialwert
 # anderen Startwert
 beta = np.ones(p)
-tau2 = 0.5         # Priorvarianz
+tau2 = 0.3         # Priorvarianz
 
 for t in range(n_iter):
     # a) Ziehe ω_i | β
@@ -154,4 +156,24 @@ plt.tight_layout()
 plt.show()
 
 # Optional: Post-Burn-in-Samples für spätere Auswertung
+
 beta_samples_post = beta_samples[burn_in:, :]
+
+# --------------------------------------------
+# Erklärung: Einfluss der Prior-Varianz τ²
+# --------------------------------------------
+# Die Prior-Varianz τ² steuert, wie stark unsere Annahme über β vor der Beobachtung der Daten gewichtet wird.
+# Ein kleiner Wert (z. B. τ² = 0.3) führt zu einer stärkeren Regularisierung (Zentrierung von β um 0).
+# Ist τ² zu klein, kann der Prior die Posteriorverteilung dominieren und β wird vom wahren Wert weggezogen.
+# Ein größerer Wert (z. B. τ² = 10) erlaubt den Daten, einen größeren Einfluss auf die Posteriorverteilung zu haben.
+# ?
+
+
+# --------------------------------------------
+# Erklärung: Notwendigkeit des Burn-ins
+# --------------------------------------------
+# Die ersten Iterationen des Gibbs-Samplers (Burn-in) spiegeln oft den Einfluss der Startwerte wider
+# und sind noch nicht repräsentativ für die Zielverteilung.
+# Durch Entfernen der ersten "burn_in" Iterationen (z. B. 100) verbessern wir die Qualität der Posterior-Samples.
+
+# %%
