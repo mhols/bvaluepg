@@ -1,3 +1,4 @@
+#%%
 """
 Bayessche logistische Regression – Übungsaufgaben
 
@@ -222,8 +223,8 @@ def log_likelihood_intercept(beta0, beta1):
 #%%
 
 # Likelihood-Gitter über β₀ und β₁
-beta0_vals = np.linspace(-5, 5, 100)
-beta1_vals = np.linspace(-2, 2, 100)
+beta0_vals = np.linspace(-10, 10, 100)
+beta1_vals = np.linspace(-4, 5, 100)
 B0, B1 = np.meshgrid(beta0_vals, beta1_vals)
 log_lik_grid = np.array([[log_likelihood_intercept(b0, b1) for b0 in beta0_vals] for b1 in beta1_vals])
 
@@ -235,6 +236,7 @@ plt.colorbar(label="Log-Likelihood")
 plt.grid(True)
 plt.tight_layout()
 plt.show()
+
 
 #%%
 
@@ -399,4 +401,3 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-# %%

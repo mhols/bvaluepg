@@ -301,3 +301,61 @@ wobei \( I \) die 2x2-Einheitsmatrix ist (falls beide Parameter denselben Prior 
 ### Erweiterte Problemstellung 2: Logistische Regression nur Intercept
 
 Gleiche Fragestellung. Siehe py-skript
+
+### Erweiterte Problemstellung 3: Logistische Regression mit 2 Features
+
+Ein Modell soll ermitteln, ob eine Person ein Produkt kauft (\( y_i = 1 \)) oder nicht (\( y_i = 0 \)), abhängig von zwei erklärenden Merkmalen:
+- \( x_{i1} \): Anzahl der Werbeanzeigen
+- \( x_{i2} \): Alter der Person
+
+Gegeben sind 10 Beobachtungen:
+
+| \( x_{i1} \) (Werbung) | \( x_{i2} \) (Alter) | \( y_i \) (Kauf) |
+|------------------------|----------------------|------------------|
+| 1                      | 22                   | 0                |
+| 2                      | 25                   | 0                |
+| 3                      | 27                   | 0                |
+| 3                      | 30                   | 1                |
+| 4                      | 32                   | 1                |
+| 5                      | 35                   | 1                |
+| 6                      | 38                   | 1                |
+| 7                      | 40                   | 1                |
+| 8                      | 43                   | 1                |
+| 9                      | 45                   | 1                |
+
+#### Modellannahme:
+
+\[
+y_i \sim \text{Bernoulli}(\sigma(x_{i1} \beta_1 + x_{i2} \beta_2)), \quad \text{mit} \quad \sigma(z) = \frac{1}{1 + e^{-z}}
+\]
+
+Prior:
+
+\[
+\beta_1, \beta_2 \sim \mathcal{N}(0, \tau^2)
+\]
+
+---
+
+### Aufgaben
+
+1. **Modell verstehen:**  
+   Was bedeuten \( \beta_1 \) und \( \beta_2 \) jeweils?
+
+2. **Likelihood formulieren:**  
+   Formuliere die Likelihood-Funktion für die Parameter \( (\beta_1, \beta_2) \).
+
+3. **Log-Likelihood aufschreiben:**  
+   Gib die vollständige Log-Likelihood-Funktion an.
+
+4. **Posterior herleiten:**  
+   Formuliere die unnormierte log-Posterior-Dichte mit gegebenem Normalprior.
+
+5. **Visualisierung (optional):**  
+   Erstelle eine Plot-Darstellung der Log-Likelihood in zwei Dimensionen (z. B. als Konturplot).
+
+6. **Gibbs-Sampler (optional):**  
+   Beschreibe die Schritte zur Implementierung eines Gibbs-Samplers mit Pólya-Gamma für dieses Modell.
+
+7. **Interpretation der Koeffizienten:**  
+   Erkläre anschaulich, wie sich die Parameter \( \beta_1 \) und \( \beta_2 \) auf die Kaufwahrscheinlichkeit auswirken. Verwende Beispielwerte und diskutiere, was ein positiver oder negativer Koeffizient für jede Variable bedeutet.
