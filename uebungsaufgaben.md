@@ -27,7 +27,7 @@ Gegeben sind folgende 10 Beobachtungen:
 | 3                                | 0                                   |
 | 4                                | 1                                   |
 | 5                                | 1                                   |
-| 6                                | 1                                   |
+| 6                      v          | 1                                   |
 | 7                                | 1                                   |
 | 8                                | 1                                   |
 

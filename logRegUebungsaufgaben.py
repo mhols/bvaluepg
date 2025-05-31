@@ -227,6 +227,7 @@ beta0_vals = np.linspace(-10, 10, 100)
 beta1_vals = np.linspace(-4, 5, 100)
 B0, B1 = np.meshgrid(beta0_vals, beta1_vals)
 log_lik_grid = np.array([[log_likelihood_intercept(b0, b1) for b0 in beta0_vals] for b1 in beta1_vals])
+# Vorsicht mit verschachtelten Listen-Komprehensionen, kann man sich gut mit austicksen
 
 plt.contourf(B0, B1, log_lik_grid, levels=30, cmap="viridis")
 plt.xlabel("β₀ (Intercept)")
@@ -237,7 +238,32 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 
+#%%
+# Querschnitt für festes beta0 (z.B. beta0 = 0)
+beta0_fixed = 0
+idx_beta0 = np.abs(beta0_vals - beta0_fixed).argmin()
+log_lik_beta1 = log_lik_grid[:, idx_beta0]
 
+plt.plot(beta1_vals, log_lik_beta1)
+plt.xlabel("β₁ (Steigung)")
+plt.ylabel("Log-Likelihood")
+plt.title(f"Log-Likelihood für festes β₀ = {beta0_fixed}")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+# Querschnitt für festes beta1 (z.B. beta1 = 1)
+beta1_fixed = 1
+idx_beta1 = np.abs(beta1_vals - beta1_fixed).argmin()
+log_lik_beta0 = log_lik_grid[idx_beta1, :]
+
+plt.plot(beta0_vals, log_lik_beta0)
+plt.xlabel("β₀ (Intercept)")
+plt.ylabel("Log-Likelihood")
+plt.title(f"Log-Likelihood für festes β₁ = {beta1_fixed}")
+plt.grid(True)
+plt.tight_layout()
+plt.show()
 #%%
 
 # nur fuer mich 
@@ -300,7 +326,7 @@ plt.grid(True)
 plt.tight_layout()
 plt.show()
 
-# %%
+#%%
 
 
 #%%
