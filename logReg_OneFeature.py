@@ -5,7 +5,7 @@ Bayessche logistische Regression – Übungsaufgaben
 Author: Toni Luhdo
 Created: 2025-05-20
 
-Dieses Skript enthält die Lösungen zu den Übungsaufgaben aus der Datei 'uebungsaufgaben.md'.
+Dieses Skript enthält die Beispiele zu den Übungsaufgaben aus der Datei 'uebungsaufgaben.md'.
 """
 #%%
 import numpy as np
