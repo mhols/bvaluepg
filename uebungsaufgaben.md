@@ -8,7 +8,7 @@ last_modified: 2025-05-13
 
 ## Übungsaufgaben:
 
-Pythonskript: logRegUebungsaufgaben.py
+Pythonskript: logReg_OneFeature.py
 
 ### Bayessche logistische Regression (1 Feature, 10 Beobachtungen)
 
@@ -27,7 +27,7 @@ Gegeben sind folgende 10 Beobachtungen:
 | 3                                | 0                                   |
 | 4                                | 1                                   |
 | 5                                | 1                                   |
-| 6                      v          | 1                                   |
+| 6                                | 1                                   |
 | 7                                | 1                                   |
 | 8                                | 1                                   |
 
@@ -304,6 +304,9 @@ Gleiche Fragestellung. Siehe py-skript
 
 ### Erweiterte Problemstellung 3: Logistische Regression mit 2 Features
 
+siehe Python skript: logReg_TwoFeatures.py
+
+
 Ein Modell soll ermitteln, ob eine Person ein Produkt kauft (\( y_i = 1 \)) oder nicht (\( y_i = 0 \)), abhängig von zwei erklärenden Merkmalen:
 - \( x_{i1} \): Anzahl der Werbeanzeigen
 - \( x_{i2} \): Alter der Person
@@ -359,3 +362,91 @@ Prior:
 
 7. **Interpretation der Koeffizienten:**  
    Erkläre anschaulich, wie sich die Parameter \( \beta_1 \) und \( \beta_2 \) auf die Kaufwahrscheinlichkeit auswirken. Verwende Beispielwerte und diskutiere, was ein positiver oder negativer Koeffizient für jede Variable bedeutet.
+
+
+### Erweiterte Problemstellung 3: Logistische Regression mit 4 Klassen
+
+siehe logReg_OneVsRest.py
+
+---
+
+### Übungsaufgabe: Logistische Regression mit 4 Klassen (One-vs-Rest)
+
+#### Problemstellung
+
+Ein System soll vorhersagen, welche von **vier Produktkategorien** ein Kunde am wahrscheinlichsten kauft – abhängig davon, **wie viele Werbeanzeigen** \( x_i \) er gesehen hat.
+
+Die Zielvariable \( y_i \in \{0, 1, 2, 3\} \) kodiert die Produktkategorie:
+
+| \( y_i \) | Produktkategorie       |
+|----------|------------------------|
+| 0        | kein Kauf              |
+| 1        | Kategorie A (Basic)    |
+| 2        | Kategorie B (Standard) |
+| 3        | Kategorie C (Premium)  |
+
+Gegeben sind folgende 20 Beobachtungen:
+
+| \( x_i \) (Anz. Werbeanzeigen) | \( y_i \) (Kategorie) |
+|-------------------------------|------------------------|
+| 0                             | 0                      |
+| 1                             | 0                      |
+| 2                             | 1                      |
+| 2                             | 1                      |
+| 3                             | 2                      |
+| 3                             | 2                      |
+| 3                             | 1                      |
+| 4                             | 1                      |
+| 4                             | 2                      |
+| 5                             | 3                      |
+| 5                             | 2                      |
+| 6                             | 3                      |
+| 6                             | 3                      |
+| 7                             | 3                      |
+| 7                             | 2                      |
+| 8                             | 3                      |
+| 9                             | 3                      |
+| 9                             | 2                      |
+| 10                            | 3                      |
+| 10                            | 3                      |
+
+#### Modellannahme: One-vs-Rest
+
+Wir trainieren **vier getrennte logistische Modelle**, je eines für die Klasse \( k \in \{0, 1, 2, 3\} \):
+
+\[
+y_i^{(k)} =
+\begin{cases}
+1, & \text{falls } y_i = k \\\\
+0, & \text{sonst}
+\end{cases}
+\]
+
+\[
+\mathbb{P}(y_i = k \mid x_i) = \frac{1}{1 + \exp(-x_i \cdot \beta_k)}
+\]
+
+Zur Klassifikation wird für ein neues \( x \) die Klasse mit der höchsten berechneten Wahrscheinlichkeit gewählt.
+
+---
+
+#### Aufgaben
+
+1. **Datenaufbereitung**  
+   Erzeuge für jede Klasse \( k \in \{0, 1, 2, 3\} \) die binäre Zielvariable \( y^{(k)} \).
+
+2. **Modelltraining (One-vs-Rest)**  
+   Implementiere vier logistische Modelle \( \mathbb{P}(y^{(k)} = 1 \mid x_i) \) mit Maximum-Likelihood oder Bayesian Sampling (z. B. mit Pólya-Gamma).
+
+3. **Posterior-Analyse**  
+   Simuliere mit einem Prior \( \beta_k \sim \mathcal{N}(0, \tau^2) \) jeweils 1000 Gibbs-Samples für jede Klasse.
+
+4. **Vergleich der Wahrscheinlichkeiten**  
+   Erstelle für neue Werte von \( x \in \{0, 2, 5, 8, 10\} \) Vorhersagewahrscheinlichkeiten für alle vier Klassen.
+
+5. **Visualisierung**  
+   Zeige in einem Plot für jeden \( x \)-Wert die Wahrscheinlichkeiten aller vier Klassen (z. B. als gestapelten Balkenplot oder Linienplot).
+
+6. **Diskussion**  
+   Welche Klasse profitiert am stärksten von hohen \( x \)-Werten (mehr Werbung)? Was sagt das über das Kundenverhalten aus?
+

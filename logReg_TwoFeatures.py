@@ -33,7 +33,7 @@ y = np.array([0, 0, 0, 1, 1, 1, 1, 1, 1, 1])
 
 #%%
 
-# --- Hilfsfunktionen ---
+# --- Funktionen ---
 def sigmoid(z):
     return expit(z)
 
@@ -145,6 +145,21 @@ plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.show()
+
+#%%
+
+# --- Alternative: Posterior-Samples als Punkte (statt KDE)
+if np.any(mask):
+    plt.figure(figsize=(7, 4))
+    plt.plot(beta2_grid, post_beta2, label="Likelihood bei $\\beta_1 = {:.2f}$".format(fixed_beta1))
+    plt.scatter(samples[mask, 1], np.full_like(samples[mask, 1], 0.02),
+                color='red', alpha=0.3, s=10, label="Posterior-Samples (β₂)")
+    # plt.xlabel(r'$\\beta_2$')
+    plt.title("Likelihood + Posterior-Samples (Punkte) für festes $\\beta_1$")
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
 
 #%%
 
