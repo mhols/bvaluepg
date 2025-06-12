@@ -1,9 +1,38 @@
-#%%
+'''
+# cholesky.py
+# Dieses Modul generiert Zufallsfelder auf einem 2D-Gitter unter Verwendung einer Kovarianzmatrix, 
+# die durch eine Gaußsche Korrelationsfunktion definiert ist. Es beinhaltet Funktionen zur 
+# Erstellung von Meshgrids, zur Berechnung von Korrelationsmatrizen, zur Erzeugung von Zufallsfeldern 
+# mittels Cholesky-Zerlegung sowie zur Visualisierung und Manipulation der Felder.
+#
+# Hauptfunktionen:
+# - corr_function: Berechnet die Gaußsche Korrelationsfunktion zwischen zwei Punkten.
+# - sigmoid: Wendet die Sigmoidfunktion auf einen Wert oder ein Array an.
+# - create_meshgrid: Erstellt ein 2D-Gitter als Liste von Dictionaries mit Zellinformationen.
+# - generate_random_field: Erzeugt ein Zufallsfeld auf dem Gitter.
+# - print_grid: Gibt das Gitter mit den Feldwerten formatiert aus.
+# - plot_grid: Visualisiert das Zufallsfeld als Heatmap.
+# - update_cell: Aktualisiert den Wert einer bestimmten Zelle im Gitter.
+#
+# Typische Anwendungsfälle:
+# - Simulation von Zufallsfeldern mit vorgegebener Kovarianzstruktur (z.B. für Geostatistik, Bildverarbeitung).
+# - Visualisierung und Analyse von Zufallsfeldern.
+# - Interaktive Manipulation einzelner Zellen im Gitter.
+#
+# Abhängigkeiten:
+# - numpy
+# - matplotlib
+# - math
+#
+# Autor: toni
+# Datum: 2025-06-02
+# Last Modified: 2025-06-11
+'''
 
 from math import exp
 import numpy as np
 
-# mechgrid_30x30.py
+# meshgrid_30x30.py
 #%%
 
 def corr_function(x1, y1, x2, y2):
@@ -68,7 +97,7 @@ plt.show()
 
 #%%
 
-def create_mechgrid(rows=30, cols=30):
+def create_meshgrid(rows=30, cols=30):
     grid = []
     for y in range(rows):
         row = []
@@ -83,8 +112,46 @@ def create_mechgrid(rows=30, cols=30):
         grid.append(row)
     return grid
 
-picutre1 = create_mechgrid()
+picutre1 = create_meshgrid()
 
 
 #%%
+np.random.seed(42)  # Setze den Zufallszahlengenerator für Reproduzierbarkeit
 
+# %%
+def generate_random_field(rows=30, cols=30):
+    grid = create_meshgrid(rows, cols)
+    for y in range(rows):
+        for x in range(cols):
+            grid[y][x]["value"] = np.random.rand()  # Zufälliger Wert zwischen 0 und 1
+    return grid
+random_field_grid = generate_random_field()
+# %%
+def print_grid(grid):
+    for row in grid:
+        print(" | ".join(f"{cell['value']:.2f}" for cell in row))
+print_grid(random_field_grid)
+# %%
+def plot_grid(grid):
+    rows = len(grid)
+    cols = len(grid[0])
+    values = np.array([[cell['value'] for cell in row] for row in grid])
+    
+    plt.figure(figsize=(8, 6))
+    plt.imshow(values, cmap='viridis', origin='lower', extent=[0, cols, 0, rows])
+    plt.colorbar(label='Feldwert')
+    plt.title('Zufallsfeld-Gitter')
+    plt.xlabel('Spalten')
+    plt.ylabel('Zeilen')
+    plt.tight_layout()
+    plt.show()
+plot_grid(random_field_grid)
+# %%
+def update_cell(grid, x, y, value):
+    if 0 <= x < len(grid[0]) and 0 <= y < len(grid):
+        grid[y][x]["value"] = value
+    else:
+        print("Ungültige Koordinaten")
+# Beispiel: Aktualisiere die Zelle bei (5, 5) auf den Wert 0.8
+update_cell(random_field_grid, 5, 5, 0.8)
+# %%
