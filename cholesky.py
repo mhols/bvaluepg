@@ -1,4 +1,4 @@
-                                                                                                                                                      QW'''# cholesky.py
+# cholesky.py
 # Dieses Modul generiert Zufallsfelder auf einem 2D-Gitter unter Verwendung einer Kovarianzmatrix, 
 # die durch eine Gaußsche Korrelationsfunktion definiert ist. Es beinhaltet Funktionen zur 
 # Erstellung von Meshgrids, zur Berechnung von Korrelationsmatrizen, zur Erzeugung von Zufallsfeldern 
@@ -26,7 +26,6 @@
 # Autor: toni
 # Datum: 2025-06-02
 # Last Modified: 2025-06-11
-'''
 
 from math import exp
 import numpy as np
