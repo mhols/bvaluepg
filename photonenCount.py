@@ -1,8 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from pypolyagamma import PyPolyaGamma
+
 #%%
 # --- Parameter ---
-rows, cols = 2, 2  # Schachbrettgröße
+rows, cols = 4, 4  # Schachbrettgrößex
 poisson_lambda = 20  # Erwartungswert für Photonen pro Feld
 noise_std = 2  # Standardabweichung für weißes Rauschen
 
@@ -10,8 +12,14 @@ noise_std = 2  # Standardabweichung für weißes Rauschen
 #%%
 
 # --- Schachbrettmuster erzeugen ---
+# x= np.indices((rows, cols)).sum(axis=0) % 2 erzeugt ein Schachbrettmuster
+# 0 für weiße Felder, 1 für schwarze Felder
+# Hier verwenden wir zwei verschiedene Wahrscheinlichkeiten für die Felder
+# z.B. 30% der Basisrate für weiße Felder und 100%
+# für schwarze Felder, um ein Schachbrettmuster zu simulieren
+
 x = np.indices((rows, cols)).sum(axis=0) % 2
-pattern = x  # 0 und 1 als Schachbrettmuster
+pattern = np.where(x == 0, 0.3, 1.0)  # z.B. 30% und 100% der Basisrate
 
 #%%
 
@@ -26,7 +34,12 @@ noise = np.random.normal(loc=0, scale=noise_std, size=photon_counts.shape)
 counts_noisy = photon_counts + noise
 
 # --- Linkfunktion anwenden (z. B. log) ---
+# Hier wird eine Linkfunktion verwendet, um die Photonen-Counts zu transformieren
+# In diesem Fall verwenden wir log(1+x), um negative Werte zu vermeiden
 counts_link = np.log1p(np.maximum(counts_noisy, 0))  # log(1+x) und keine negativen Werte
+# koennte ich spaeter zu sigmoid machen, wenn ich will
+
+
 
 # --- Visualisierung ---
 fig, axs = plt.subplots(1, 3, figsize=(12, 4))
@@ -50,6 +63,11 @@ plt.show()
 from math import exp
 
 def corr_function(x1, y1, x2, y2):
+    """
+        soll abhaengen von x1,y1 und x2 x2,y2
+        muss positiv definit sein 
+        Gaussglocke
+    """
     sigma = 0.1
     dist_sq = (x1 - x2) ** 2 + (y1 - y2) ** 2
     return exp(-dist_sq / (2 * sigma ** 2))
@@ -86,7 +104,14 @@ plt.imshow(photon_counts_corr, cmap='magma')
 plt.title('Photonen-Counts mit Raumkorrelation')
 plt.colorbar()
 plt.show()
-# %%
-#next step, add link function to correlated photon counts
+#%%
+# next step, add link function to correlated photon counts
 # und teste verschiedene Wahrscheinlichkeiten im Schachbrettmuster
 # aktuell ist es nur 0 und 1 und das bringt keine Korrelation
+
+#%%
+'''
+polya gamma und gibs
+'''
+# next step, add polya gamma and gibbs sampling
+# und teste verschiedene Wahrscheinlichkeiten im Schachbrettmuster
