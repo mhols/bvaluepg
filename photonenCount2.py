@@ -10,7 +10,7 @@ from pypolyagamma import PyPolyaGamma
 
 # --- Parameter ---
 rows, cols = 8, 8
-poisson_lambda = 20
+poisson_lambda = 20 # Erwartungswert pro Feld
 noise_std = 2
 np.random.seed(42)
 
@@ -20,6 +20,7 @@ np.random.seed(42)
 # um eine klare, strukturierte Variation in der Photonenrate zu modellieren.
 # Die Wahl des Schachbrettmusters dient dazu, einen einfachen, aber aussagekräftigen Effekt darzustellen,
 # der später durch die logistische Regression erkannt werden soll.
+
 x = np.indices((rows, cols)).sum(axis=0) % 2
 pattern = np.where(x == 0, 0.3, 1.0)
 
@@ -27,6 +28,7 @@ pattern = np.where(x == 0, 0.3, 1.0)
 # Die Photonenrate pro Feld basiert auf dem Schachbrettmuster.
 # λ wird als Basisrate plus Muster skaliert.
 # Dies modelliert die Intensität der Photonen, die später als Input für die Binomialverteilung dient.
+
 base_rate = poisson_lambda * (1 + pattern)
 
 #---
@@ -34,6 +36,7 @@ base_rate = poisson_lambda * (1 + pattern)
 # Die Korrelation zwischen Feldern wird durch eine Gaußsche Korrelationsfunktion definiert,
 # die Abhängigkeiten zwischen benachbarten Feldern modelliert.
 # Die Cholesky-Zerlegung der Kovarianzmatrix ermöglicht das Ziehen korrelierter Zufallsvariablen.
+
 def corr_function(x1, y1, x2, y2, sigma=0.1):
     dist_sq = (x1 - x2)**2 + (y1 - y2)**2
     return np.exp(-dist_sq / (2 * sigma**2))
@@ -45,6 +48,8 @@ rX, rY = Xgrid.ravel(), Ygrid.ravel()
 
 Cova_matrix = np.array([[corr_function(rX[i], rY[i], rX[j], rY[j])
                          for j in range(len(rX))] for i in range(len(rX))])
+
+# Cholesky-Zerlegung und korreliertes Rauschen
 L = np.linalg.cholesky(Cova_matrix + 1e-10 * np.eye(len(rX)))
 correlated_noise = (L @ np.random.randn(len(rX))).reshape((rows, cols))
 
@@ -118,6 +123,8 @@ samples = np.array(samples)
 # Die Histogramme zeigen die Unsicherheit und Verteilung der geschätzten Parameter β₀ (Bias) und β₁ (Muster-Effekt).
 # Ein schmaler, gut definierter Peak deutet auf hohe Sicherheit hin,
 # während breite Verteilungen auf Unsicherheit oder schwache Effekte hindeuten.
+# ob das so passt :?
+
 plt.hist(samples[:, 0], bins=30, color='skyblue', edgecolor='black', alpha=0.7)
 plt.title("Posteriorverteilung für β₀ (Bias)")
 plt.xlabel("β₀")
@@ -131,3 +138,7 @@ plt.xlabel("β₁")
 plt.ylabel("Häufigkeit")
 plt.grid(True)
 plt.show()
+
+
+# next step
+# vergleich mit dem Muster

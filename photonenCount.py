@@ -4,7 +4,7 @@ from pypolyagamma import PyPolyaGamma
 
 #%%
 # --- Parameter ---
-rows, cols = 4, 4  # Schachbrettgrößex
+rows, cols = 8, 8  # Schachbrettgrößex
 poisson_lambda = 20  # Erwartungswert für Photonen pro Feld
 noise_std = 2  # Standardabweichung für weißes Rauschen
 
@@ -27,14 +27,30 @@ pattern = np.where(x == 0, 0.3, 1.0)  # z.B. 30% und 100% der Basisrate
 np.random.seed(42)  # Für Reproduzierbarkeit
 photon_counts = np.random.poisson(lam=poisson_lambda * (1 + pattern))
 
+
+'''
+Setting: 100000 Photonen auf dem Schachbrettmuster verteilen (wo sind die Photonen?)
+konditioniert auf N
+
+np.choice([0, 1], size=(rows, cols), p=[0.7, 0.3])
+
+checke mal routine np.choice
+'''
+
 #%%
+
+
+'''
+entfällt
+
+'''
 
 # --- Weißes Rauschen hinzufügen ---
 noise = np.random.normal(loc=0, scale=noise_std, size=photon_counts.shape)
 counts_noisy = photon_counts + noise
 
 # --- Linkfunktion anwenden (z. B. log) ---
-# Hier wird eine Linkfunktion verwendet, um die Photonen-Counts zu transformieren
+# Hier verwende ich eine Linkfunktion , um die Photonen-Counts zu transformieren
 # In diesem Fall verwenden wir log(1+x), um negative Werte zu vermeiden
 counts_link = np.log1p(np.maximum(counts_noisy, 0))  # log(1+x) und keine negativen Werte
 # koennte ich spaeter zu sigmoid machen, wenn ich will

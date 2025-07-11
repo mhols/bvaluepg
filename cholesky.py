@@ -85,6 +85,8 @@ random_field_image_sigmoid = sigmoid(random_field_image)
 import matplotlib.pyplot as plt
 
 plt.figure(figsize=(6, 5))
+#plt.imshow(random_field_image, cmap='viridis', origin='lower', extent=[0, 1, 0, 1])
+
 plt.imshow(random_field_image_sigmoid, cmap='viridis', origin='lower', extent=[0, 1, 0, 1])
 plt.colorbar(label='Feldwert')
 plt.title('Zufallsfeld entsprechend der Kovarianzmatrix')
