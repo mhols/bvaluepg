@@ -1,3 +1,7 @@
+'''
+nur mal idee
+
+'''
 def target_pdf(x):
     # z.B. eine komplizierte Dichte
     return ...

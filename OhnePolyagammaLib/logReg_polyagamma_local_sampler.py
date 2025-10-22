@@ -52,7 +52,7 @@ import matplotlib.pyplot as plt
 def sample_pg_approx(z, trunc=100):
     """
     Approximiert einen Polya-Gamma(1, z) Draw nach Devroye (2014),
-    durch Trunkierung der unendlichen Summe.
+    nicht vergessen-> macht Trunkierung der unendlichen Summe.
     """
     out = 0.0
     z = np.abs(z)

@@ -1,13 +1,7 @@
-'''
-date: 2025-10-03
-umgeschrieben von pypolyagamma auf polyagamma lib 
-'''
-
-
 import numpy as np
 from numpy.linalg import inv
 import matplotlib.pyplot as plt
-import polyagamma as polyga
+from pypolyagamma import PyPolyaGamma
 
 #%%
 # Ziel: Simulation und Bayes'sche logistische Regression mit Pólya-Gamma-Augmentation.
@@ -105,14 +99,14 @@ X = np.stack([
 N, D = X.shape
 beta = np.zeros(D)
 B0inv = np.eye(D) * 1.0                    # Prior Precision (Inverse Kovarianz) für β
-
+pg = PyPolyaGamma()
 samples = []
 
 n_iter = 500
 for i in range(n_iter):
     # 1. Sampling von ω_i ~ PG(1, xᵢᵗ β)
     # ω sind Pólya-Gamma-verteilte Hilfsvariablen, die die Likelihood vereinfachen.
-    omega = polyga.random_polyagamma(h=1.0, z=X @ beta, size=N)
+    omega = np.array([pg.pgdraw(1, X[j] @ beta) for j in range(N)])
     Omega = np.diag(omega)
 
     # 2. Sampling von β ~ N(m, V)
@@ -179,10 +173,11 @@ for i in range(N):
     ], axis=1)
 
     beta_i = np.zeros(D)
+    pg = PyPolyaGamma()
 
     # for _ in range(n_iter_pixel):
     
-    omega = polyga.random_polyagamma(h=1.0, z=X_design @ beta_i, size=N - 1)
+    omega = np.array([pg.pgdraw(1, X_design[j] @ beta_i) for j in range(N - 1)])
     Omega = np.diag(omega)
     V_inv = X_design.T @ Omega @ X_design + B0inv
     V = inv(V_inv)

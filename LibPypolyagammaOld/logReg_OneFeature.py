@@ -143,6 +143,10 @@ plt.show()
 # BE CAREFUL: es gibt verschiedene Implementationen von Pólya-Gamma-Sampling
 # polyagamma scheint nicht mehr gepflegt zu sein
 # pypolyagamma laeuft mit aktieller numpy und scipy version
+# !!! Die Aussage war so nicht ganz korrekt, pypolyagamma laueft nur mit Python 3.7 bis 3.10 !!!
+# !!! Die aktuelle Version polyagamma (0.3.0) laeuft mit neueren Python-Versionen !!!
+
+
 
 from pypolyagamma import PyPolyaGamma
 
