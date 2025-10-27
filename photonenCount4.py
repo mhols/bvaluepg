@@ -1,18 +1,26 @@
+
 '''
 date: 2025-10-03
 umgeschrieben von pypolyagamma auf polyagamma lib 
 '''
-
+#%% Imports
 
 import numpy as np
 from numpy.linalg import inv
 import matplotlib.pyplot as plt
 import polyagamma as polyga
+import os
+#%% OS Stuff
+PLOTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Plots")
+
 
 #%%
 # Ziel: Simulation und Bayes'sche logistische Regression mit Pólya-Gamma-Augmentation.
 # Wir modellieren binäre Daten, deren Wahrscheinlichkeiten von einer latenten Photonenrate abhängen.
 # Die Photonenrate wird durch ein Schachbrettmuster und raumkorreliertes Rauschen beeinflusst.
+
+
+
 
 # --- Parameter ---
 rows, cols = 30, 30
@@ -29,6 +37,92 @@ np.random.seed(42)
 
 x = np.indices((rows, cols)).sum(axis=0) % 2
 pattern = np.where(x == 0, 0.3, 1.0)
+
+# doppelte schleife 0 und 1 maske
+# pattern = np.zeros((rows, cols))
+
+
+
+for i in range(rows):
+    ii=(i // 5)%2
+    for j in range(cols):
+        jj=(j // 5)%2
+        if (ii + jj)%2 == 0:
+            pattern[i, j] = 0
+        else:
+            pattern[i, j] = 1
+
+#plot pattern
+plt.figure(figsize=(6, 5))
+plt.imshow(pattern, cmap="gray")
+plt.title("Schachbrettmuster")
+plt.xlabel("Spalte")
+plt.ylabel("Zeile")
+plt.colorbar(label="Musterwert")
+plt.show()  
+
+
+
+#%%
+# Poisson-Verteilung base rate + bild mit Schachbrettmuster
+#base_rate = poisson_lambda * (1 + pattern)
+
+base_rate = 100
+deviation = 40  # darf nicht zu klein sein
+
+feld=base_rate+deviation*pattern
+# plot feld
+plt.figure(figsize=(6, 5))
+plt.imshow(feld, cmap="viridis")
+plt.title("Photonenrate pro Feld (λ) mit Abweichung")
+plt.xlabel("Spalte")
+plt.ylabel("Zeile")
+plt.colorbar(label="Photonenrate λ")
+plt.show()
+
+#%%
+# bild mit schachbrettmuster + base rate
+# plt.figure(figsize=(6, 5))
+# # plt.imshow(base_rate, cmap="viridis")   
+
+# plt.title("Photonenrate pro Feld (λ)")
+# plt.xlabel("Spalte")
+# plt.ylabel("Zeile") 
+
+
+#gesamt_freq=np.sum(feld)
+
+# ergebnis ist gleich np.zeros like feld
+
+ergebnis = np.zeros_like(feld)
+for i in range(rows):
+    for j in range(rows):
+        ergebnis[i,j]=np.random.poisson(feld[i,j],size=1)
+
+#plotte ergebnis
+plt.imshow(ergebnis)
+plt.title("Photonenzählungen pro Feld (Poisson)")
+plt.xlabel("Spalte")
+plt.ylabel("Zeile")
+plt.colorbar(label="Anzahl Photonen")   
+plt.show()
+
+#%%
+# sample aus ergebnis
+# sample 1 gegen den Rest
+# 
+
+
+np.random.choice(ergebnis.ravel(), size=100)
+
+np.sum(ergebnis)
+
+
+
+
+#%%
+
+
 
 #---
 # Die Photonenrate pro Feld basiert auf dem Schachbrettmuster.
@@ -226,8 +320,8 @@ plt.figure()
 plt.imshow(probs_map.reshape(rows, cols), cmap="viridis")
 plt.title("Vorhergesagte Wahrscheinlichkeit (1-gegen-Rest)")
 plt.colorbar()
+plt.savefig(os.path.join(PLOTS_DIR,"1-gegen-Rest.png"), dpi=150, bbox_inches="tight")
 plt.show()
-
 
 
 
