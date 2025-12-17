@@ -323,24 +323,3 @@ plt.colorbar()
 plt.savefig(os.path.join(PLOTS_DIR,"1-gegen-Rest.png"), dpi=150, bbox_inches="tight")
 plt.show()
 
-
-
-# ---
-# Inverse Crime: Hinweis und Diskussion
-#
-# "Inverse Crime" bezeichnet in der Inversen Problematik (z.B. Bildrekonstruktion, inverse Modellierung)
-# den Fehler, dass man synthetische Daten mit demselben Modell erzeugt, das später auch zur Rekonstruktion verwendet wird.
-# Dadurch wird das Problem künstlich vereinfacht, weil das Rekonstruktionsverfahren exakt weiß, wie die Daten entstanden sind.
-# Die resultierende Leistung ist dann unrealistisch hoch und nicht auf echte Daten übertragbar.
-#
-# In diesem Skript:
-# - Die Daten (y) werden mit einer bekannten logistischen Funktion und festen Parametern erzeugt.
-# - Die logistische Regression verwendet exakt dieselbe Modellstruktur (Designmatrix, Linkfunktion).
-# - Es gibt keine Modellabweichung, Messrauschen oder Modellierungsfehler.
-#
-# Fazit: Das hier ist ein klassisches Beispiel für einen "Inverse Crime".
-# Für realistische Tests sollte man:
-#   - Daten mit einem komplexeren oder abweichenden Modell generieren,
-#   - Messrauschen oder Modellfehler einführen,
-#   - oder echte Messdaten verwenden.
-# print("Achtung: Die Simulation und das Inferenzmodell sind identisch (Inverse Crime).")

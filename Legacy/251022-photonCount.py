@@ -587,7 +587,7 @@ if model_type == "poisson":
 
 elif model_type == "logistic":
     # --- β-Sampling: Laplace-Approx → β ~ N(β̂, Σ) ---
-    # Wir versuchen statsmodels zu nutzen; fällt zurück auf IRLS, falls nicht vorhanden
+    # Versuche statsmodels zu nutzen; fällt zurück auf IRLS, falls nicht vorhanden
     try:
         import statsmodels.api as sm
         use_sm = True
@@ -652,3 +652,5 @@ else:
 
 
 # wird ein ziehen aus 1 dimensionaler gaussverteilung
+
+#cha
