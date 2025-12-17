@@ -42,7 +42,7 @@ class PolyaGammaDensity:
         """
         generates a random sample
         """
-        f = np.solve(self.Lprior, np.random.normal(size=self.nbins))
+        f = np.dot(self.Lprior.T, np.random.normal(size=self.nbins))
 
         return self.prior_mean + f
     

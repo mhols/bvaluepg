@@ -24,7 +24,6 @@ packaging==25.0
 parso==0.8.5
 pexpect==4.9.0
 pillow==11.3.0
-pip==25.2
 platformdirs==4.5.0
 polyagamma==2.0.2
 prompt_toolkit==3.0.52
