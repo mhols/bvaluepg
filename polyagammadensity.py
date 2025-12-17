@@ -63,18 +63,38 @@ class PolyaGammaDensity:
             np.random.poisson(lam=pf[i]) for i in range(self.nbins)
         ]
     
+    def loglikelihood(self, f):
+        """
+        returns the non-normalized log loglikelihood
+        
+        :param f: the paramters
+        """
+        pf = self.lam * sigmoid(f)
+
+        return np.sum(self.nobs * np.log(pf)) - np.sum(pf)
+    
+    def logposterior(self, f):
+        """
+        Docstring for logposterior
+        
+        :param self: Description
+        :param f: Description
+        """
+        return self.loglikelihood(f) - np.sum( (np.solve(self.Lprior.T, f)**2 / 2))
+
+    
 
 if __name__ == '__main__':
 
     import syntheticdata as sd
     import matplotlib.pyplot as plt
 
-    n, m = 30, 60
+    n, m = 100, 100 
 
     pgd = PolyaGammaDensity(
-        np.zeros( n * m ),
-        sd.spatial_covariance_gaussian(n, m, 4, 1),
-        10
+        prior_mean=np.zeros( n * m ),
+        prior_covariance=sd.spatial_covariance_gaussian(n, m, 3, 1),
+        lam=10
     )
 
     plt.figure()
