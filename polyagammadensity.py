@@ -8,10 +8,11 @@ def sigmoid(f):
 
 class PolyaGammaDensity:
 
-    def __init__(self, prior_mean, prior_covariance, **kwargs):
+    def __init__(self, prior_mean, prior_covariance, lam, **kwargs):
 
         self.prior_mean = prior_mean
         self.prior_covariance = prior_covariance
+        self.lam = lam
 
         self.kwargs = kwargs
 
@@ -46,9 +47,18 @@ class PolyaGammaDensity:
 
         return self.prior_mean + f
     
+    def random_prior_field(self):
+        """
+        a random realization of the underlying poissonian density in each bin
+        """
+        return self.lam * sigmoid(self.random_prior_prameters())
+    
     def random_prior(self):
-        f = self.random_prior_prameters()
+        """
+        samples counting data from the prior distribution
+        """
+        return np.random.Generator.poisson(self.random_prior_field())
+    
 
-        return sigmoid(f)
     
 
