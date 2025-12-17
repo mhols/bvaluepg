@@ -36,11 +36,15 @@ if __name__ == "__main__":
     n, m = 30, 30
 
     K = spatial_covariance_gaussian(n, m, 5, 1)
-    L = np.linalg.choleski(K)
+    K += 0.000001 * np.identity(n*m)  ### for numerical stability
+
+    L = np.linalg.cholesky(K)
 
     random_field = scanorder_to_image(
-        np.dot(L.T, np.random.normal(n * m))
+        np.dot(L, np.random.normal(size = n*m)),
+        n, m
     )
+
 
 
     plt.figure()
