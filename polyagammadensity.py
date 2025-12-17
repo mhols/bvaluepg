@@ -17,6 +17,16 @@ class PolyaGammaDensity:
 
         self._Lprior = None # for lazy evaluation
 
+    def set_data(self, nobs):
+        """
+        Docstring for set_data
+        
+        :param self: Description
+        :param nobs: array like the observed number of events in the bins
+        """
+        assert len(nobs) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
+        self.nobs = nobs
+
     @property
     def Lprior(self):
         if not self._Lprior:
@@ -26,8 +36,7 @@ class PolyaGammaDensity:
     @property
     def nbins(self):
         return self.prior_mean.shape[0]
-        
-            
+                    
 
     def random_prior_prameters(self):
         """
@@ -41,3 +50,5 @@ class PolyaGammaDensity:
         f = self.random_prior_prameters()
 
         return sigmoid(f)
+    
+
