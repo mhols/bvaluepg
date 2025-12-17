@@ -39,7 +39,7 @@ if __name__ == "__main__":
     L = np.linalg.choleski(K)
 
     random_field = scanorder_to_image(
-        np.linalg.solve(L, np.random.normal(n * m))
+        np.dot(L.T, np.random.normal(n * m))
     )
 
 
