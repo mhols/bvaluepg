@@ -80,7 +80,7 @@ class PolyaGammaDensity:
         :param self: Description
         :param f: Description
         """
-        return self.loglikelihood(f) - np.sum( (np.solve(self.Lprior.T, f)**2 / 2))
+        return self.loglikelihood(f) - np.sum( (np.solve(self.Lprior, f)**2 / 2))
 
     
 
