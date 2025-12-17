@@ -69,7 +69,7 @@ if __name__ == '__main__':
     import syntheticdata as sd
     import matplotlib.pyplot as plt
 
-    n, m = 30, 30
+    n, m = 30, 60
 
     pgd = PolyaGammaDensity(
         np.zeros( n * m ),
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     )
 
     plt.figure()
-    plt.imshow( sd.scanorder_to_image(pgd.random_prior(), n, m))
+    plt.imshow( sd.scanorder_to_image(pgd.random_prior(), n, m).T)
     plt.show()
     
 
