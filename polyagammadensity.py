@@ -57,8 +57,28 @@ class PolyaGammaDensity:
         """
         samples counting data from the prior distribution
         """
-        return np.random.Generator.poisson(self.random_prior_field())
+        pf = self.random_prior_field()
+
+        return [
+            np.random.poisson(lam=pf[i]) for i in range(self.nbins)
+        ]
     
 
+if __name__ == '__main__':
+
+    import syntheticdata as sd
+    import matplotlib.pyplot as plt
+
+    n, m = 30, 30
+
+    pgd = PolyaGammaDensity(
+        np.zeros( n * m ),
+        sd.spatial_covariance_gaussian(n, m, 4, 1),
+        10
+    )
+
+    plt.figure()
+    plt.imshow( sd.scanorder_to_image(pgd.random_prior(), n, m))
+    plt.show()
     
 
