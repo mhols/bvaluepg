@@ -1,7 +1,7 @@
 __doc__="a class to use the Polya-Gamma technique for density estimation"
 
 import numpy as np
-import polyagamma    ### TODO
+#import polyagamma    ### TODO
 
 def sigmoid(f):
     return 1/(1+np.exp(-f))   #TODO what if f gets big ????
@@ -98,7 +98,7 @@ class PolyaGammaDensity:
         field = self.field_from_f(-self.f)
         kk = self.random_events_from_field(field)  ### the random events k given f
 
-        self.polya = [ polyagamma( n + k , f) for n, k, f in zip(self.nobs, kk, self.f)]
+        # self.polya = [ polyagamma( n + k , f) for n, k, f in zip(self.nobs, kk, self.f)]
 
         return 
 
