@@ -1,6 +1,7 @@
 __doc__="a class to use the Polya-Gamma technique for density estimation"
 
 import numpy as np
+import polyagamma    ### TODO
 
 def sigmoid(f):
     return 1/(1+np.exp(-f))   #TODO what if f gets big ????
@@ -17,6 +18,8 @@ class PolyaGammaDensity:
         self.kwargs = kwargs
 
         self._Lprior = None # for lazy evaluation
+
+
 
     def set_data(self, nobs):
         """
@@ -37,7 +40,15 @@ class PolyaGammaDensity:
     @property
     def nbins(self):
         return self.prior_mean.shape[0]
+    
+    def field_from_f(self, f):
+        return self.lam * sigmoid(f)
+
+    def random_events_from_field(self, field):
+        return np.array( [np.random.poisson(l) for l in field] )
                     
+    def random_events_from_f(self, f):
+        return self.random_events_from_field(self.field_from_f(f))
 
     def random_prior_prameters(self):
         """
@@ -53,25 +64,22 @@ class PolyaGammaDensity:
         """
         return self.lam * sigmoid(self.random_prior_prameters())
     
-    def random_prior(self):
+    def random_prior_events(self):
         """
         samples counting data from the prior distribution
         """
-        pf = self.random_prior_field()
 
-        return [
-            np.random.poisson(lam=pf[i]) for i in range(self.nbins)
-        ]
-    
+        return self.random_events_from_field(self.random_prior_field())
+   
     def loglikelihood(self, f):
         """
         returns the non-normalized log loglikelihood
         
         :param f: the paramters
         """
-        pf = self.lam * sigmoid(f)
+        field = self.lam * sigmoid(f)
 
-        return np.sum(self.nobs * np.log(pf)) - np.sum(pf)
+        return np.sum(self.nobs * np.log(field)) - np.sum(field)
     
     def logposterior(self, f):
         """
@@ -81,6 +89,23 @@ class PolyaGammaDensity:
         :param f: Description
         """
         return self.loglikelihood(f) - np.sum( (np.solve(self.Lprior, f)**2 / 2))
+    
+    def maxposterior_estimate(self):
+        pass      ### TODO implement maximum posterior estimate
+
+    def sample_polyagamma_cond_f(self):
+
+        field = self.field_from_f(-self.f)
+        kk = self.random_events_from_field(field)  ### the random events k given f
+
+        self.polya = [ polyagamma( n + k , f) for n, k, f in zip(self.nobs, kk, self.f)]
+
+        return 
+
+    def sample_f_cond_polyagamma(self):
+        pass
+
+
 
     
 
@@ -89,7 +114,7 @@ if __name__ == '__main__':
     import syntheticdata as sd
     import matplotlib.pyplot as plt
 
-    n, m = 100, 100 
+    n, m = 50, 50
 
     pgd = PolyaGammaDensity(
         prior_mean=np.zeros( n * m ),
@@ -98,7 +123,7 @@ if __name__ == '__main__':
     )
 
     plt.figure()
-    plt.imshow( sd.scanorder_to_image(pgd.random_prior(), n, m).T)
+    plt.imshow( sd.scanorder_to_image(pgd.random_prior_events(), n, m).T)
     plt.show()
     
 
