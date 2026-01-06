@@ -45,6 +45,15 @@ class PolyaGammaDensity:
         return self.lam * sigmoid(f)
 
     def random_events_from_field(self, field):
+        """
+        samples events from probability field
+        
+        :param self: Description
+        :param field: Description
+        """
+
+        assert np.all( field >= 0 )
+
         return np.array( [np.random.poisson(l) for l in field] )
                     
     def random_events_from_f(self, f):
@@ -62,7 +71,7 @@ class PolyaGammaDensity:
         """
         a random realization of the underlying poissonian density in each bin
         """
-        return self.lam * sigmoid(self.random_prior_prameters())
+        return self.field_from_f(self.random_prior_prameters())
     
     def random_prior_events(self):
         """
@@ -122,8 +131,23 @@ if __name__ == '__main__':
         lam=10
     )
 
+    prior = pgd.random_prior_prameters()
+
     plt.figure()
-    plt.imshow( sd.scanorder_to_image(pgd.random_prior_events(), n, m).T)
+    plt.imshow( sd.scanorder_to_image( prior, n, m ).T)
+
+
+    prior_field = pgd.field_from_f(prior)
+
+    plt.figure()
+    plt.imshow( sd.scanorder_to_image(prior_field, n, m).T)
+
+
+    prior_events = pgd.random_events_from_field(prior_field)
+    plt.figure()
+    plt.imshow( sd.scanorder_to_image(prior_events, n, m).T)
+
+
     plt.show()
     
 
