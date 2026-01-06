@@ -123,7 +123,7 @@ if __name__ == '__main__':
     import syntheticdata as sd
     import matplotlib.pyplot as plt
 
-    n, m = 50, 50
+    n, m = 100, 100
 
     pgd = PolyaGammaDensity(
         prior_mean=np.zeros( n * m ),
