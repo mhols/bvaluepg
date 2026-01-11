@@ -101,6 +101,15 @@ class PolyaGammaDensity:
     
     def maxposterior_estimate(self):
         pass      ### TODO implement maximum posterior estimate
+        # """
+        # finds the maximum posterior estimate using optimization
+        # """
+        # result = minimize(
+        #     lambda f: -self.logposterior(f),
+        #     x0=self.prior_mean,
+        #     method='BFGS'
+        #     )
+        # return result.x
 
     def sample_polyagamma_cond_f(self):
 
@@ -121,9 +130,10 @@ class PolyaGammaDensity:
 if __name__ == '__main__':
 
     import syntheticdata as sd
+    from scipy.optimize import minimize
     import matplotlib.pyplot as plt
 
-    n, m = 100, 100
+    n, m = 20, 20
 
     pgd = PolyaGammaDensity(
         prior_mean=np.zeros( n * m ),
