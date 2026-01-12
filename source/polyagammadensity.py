@@ -6,6 +6,8 @@ import numpy as np
 def sigmoid(f):
     return 1/(1+np.exp(-f))   #TODO what if f gets big ????
 
+def der_sigmoid(f):
+    return sigmoid(f)*sigmoid(-f)
 
 class PolyaGammaDensity:
 
@@ -18,7 +20,6 @@ class PolyaGammaDensity:
         self.kwargs = kwargs
 
         self._Lprior = None # for lazy evaluation
-
 
 
     def set_data(self, nobs):
@@ -86,7 +87,7 @@ class PolyaGammaDensity:
         
         :param f: the paramters
         """
-        field = self.lam * sigmoid(f)
+        field = self.field_from_f(f)
 
         return np.sum(self.nobs * np.log(field)) - np.sum(field)
     
@@ -99,6 +100,11 @@ class PolyaGammaDensity:
         """
         return self.loglikelihood(f) - np.sum( (np.solve(self.Lprior, f)**2 / 2))
     
+    def grad_logposterior(self, f):
+        res = self.nobs * sigmoid(-f)
+        res -= 0 ## TODO
+        return res
+
     def maxposterior_estimate(self):
         pass      ### TODO implement maximum posterior estimate
 
