@@ -92,22 +92,17 @@ class PolyaGammaDensity:
 
         return np.sum(self.nobs * np.log(field)) - np.sum(field)
     
-    def logposterior(self, f):
+    def neg_logposterior(self, f):
         """
         Docstring for logposterior
         
         :param self: Description
         :param f: Description
         """
-        return self.loglikelihood(f) - np.sum( (np.linalg.solve(self.Lprior, f)**2 / 2))
+        return -self.loglikelihood(f) + np.sum( (np.linalg.solve(self.Lprior, f)**2 / 2))
     
-    def grad_logposterior(self, f):
-        res = self.nobs * sigmoid(-f)
-        res -= 0 ## TODO
-        return res
-
-    def maxposterior_estimate(self):
-        """
+    def neg_grad_logposterior(self, f):
+       """
         Docstring for grad_logposterior
         1. Feld berechnen
         2. Gradient der Log-Likelihood berechnen
@@ -124,15 +119,13 @@ class PolyaGammaDensity:
         langsam, besser mit Cholesky-Faktorisierung in der naechsten Variante
         zum vergleichen
         """
-        field = self.field_from_f(f)
+        res = self.nobs * sigmoid(-f)
+        tmp = np.linalg.solve(self.Lprior, f) ### besser die schon berechneten Choleski Faktoren benutzen
+        tmp = np.linalg.solve(self.Lprior.T, f)
 
-        grad_loglikelihood = self.lam * (self.nobs / field - 1) * sigmoid(f) * (1 - sigmoid(f))
-
-        grad_logprior = - np.linalg.solve(self.prior_covariance, f) ### besser die schon berechneten Choleski Faktoren benutzen
-
-        return grad_loglikelihood + grad_logprior
+        return -res + tmp
     
-    def grad_scipy_logposterior(self, f, eps=1e-6):
+    def max_logposterior_estimator(self, f, eps=1e-6):
         """
         Docstring for grad_scipy_logposterior
         
@@ -142,15 +135,24 @@ class PolyaGammaDensity:
         f = np.asarray(f, dtype=float)
         assert f.shape[0] == self.nbins, "falsche dimension for f"
 
-        # approx_fprime in scipy erwartet scalar function
+        # approx_fprime in scipy erwartet scalar function 
+
+        ### kann auch direkt self.logposterior sein denke ich
         def _fun(x):
             x = np.asarray(x, dtype=float)
-            return float(self.logposterior(x))
+            return float(self.neglogposterior(x))
     
         # Verwendet Schrittweiten pro Koordinate (Skalar eps, der an einen Vektor übertragen wird).
         epsilon = np.full_like(f, float(eps), dtype=float)
-        grad = sp.optimize.approx_fprime(f, _fun, epsilon)
-        return np.asarray(grad, dtype=float).reshape(-1)
+
+        #### wieso nennst Du das Ergebnis grad ???
+
+        #grad = sp.optimize.approx_fprime(f, _fun, epsilon)
+
+        f0 = f  #### TODO use something more reasonable
+        res = sp.optimize.minimize(self.neg_logposterior, f0, jac=self.neg_grad_logposterior, method='CG') ##computing the minimization using conjugated gradients
+        return res['x']
+        #return np.asarray(grad, dtype=float).reshape(-1)  ## what is this ?
         
     def sample_polyagamma_cond_f(self):
 
@@ -160,18 +162,6 @@ class PolyaGammaDensity:
         # self.polya = [ polyagamma( n + k , f) for n, k, f in zip(self.nobs, kk, self.f)]
 
         return 
-
-    def maxposterior_estimate(self):
-        pass      ### TODO implement maximum posterior estimate
-        # """
-        # finds the maximum posterior estimate using optimization
-        # """
-        # result = minimize(
-        #     lambda f: -self.logposterior(f),
-        #     x0=self.prior_mean,
-        #     method='BFGS'
-        #     )
-        # return result.x
  
 
     def sample_f_cond_polyagamma(self):
@@ -213,11 +203,11 @@ if __name__ == '__main__':
 
     pgd.set_data(prior_events)
 
-    grad = pgd.grad_logposterior(prior)
+    grad = pgd.neg_grad_logposterior(prior)
 
     plt.figure()
     plt.title("Gradient log-posterior von prior sample")
-    plt.imshow( sd.scanorder_to_image( grad, n, m ).T)
+    plt.imshow( sd.scanorder_to_image( grad, n, m ).T)   ### Gradient ist ein Vektor-feld... imshow????
 
     
     #%%
