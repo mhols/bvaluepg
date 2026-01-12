@@ -1,6 +1,7 @@
 __doc__="a class to use the Polya-Gamma technique for density estimation"
 
 import numpy as np
+import scipy as sp
 #import polyagamma    ### TODO
 
 def sigmoid(f):
@@ -98,7 +99,7 @@ class PolyaGammaDensity:
         :param self: Description
         :param f: Description
         """
-        return self.loglikelihood(f) - np.sum( (np.solve(self.Lprior, f)**2 / 2))
+        return self.loglikelihood(f) - np.sum( (np.linalg.solve(self.Lprior, f)**2 / 2))
     
     def grad_logposterior(self, f):
         res = self.nobs * sigmoid(-f)
@@ -106,8 +107,51 @@ class PolyaGammaDensity:
         return res
 
     def maxposterior_estimate(self):
-        pass      ### TODO implement maximum posterior estimate
+        """
+        Docstring for grad_logposterior
+        1. Feld berechnen
+        2. Gradient der Log-Likelihood berechnen
+        3. Gradient der Log-Prior berechnen
+        4. Beide Gradienten addieren und zurückgeben
 
+        Fuer die Berechnugn des Gradienten der Log-Likelihood wird die Kettenregel angewendet:
+        d/d f [ n * log(lam * sigmoid(f)) - lam * sigmoid(f) ]
+        = n * (1 / (lam * sigmoid(f))) * lam * sigmoid(f) * (1 - sigmoid(f)) - lam * sigmoid(f) * (1 - sigmoid(f))
+        = lam * (n / field - 1) * sigmoid(f) * (1 - sigmoid(f))
+
+        linalg.solve wird verwendet, um den Gradient der Log-Prior zu berechnen:
+        d/d f [ -1/2 * f^T * inv(Cov) * f ] = - inv(Cov) * f
+        langsam, besser mit Cholesky-Faktorisierung in der naechsten Variante
+        zum vergleichen
+        """
+        field = self.field_from_f(f)
+
+        grad_loglikelihood = self.lam * (self.nobs / field - 1) * sigmoid(f) * (1 - sigmoid(f))
+
+        grad_logprior = - np.linalg.solve(self.prior_covariance, f) ### besser die schon berechneten Choleski Faktoren benutzen
+
+        return grad_loglikelihood + grad_logprior
+    
+    def grad_scipy_logposterior(self, f, eps=1e-6):
+        """
+        Docstring for grad_scipy_logposterior
+        
+        :param self: Description
+        :param f: Description
+        """
+        f = np.asarray(f, dtype=float)
+        assert f.shape[0] == self.nbins, "falsche dimension for f"
+
+        # approx_fprime in scipy erwartet scalar function
+        def _fun(x):
+            x = np.asarray(x, dtype=float)
+            return float(self.logposterior(x))
+    
+        # Verwendet Schrittweiten pro Koordinate (Skalar eps, der an einen Vektor übertragen wird).
+        epsilon = np.full_like(f, float(eps), dtype=float)
+        grad = sp.optimize.approx_fprime(f, _fun, epsilon)
+        return np.asarray(grad, dtype=float).reshape(-1)
+        
     def sample_polyagamma_cond_f(self):
 
         field = self.field_from_f(-self.f)
@@ -116,6 +160,19 @@ class PolyaGammaDensity:
         # self.polya = [ polyagamma( n + k , f) for n, k, f in zip(self.nobs, kk, self.f)]
 
         return 
+
+    def maxposterior_estimate(self):
+        pass      ### TODO implement maximum posterior estimate
+        # """
+        # finds the maximum posterior estimate using optimization
+        # """
+        # result = minimize(
+        #     lambda f: -self.logposterior(f),
+        #     x0=self.prior_mean,
+        #     method='BFGS'
+        #     )
+        # return result.x
+ 
 
     def sample_f_cond_polyagamma(self):
         pass
@@ -127,9 +184,10 @@ class PolyaGammaDensity:
 if __name__ == '__main__':
 
     import syntheticdata as sd
+    from scipy.optimize import minimize
     import matplotlib.pyplot as plt
 
-    n, m = 100, 100
+    n, m = 30, 30
 
     pgd = PolyaGammaDensity(
         prior_mean=np.zeros( n * m ),
@@ -153,6 +211,30 @@ if __name__ == '__main__':
     plt.figure()
     plt.imshow( sd.scanorder_to_image(prior_events, n, m).T)
 
+    pgd.set_data(prior_events)
+
+    grad = pgd.grad_logposterior(prior)
+
+    plt.figure()
+    plt.title("Gradient log-posterior von prior sample")
+    plt.imshow( sd.scanorder_to_image( grad, n, m ).T)
+
+    
+    #%%
+    '''compare with scipy approx
+    vorher logposterior anpassen
+    '''
+
+    #%%
+
+
+
+
+    # grad = pgd.grad_scipy_logposterior(prior)
+
+    # plt.figure()
+    # plt.title("Gradient_scipy1 log-posterior von prior sample")
+    # plt.imshow( sd.scanorder_to_image( grad, n, m ).T)
 
     plt.show()
     
