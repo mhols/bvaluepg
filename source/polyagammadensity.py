@@ -2,6 +2,7 @@ __doc__="a class to use the Polya-Gamma technique for density estimation"
 
 import numpy as np
 import scipy as sp
+import syntheticdata as sd
 #import polyagamma    ### TODO
 
 def sigmoid(f):
@@ -129,7 +130,7 @@ class PolyaGammaDensity:
 
         return -res + tmp
     
-    def max_logposterior_estimator(self, f0=None, eps=1e-6):
+    def max_logposterior_estimator(self, f0=None, niter=10, eps=1e-6):
         """
         Docstring for grad_scipy_logposterior
         
@@ -160,17 +161,16 @@ class PolyaGammaDensity:
 
         if f0 is None:
             f0 = np.log(s / (1-s)) #### TODO use something more reasonable
-            f0 = 0 * f0
 
 
         res = sp.optimize.minimize(
-            self.neg_logposterior, 
-            f0, 
-            jac=self.neg_grad_logposterior, 
-            method='Powell', 
-            #bounds = [ (-5, 5) for i in range(self.nbins) ],
-            options={'maxiter':10000 }) ##computing the minimization using conjugated gradients
-        print (res)
+                self.neg_logposterior, 
+                f0, 
+                jac=self.neg_grad_logposterior, 
+                method='Powell', 
+                #bounds = [ (-5, 5) for i in range(self.nbins) ],
+                options={'maxiter':niter }) ##computing the minimization using conjugated gradients
+         
         return res['x']
         #return np.asarray(grad, dtype=float).reshape(-1)  ## what is this ?
         
@@ -189,6 +189,28 @@ class PolyaGammaDensity:
 
 
 
+class PolyGammaDensity2D(PolyaGammaDensity):
+    """
+    Docstring for PolyGammaDensity2D
+    specialized in 2Dimensional data
+    """
+    def __init__(self, prior_mean, prior_covariance, n, m, lam, **kwargs):
+        super(prior_mean, prior_covariance, lam, **kwargs)
+        self.n, self.m = n, m
+
+    def to_image(self, d):
+        sd.scanorder_to_image(d, self.n, self.m)
+    
+    def imshow(self, d):
+        plt.imshow( sd.scanorder_to_image(d, self.n, self.m).T)
+
+    
+
+    
+
+    
+
+
     
 
 if __name__ == '__main__':
@@ -196,6 +218,7 @@ if __name__ == '__main__':
     import syntheticdata as sd
     from scipy.optimize import minimize
     import matplotlib.pyplot as plt
+
 
     n, m = 20, 20
 
@@ -242,20 +265,20 @@ if __name__ == '__main__':
     #%%
 
 
-
-
     res = pgd.max_logposterior_estimator()
 
-    plt.figure()
-    plt.title("max_posterior estimate")
-    plt.imshow( sd.scanorder_to_image( res, n, m ).T)
+    for i in range(10):
+        plt.figure()
+        plt.title(f"{i}-th max_posterior estimate")
+        plt.imshow( sd.scanorder_to_image( pgd.field_from_f(res), n, m ).T)
+
+        res = pgd.max_logposterior_estimator(res, 50)
 
 
 
     plt.figure()
     plt.title('difference params')
     plt.imshow( sd.scanorder_to_image( res - prior, n, m ).T)
-    print(res - prior) 
 
 
     plt.figure()
