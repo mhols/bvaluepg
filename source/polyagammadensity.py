@@ -227,11 +227,22 @@ if __name__ == '__main__':
     pgd.set_data(events)
     print(np.min(events), np.max(events))
 
-    grad = pgd.neg_grad_logposterior(prior)
+    ##grad = pgd.neg_grad_logposterior(prior)
 
-    plt.figure()
-    plt.title("Gradient log-posterior von prior sample")
-    plt.imshow( sd.scanorder_to_image( grad, n, m ).T)
+    #plt.figure()
+    #plt.title("Gradient log-posterior von prior sample")
+    #plt.imshow( sd.scanorder_to_image( grad, n, m ).T)   ### Gradient ist ein Vektor-feld... imshow????
+
+    
+    #%%
+    '''compare with scipy approx
+    vorher logposterior anpassen
+    '''
+
+    #%%
+
+
+
 
     res = pgd.max_logposterior_estimator()
 
@@ -252,6 +263,3 @@ if __name__ == '__main__':
     plt.imshow( sd.scanorder_to_image( pgd.neg_grad_logposterior(prior), n, m ).T)
 
     plt.show()
-
- 
-    print("done")    
