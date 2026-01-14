@@ -36,7 +36,6 @@ class PolyaGammaDensity:
     @property
     def Lprior(self):
         if self._Lprior is None:
-        if self._Lprior is None:
             self._Lprior = np.linalg.cholesky(self.prior_covariance)
         return self._Lprior
     
@@ -228,30 +227,31 @@ if __name__ == '__main__':
     pgd.set_data(events)
     print(np.min(events), np.max(events))
 
-    # logposterior = pgd.logposterior(prior)
+    grad = pgd.neg_grad_logposterior(prior)
 
-    # grad = pgd.grad_logposterior(prior)
+    plt.figure()
+    plt.title("Gradient log-posterior von prior sample")
+    plt.imshow( sd.scanorder_to_image( grad, n, m ).T)
 
-    # plt.figure()
-    # plt.title("Gradient log-posterior von prior sample")
-    # plt.imshow( sd.scanorder_to_image( grad, n, m ).T)
+    res = pgd.max_logposterior_estimator()
 
-    
-    # #%%
-    # '''compare with scipy approx
-    # vorher logposterior anpassen
-    # '''
-
-    # #%%
+    plt.figure()
+    plt.title("max_posterior estimate")
+    plt.imshow( sd.scanorder_to_image( res, n, m ).T)
 
 
 
+    plt.figure()
+    plt.title('difference params')
+    plt.imshow( sd.scanorder_to_image( res - prior, n, m ).T)
+    print(res - prior) 
 
-    # # grad = pgd.grad_scipy_logposterior(prior)
 
-    # # plt.figure()
-    # # plt.title("Gradient_scipy1 log-posterior von prior sample")
-    # # plt.imshow( sd.scanorder_to_image( grad, n, m ).T)
+    plt.figure()
+    plt.title('gradient')
+    plt.imshow( sd.scanorder_to_image( pgd.neg_grad_logposterior(prior), n, m ).T)
 
-    # plt.show()
-    
+    plt.show()
+
+ 
+    print("done")    

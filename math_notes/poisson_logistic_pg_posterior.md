@@ -1,8 +1,8 @@
 ---
 title: Poisson–Logistic Model with Pólya–Gamma Augmentation
 author: Toni Luhdo
-created: 2026-01-14
-last_modified: 2026-01-14
+created: 2026-01-12
+last_modified: 2026-01-12
 project: BVALUEPG
 description: >
   Herleitung der bedingten Gaußschen A-posteriori-Verteilung für ein Poisson-Logistik-Modell
@@ -295,3 +295,97 @@ h=Qm
 \quad\Rightarrow\quad
 m=Q^{-1}h.
 \]
+
+---
+## Gradient
+### Ableitung Sigmoid
+
+
+Sigmoid-Funktion
+
+\[
+\sigma(x) = \frac{1}{1 + e^{-x}} = (1 + e^{-x})^{-1}.
+\]
+
+---
+Kettenregel
+
+Funktion als Potenz:
+
+\[
+\sigma(x) = (1 + e^{-x})^{-1}.
+\]
+
+Setze:
+
+\[
+u(x) = 1 + e^{-x},
+\qquad
+\sigma(x) = u(x)^{-1}.
+\]
+
+Dann gilt:
+
+\[
+u'(x) = -e^{-x}.
+\]
+
+Ableitung mit der Kettenregel:
+
+\[
+\sigma'(x)
+= -1 \cdot u(x)^{-2} \cdot u'(x)
+= - (1 + e^{-x})^{-2} \cdot (-e^{-x})
+\]
+
+also
+
+\[
+\sigma'(x)
+= \frac{e^{-x}}{(1 + e^{-x})^{2}}.
+\]
+
+Umformung mit der Sigmoid-Funktion
+
+
+\[
+\sigma(x) = \frac{1}{1 + e^{-x}},
+\qquad
+1 - \sigma(x) = \frac{e^{-x}}{1 + e^{-x}}.
+\]
+
+Damit folgt:
+
+\[
+\sigma'(x)
+= \frac{e^{-x}}{1 + e^{-x}} \cdot \frac{1}{1 + e^{-x}}
+= (1 - \sigma(x))\,\sigma(x).
+\]
+
+Symmetrische Darstellung
+
+Es gilt
+
+\[
+1 - \sigma(x) = \sigma(-x),
+\]
+
+DAraus folgt
+
+\[
+\boxed{
+\sigma'(x) = \sigma(x)\,\sigma(-x)
+}
+\]
+
+oder
+\[
+\boxed{
+\sigma'(x) = \sigma(x)\bigl(1 - \sigma(x)\bigr)
+}
+\]
+
+Diese Form ist besonders nützlich in:
+- logistischer Regression
+- Pólya–Gamma-Augmentation
+- Gradienten von Log-Likelihoods
