@@ -269,7 +269,7 @@ if __name__ == '__main__':
 
     for i in range(10):
         plt.figure()
-        plt.title(f"{i}-th max_posterior estimate")
+        plt.title(f"{i}-th max_posterior estimate of field")
         plt.imshow( sd.scanorder_to_image( pgd.field_from_f(res), n, m ).T)
 
         res = pgd.max_logposterior_estimator(res, 50)
