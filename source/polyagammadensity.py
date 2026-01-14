@@ -35,7 +35,7 @@ class PolyaGammaDensity:
 
     @property
     def Lprior(self):
-        if not self._Lprior:
+        if self._Lprior is None:
             self._Lprior = np.linalg.cholesky(self.prior_covariance)
         return self._Lprior
     
@@ -88,7 +88,7 @@ class PolyaGammaDensity:
         
         :param f: the paramters
         """
-        field = self.field_from_f(f)
+        field = self.field_from_f(f) ## self.lam * sigmoid(f)
 
         return np.sum(self.nobs * np.log(field)) - np.sum(field)
     
@@ -99,10 +99,10 @@ class PolyaGammaDensity:
         :param self: Description
         :param f: Description
         """
-        return -self.loglikelihood(f) + np.sum( (np.linalg.solve(self.Lprior, f)**2 / 2))
+        return -self.loglikelihood(f) + np.sum( sp.linalg.solve_triangular(self.Lprior, f, lower=True)**2) / 2
     
     def neg_grad_logposterior(self, f):
-       """
+        """
         Docstring for grad_logposterior
         1. Feld berechnen
         2. Gradient der Log-Likelihood berechnen
@@ -119,38 +119,58 @@ class PolyaGammaDensity:
         langsam, besser mit Cholesky-Faktorisierung in der naechsten Variante
         zum vergleichen
         """
-        res = self.nobs * sigmoid(-f)
-        tmp = np.linalg.solve(self.Lprior, f) ### besser die schon berechneten Choleski Faktoren benutzen
-        tmp = np.linalg.solve(self.Lprior.T, f)
+       
+        sigf = sigmoid(f)
+        sigm = sigmoid(-f)
+
+        res = self.nobs * sigm - self.lam * sigm * sigf
+        tmp = sp.linalg.solve_triangular(self.Lprior, f, lower=False) ### besser die schon berechneten Choleski Faktoren benutzen
+        tmp = sp.linalg.solve_triangular(self.Lprior.T, tmp, lower=True)
 
         return -res + tmp
     
-    def max_logposterior_estimator(self, f, eps=1e-6):
+    def max_logposterior_estimator(self, f0=None, eps=1e-6):
         """
         Docstring for grad_scipy_logposterior
         
         :param self: Description
         :param f: Description
         """
-        f = np.asarray(f, dtype=float)
-        assert f.shape[0] == self.nbins, "falsche dimension for f"
+        #f = np.asarray(f, dtype=float)
+        #assert f.shape[0] == self.nbins, "falsche dimension for f"
 
         # approx_fprime in scipy erwartet scalar function 
 
         ### kann auch direkt self.logposterior sein denke ich
-        def _fun(x):
-            x = np.asarray(x, dtype=float)
-            return float(self.neglogposterior(x))
+        #def _fun(x):
+        #    x = np.asarray(x, dtype=float)
+        #    return float(self.neglogposterior(x))
     
         # Verwendet Schrittweiten pro Koordinate (Skalar eps, der an einen Vektor übertragen wird).
-        epsilon = np.full_like(f, float(eps), dtype=float)
+        #epsilon = np.full_like(f, float(eps), dtype=float)
 
         #### wieso nennst Du das Ergebnis grad ???
 
         #grad = sp.optimize.approx_fprime(f, _fun, epsilon)
 
-        f0 = f  #### TODO use something more reasonable
-        res = sp.optimize.minimize(self.neg_logposterior, f0, jac=self.neg_grad_logposterior, method='CG') ##computing the minimization using conjugated gradients
+
+        s = (self.nobs-np.sqrt(self.nobs)) / self.lam
+        s = np.where(s>=1, 0.9, s)
+        s = np.where(s<=0, 0.1, s)
+
+        if f0 is None:
+            f0 = np.log(s / (1-s)) #### TODO use something more reasonable
+            f0 = 0 * f0
+
+
+        res = sp.optimize.minimize(
+            self.neg_logposterior, 
+            f0, 
+            jac=self.neg_grad_logposterior, 
+            method='Powell', 
+            #bounds = [ (-5, 5) for i in range(self.nbins) ],
+            options={'maxiter':10000 }) ##computing the minimization using conjugated gradients
+        print (res)
         return res['x']
         #return np.asarray(grad, dtype=float).reshape(-1)  ## what is this ?
         
@@ -177,7 +197,7 @@ if __name__ == '__main__':
     from scipy.optimize import minimize
     import matplotlib.pyplot as plt
 
-    n, m = 30, 30
+    n, m = 20, 20
 
     pgd = PolyaGammaDensity(
         prior_mean=np.zeros( n * m ),
@@ -188,26 +208,30 @@ if __name__ == '__main__':
     prior = pgd.random_prior_prameters()
 
     plt.figure()
+    plt.title('prior parameter f')
     plt.imshow( sd.scanorder_to_image( prior, n, m ).T)
 
 
     prior_field = pgd.field_from_f(prior)
 
     plt.figure()
+    plt.title('frequency field')
     plt.imshow( sd.scanorder_to_image(prior_field, n, m).T)
 
 
-    prior_events = pgd.random_events_from_field(prior_field)
+    events = pgd.random_events_from_field(prior_field)
     plt.figure()
-    plt.imshow( sd.scanorder_to_image(prior_events, n, m).T)
+    plt.title('random events')
+    plt.imshow( sd.scanorder_to_image(events, n, m).T)
 
-    pgd.set_data(prior_events)
+    pgd.set_data(events)
+    print(np.min(events), np.max(events))
 
-    grad = pgd.neg_grad_logposterior(prior)
+    ##grad = pgd.neg_grad_logposterior(prior)
 
-    plt.figure()
-    plt.title("Gradient log-posterior von prior sample")
-    plt.imshow( sd.scanorder_to_image( grad, n, m ).T)   ### Gradient ist ein Vektor-feld... imshow????
+    #plt.figure()
+    #plt.title("Gradient log-posterior von prior sample")
+    #plt.imshow( sd.scanorder_to_image( grad, n, m ).T)   ### Gradient ist ein Vektor-feld... imshow????
 
     
     #%%
@@ -220,12 +244,22 @@ if __name__ == '__main__':
 
 
 
-    # grad = pgd.grad_scipy_logposterior(prior)
+    res = pgd.max_logposterior_estimator()
 
-    # plt.figure()
-    # plt.title("Gradient_scipy1 log-posterior von prior sample")
-    # plt.imshow( sd.scanorder_to_image( grad, n, m ).T)
+    plt.figure()
+    plt.title("max_posterior estimate")
+    plt.imshow( sd.scanorder_to_image( res, n, m ).T)
+
+
+
+    plt.figure()
+    plt.title('difference params')
+    plt.imshow( sd.scanorder_to_image( res - prior, n, m ).T)
+    print(res - prior) 
+
+
+    plt.figure()
+    plt.title('gradient')
+    plt.imshow( sd.scanorder_to_image( pgd.neg_grad_logposterior(prior), n, m ).T)
 
     plt.show()
-    
-
