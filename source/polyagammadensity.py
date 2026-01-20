@@ -62,7 +62,7 @@ class PolyaGammaDensity:
     def random_events_from_f(self, f):
         return self.random_events_from_field(self.field_from_f(f))
 
-    def random_prior_prameters(self):
+    def random_prior_parameters(self):
         """
         generates a random sample
         """
@@ -74,7 +74,7 @@ class PolyaGammaDensity:
         """
         a random realization of the underlying poissonian density in each bin
         """
-        return self.field_from_f(self.random_prior_prameters())
+        return self.field_from_f(self.random_prior_parameters())
     
     def random_prior_events(self):
         """

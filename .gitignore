@@ -1,3 +1,19 @@
-.DS_Store .vscode/settings.json __pycache__
-__pycache__
-venv
+# macOS / editor
+.DS_Store
+.vscode/settings.json
+
+# Python
+__pycache__/
+venv/
+
+# LaTeX (minimal essentials)
+*.pdf
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.synctex(busy)
+*.fls
+*.fdb_latexmk
+_minted*/

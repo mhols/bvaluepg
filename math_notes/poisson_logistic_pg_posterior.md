@@ -208,7 +208,7 @@ Dann
 
 Da \(Q\) symmetrisch und (typisch) positiv definit ist, ist das eine Gauß-Form.
 
-### Gradient-Schritt (wie notiert)
+### Gradient-Schritt
 
 Für symmetrisches \(Q\):
 
