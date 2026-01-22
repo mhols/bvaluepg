@@ -19,7 +19,7 @@ f_true = pgd.random_prior_parameters()
 events = pgd.random_events_from_f(f_true)
 pgd.set_data(events)
 
-# A) inverse crime (quick sanity check)
+# A) inverse crime (start at prior mean)
 # f0_prior = pgd.prior_mean.copy()
 f0_prior = pgd.prior_mean + 0.1*np.random.normal(size=n*m)
 
