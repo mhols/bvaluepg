@@ -45,18 +45,20 @@ for name, f0 in {
     "filtered": f0_filtered
 }.items():
 
-    f_map = pgd.max_logposterior_estimator(f0, niter=50)
+    f_map = pgd.max_logposterior_estimator(f0, niter=100)
 
     # compute gradient at MAP (sollte nahe 0 sein)
     grad_map = pgd.neg_grad_logposterior(f_map)
     plt.figure()
     plt.title(f"Gradient at MAP estimate ({name})")
     plt.imshow(sd.scanorder_to_image(np.abs(grad_map), n, m).T)
+    plt.colorbar()
 
 
     plt.figure()
     plt.title(f"MAP estimate ({name})")
     plt.imshow(sd.scanorder_to_image(pgd.field_from_f(f_map), n, m).T)
+    plt.colorbar()
 
 # schauen wir uns mal die wahren values an
 field_true = pgd.field_from_f(f_true)
