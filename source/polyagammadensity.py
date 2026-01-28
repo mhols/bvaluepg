@@ -228,7 +228,7 @@ if __name__ == '__main__':
         lam=10
     )
 
-    prior = pgd.random_prior_prameters()
+    prior = pgd.random_prior_parameters()
 
     plt.figure()
     plt.title('prior parameter f')
