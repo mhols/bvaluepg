@@ -100,7 +100,7 @@ class PolyaGammaDensity:
         :param self: Description
         :param f: Description
         """
-        return -self.loglikelihood(f) + np.sum( sp.linalg.solve_triangular(self.Lprior, f, lower=True)**2) / 2
+        return -self.loglikelihood(f) + np.sum( sp.linalg.solve_triangular(self.Lprior, f-self.prior_mean, lower=True)**2) / 2
     
     def neg_grad_logposterior(self, f):
         """
