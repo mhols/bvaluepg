@@ -11,7 +11,7 @@ solvers.options["show_progress"] = False
 # Model: softplus + Poisson
 # =========================
 def softplus(t):
-    return np.log1p(np.exp(-np.abs(t))) + np.maximum(t, 0.0)
+    return np.log1p(np.exp(-np.abs(t))) + np.maximum(t, 0.0) ### very good we should use log1p in all our codes...
 
 def poisson_like_unnormalized(t, n):
     lam = softplus(t)

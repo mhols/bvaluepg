@@ -158,7 +158,7 @@ def main():
     # Run Gibbs sampler
     n_iter = 200  
     burn_in = 100
-    thin = 1
+    thin = 10
     samples = gibbs_sampler(
         pgd,
         n_iter=n_iter,
@@ -187,13 +187,19 @@ def main():
     plt.imshow(sd.scanorder_to_image(field_est, n, m).T)
     plt.colorbar()
     plt.tight_layout()
-    plt.show()
+    #plt.show()
 
     print("Gibbs sampling done.")
+
+    for sample in samples:
+        plt.figure()
+        plt.imshow(sd.scanorder_to_image(pgd.field_from_f(sample), n, m).T)
+    
+    plt.show()
 
 
 if __name__ == "__main__":
     main()
 
 
-https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.solve_triangular.html
+# https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.solve_triangular.html

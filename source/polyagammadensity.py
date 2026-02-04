@@ -256,9 +256,9 @@ class SigmoidMixin:
     def lam(self):
         return self.kwargs['lam']
 
-    def field_from_f(self, f):
-
-        return self.lam * sigmoid(f)
+    #def field_from_f(self, f):
+    #
+    #    return self.lam * sigmoid(f)
     
     def derivative_field_from_f(self, f):
         return self.lam * sigmoid(f) * sigmoid(-f)
@@ -392,14 +392,14 @@ if __name__ == '__main__':
 
     n, m = 20, 20
 
-    pm = 20
-    lam = 100   ## then mean(n) = lam/2
-    gam = 25 #16 * 20**2 / lam**2
-    rho = 2
+    pm = 1
+    lam = 10   ## then mean(n) = lam/2
+    gam = 1 #16 * 20**2 / lam**2
+    rho = 3
     
-    #DensityClass = PolyaGammaDensity2D ##RampDensity
+    DensityClass = PolyaGammaDensity2D ##RampDensity
 
-    DensityClass = RampDensity2D
+    #DensityClass = RampDensity2D
 
     pgd = DensityClass(
         prior_mean = pm * np.ones( n * m),
