@@ -2,7 +2,10 @@ __doc__="a class to use the Polya-Gamma technique for density estimation"
 
 import numpy as np
 import scipy as sp
+import scipy.linalg.blas as blas
 import syntheticdata as sd
+import matplotlib.pyplot as plt
+
 #import polyagamma    ### TODO
 
 def sigmoid(f):
@@ -11,13 +14,13 @@ def sigmoid(f):
 def der_sigmoid(f):
     return sigmoid(f)*sigmoid(-f)
 
-class PolyaGammaDensity:
 
-    def __init__(self, prior_mean, prior_covariance, lam, **kwargs):
+class Density:
+
+    def __init__(self, prior_mean, prior_covariance, **kwargs):
 
         self.prior_mean = prior_mean
         self.prior_covariance = prior_covariance
-        self.lam = lam
 
         self.kwargs = kwargs
 
@@ -37,16 +40,13 @@ class PolyaGammaDensity:
     @property
     def Lprior(self):
         if self._Lprior is None:
-            self._Lprior = np.linalg.cholesky(self.prior_covariance)
+            self._Lprior = sp.linalg.cholesky(self.prior_covariance, lower=True)
         return self._Lprior
     
     @property
     def nbins(self):
         return self.prior_mean.shape[0]
     
-    def field_from_f(self, f):
-        return self.lam * sigmoid(f)
-
     def random_events_from_field(self, field):
         """
         samples events from probability field
@@ -58,7 +58,36 @@ class PolyaGammaDensity:
         assert np.all( field >= 0 )
 
         return np.array( [np.random.poisson(l) for l in field] )
-                    
+
+    
+    def field_from_f(self, f):
+        """
+        the model that maps f to a Poissonian frequency field
+        Must be overwritten by a Mixin
+
+         
+        :param self: Description
+        :param f: Description
+        """
+        return f
+
+    def f_from_field(self, field):
+        """
+        needs to be owerwritten by a mixin.
+        Yields the inverse of the field_from_f
+        
+        :param self: Description
+        :param f: Description
+        """
+        return field
+    
+    def density_under_gaussian(self, field, mu, gamma2):
+        tmp = (self.f_from_field(field) - mu)**2/(2*gamma2)
+        tmp = np.exp(-tmp)
+        tmp /= np.abs(self.derivative_field_from_f(self.f_from_field(field)))
+
+        return tmp / np.sum(tmp)
+
     def random_events_from_f(self, f):
         return self.random_events_from_field(self.field_from_f(f))
 
@@ -82,7 +111,7 @@ class PolyaGammaDensity:
         """
 
         return self.random_events_from_field(self.random_prior_field())
-   
+    
     def loglikelihood(self, f):
         """
         returns the non-normalized log loglikelihood
@@ -100,8 +129,10 @@ class PolyaGammaDensity:
         :param self: Description
         :param f: Description
         """
-        return -self.loglikelihood(f) + np.sum( sp.linalg.solve_triangular(self.Lprior, f-self.prior_mean, lower=True)**2) / 2
-    
+        return -self.loglikelihood(f) + np.sum( 
+            sp.linalg.solve_triangular(
+                self.Lprior, f-self.prior_mean, trans=False, lower=True)**2) / 2
+ 
     def neg_grad_logposterior(self, f):
         """
         Docstring for grad_logposterior
@@ -121,16 +152,65 @@ class PolyaGammaDensity:
         zum vergleichen
         """
        
-        sigf = sigmoid(f)
-        sigm = sigmoid(-f)
-
-        res = self.nobs * sigm - self.lam * sigm * sigf
-        tmp = sp.linalg.solve_triangular(self.Lprior, f, lower=False) ### besser die schon berechneten Choleski Faktoren benutzen
-        tmp = sp.linalg.solve_triangular(self.Lprior.T, tmp, lower=True)
+        res = self.nobs * self.derivative_log_field_from_f(f) - self.derivative_field_from_f(f)
+        tmp = sp.linalg.solve_triangular(self.Lprior, f-self.prior_mean, trans=False, lower=True) ### besser die schon berechneten Choleski Faktoren benutzen
+        tmp = sp.linalg.solve_triangular(self.Lprior, tmp, trans=True, lower=True)
 
         return -res + tmp
     
-    def max_logposterior_estimator(self, f0=None, niter=10, eps=1e-6):
+    def first_guess_estimator(self, f=None, s2=None):
+        """
+        Uses a Gaussian approximation of the pixelwise f to obtain a first  
+        guess for f
+
+
+        :param self: Description
+        :param fmean: Description
+        :param fsigma: Description
+        """
+
+        """
+        if Guassian pixelwise proxy is given, use a baseline Poisson based proxy
+        """
+
+        if f is None:
+            f = self.f_from_field(np.clip(self.nobs, 1, None))
+
+        if s2 is None:
+            s2 = f / self.derivative_field_from_f(f)**2
+
+        """
+        D = diag(s2), G = self.prior_covariance, mu = self.priori_mean 
+
+        compute
+
+        tmp = D^{-1} f + G^{-1} mu
+        """
+        tmp = sp.linalg.solve_triangular(
+            self.Lprior, self.prior_mean, lower=True, trans=False)
+        tmp = sp.linalg.solve_triangular(self.Lprior, tmp, lower=True, trans=True)
+
+        tmp += f/s2
+
+        """
+        compute (D^{-1} + G^{-1})^{-1} tmp
+        using equivalent expression
+
+        L ( L^{T} D^{-1} L + Id )^{-1} L^T tmp
+        
+        """
+
+        ### TODO: replace by blas low lewel methods for matrix multiplication
+        T = np.dot( self.Lprior.T , 1/s2[:, None] * self.Lprior)
+        np.fill_diagonal(T, np.diagonal(T) + 1)
+        tmp = np.dot(self.Lprior.T, tmp)
+        tmp = np.linalg.solve(T, tmp)  ## TODO use the fact that T.T = T
+        tmp = np.dot(self.Lprior, tmp)
+
+        return tmp
+    
+    
+    def max_logposterior_estimator(self, f0=None, method='Powell', niter=10, eps=1e-6):
         """
         Docstring for grad_scipy_logposterior
         
@@ -155,25 +235,93 @@ class PolyaGammaDensity:
         #grad = sp.optimize.approx_fprime(f, _fun, epsilon)
 
 
-        s = (self.nobs-np.sqrt(self.nobs)) / self.lam
-        s = np.where(s>=1, 0.9, s)
-        s = np.where(s<=0, 0.1, s)
-
         if f0 is None:
-            f0 = np.log(s / (1-s)) #### TODO use something more reasonable
-
+            f0 = self.first_guess_estimator()
 
         res = sp.optimize.minimize(
                 self.neg_logposterior, 
                 f0, 
                 jac=self.neg_grad_logposterior, 
-                method='Powell', 
+                method=method,
                 #bounds = [ (-5, 5) for i in range(self.nbins) ],
-                options={'maxiter':niter }) ##computing the minimization using conjugated gradients
-         
+                options={'maxiter':niter }) 
+
+        print(res) 
         return res['x']
         #return np.asarray(grad, dtype=float).reshape(-1)  ## what is this ?
+
+class SigmoidMixin:
+
+    @property
+    def lam(self):
+        return self.kwargs['lam']
+
+    def field_from_f(self, f):
+
+        return self.lam * sigmoid(f)
+    
+    def derivative_field_from_f(self, f):
+        return self.lam * sigmoid(f) * sigmoid(-f)
+    
+    def derivative_log_field_from_f(self, f):
+        return sigmoid(-f) 
+       
+    def sample_polyagamma_cond_f(self):
+
+        field = self.field_from_f(-self.f)
+        kk = self.random_events_from_field(field)  ### the random events k given f
+    
+    def field_from_f(self, f):
+
+        return self.lam * sigmoid(f)
+    
+    def f_from_field(self, field):
+        s = field / self.lam
+        return np.log(s / (1-s))
+    
+    def derivative_field_from_f(self, f):
+        return self.lam * sigmoid(f) * sigmoid(-f)
+    
+    def derivative_log_field_from_f(self, f):
+        return sigmoid(-f) 
+ 
         
+    def first_guess_estimator(self):
+        
+        f = self.nobs / self.lam
+
+        f = np.clip(f, 0.001, 0.999)
+ 
+
+        return super().first_guess_estimator( f, self.nobs * sigmoid(-f)) 
+        
+
+
+    def sample_f_cond_polyagamma(self):
+        pass
+
+
+class SmoothRampMixin:
+
+
+    def field_from_f(self, f):
+
+        return np.log(1+np.exp(f))
+    
+    def f_from_field(self, field):
+        return np.log(np.exp(field) - 1) 
+                    
+    def derivative_field_from_f(self, f):
+        return sigmoid(f) 
+    
+    def derivative_log_field_from_f(self, f):
+        return sigmoid(f) / self.field_from_f(f) 
+       
+    def first_guess_estimator(self):
+        f = np.clip(self.nobs, 1, None)
+        s2 = f * (1-np.exp(-f))**2
+        return super().first_guess_estimator(f, s2)
+      
     def sample_polyagamma_cond_f(self):
 
         field = self.field_from_f(-self.f)
@@ -188,15 +336,24 @@ class PolyaGammaDensity:
         pass
 
 
+class PolyaGammaDensity(SigmoidMixin, Density):
 
-class PolyGammaDensity2D(PolyaGammaDensity):
-    """
-    Docstring for PolyGammaDensity2D
-    specialized in 2Dimensional data
-    """
-    def __init__(self, prior_mean, prior_covariance, n, m, lam, **kwargs):
-        super(prior_mean, prior_covariance, lam, **kwargs)
-        self.n, self.m = n, m
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+
+class RampDensity(SmoothRampMixin, Density):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+class Mixin2D:
+
+    def __init__(self, **kwargs):
+        self.n = kwargs['n']
+        self.m = kwargs['m']
+
+        assert self.n * self.m == kwargs['prior_mean'].shape[0], "wrong dimension n, m"
+        return super().__init__(**kwargs)
 
     def to_image(self, d):
         sd.scanorder_to_image(d, self.n, self.m)
@@ -204,7 +361,20 @@ class PolyGammaDensity2D(PolyaGammaDensity):
     def imshow(self, d):
         plt.imshow( sd.scanorder_to_image(d, self.n, self.m).T)
 
-    
+
+
+class PolyaGammaDensity2D(Mixin2D, PolyaGammaDensity):
+    """
+    Docstring for PolyGammaDensity2D
+    specialized in 2Dimensional data
+    """
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+   
+class RampDensity2D(Mixin2D, RampDensity):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     
 
@@ -222,17 +392,35 @@ if __name__ == '__main__':
 
     n, m = 20, 20
 
-    pgd = PolyaGammaDensity(
-        prior_mean=np.zeros( n * m ),
-        prior_covariance=sd.spatial_covariance_gaussian(n, m, 3, 1),
-        lam=10
+    pm = 20
+    lam = 100   ## then mean(n) = lam/2
+    gam = 25 #16 * 20**2 / lam**2
+    rho = 2
+    
+    #DensityClass = PolyaGammaDensity2D ##RampDensity
+
+    DensityClass = RampDensity2D
+
+    pgd = DensityClass(
+        prior_mean = pm * np.ones( n * m),
+        prior_covariance=sd.spatial_covariance_gaussian(n, m, rho, gam),
+        lam=lam,
+        n=n,
+        m=m
     )
+
+    plt.figure()
+    plt.title('density of distribution of field')
+    ff = np.linspace(0, lam, 1000)[1:-1]
+    plt.plot( ff, pgd.density_under_gaussian(ff, pm, gam))
+    plt.show()
 
     prior = pgd.random_prior_parameters()
 
     plt.figure()
     plt.title('prior parameter f')
     plt.imshow( sd.scanorder_to_image( prior, n, m ).T)
+
 
 
     prior_field = pgd.field_from_f(prior)
@@ -250,39 +438,51 @@ if __name__ == '__main__':
     pgd.set_data(events)
     print(np.min(events), np.max(events))
 
-    ##grad = pgd.neg_grad_logposterior(prior)
+    
 
-    #plt.figure()
-    #plt.title("Gradient log-posterior von prior sample")
-    #plt.imshow( sd.scanorder_to_image( grad, n, m ).T)   ### Gradient ist ein Vektor-feld... imshow????
+    plt.figure()
+    plt.title('first guess')
+    fg = pgd.first_guess_estimator()
+    pgd.imshow(fg)
+
+    grad = pgd.neg_grad_logposterior(prior)
+
+    plt.figure()
+    plt.title("Gradient log-posterior von prior sample")
+    plt.imshow( sd.scanorder_to_image( grad, n, m ).T)  
 
     
     #%%
     '''compare with scipy approx
     vorher logposterior anpassen
     '''
-
     #%%
 
 
-    res = pgd.max_logposterior_estimator()
+    #res = pgd.max_logposterior_estimator()
 
-    for i in range(10):
-        plt.figure()
-        plt.title(f"{i}-th max_posterior estimate of field")
-        plt.imshow( sd.scanorder_to_image( pgd.field_from_f(res), n, m ).T)
+    res = pgd.max_logposterior_estimator(fg, method='CG', niter=8000)
+    
+    plt.figure()
+    plt.title(f"max_posterior estimate of field")
+    plt.imshow( sd.scanorder_to_image( pgd.field_from_f(res), n, m ).T)
 
-        res = pgd.max_logposterior_estimator(res, 50)
+    #res = pgd.max_logposterior_estimator(res, niter=100, method='CG')
+
+    #plt.figure()
+    #plt.title("additional CG step for max_posterior estimate of field")
+    #plt.imshow( sd.scanorder_to_image( pgd.field_from_f(res), n, m ).T)
+
 
 
 
     plt.figure()
-    plt.title('difference params')
-    plt.imshow( sd.scanorder_to_image( res - prior, n, m ).T)
+    plt.title('relative error params')
+    plt.imshow( sd.scanorder_to_image( (res/prior -1)*100, n, m ).T)
 
 
     plt.figure()
     plt.title('gradient')
-    plt.imshow( sd.scanorder_to_image( pgd.neg_grad_logposterior(prior), n, m ).T)
+    plt.imshow( sd.scanorder_to_image( pgd.neg_grad_logposterior(res), n, m ).T)
 
     plt.show()

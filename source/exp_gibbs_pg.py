@@ -71,3 +71,6 @@ for t in range(n_iter):
         samples_f.append(f.copy())
 
 print("done")
+
+
+https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.solve_triangular.html
