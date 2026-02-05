@@ -31,6 +31,15 @@ def gaussian_pdf(x, mean, sigma):
 def design_matrix(t_grid, means, sigma):
     return gaussian_pdf(t_grid[:, None], means[None, :], sigma)
 
+def get_Phi_cached(t, means, sigma, cache):
+    """
+    Cache Phi by sigma so we don't rebuild it if multiple n share the same sigma.
+    """
+
+    if sigma not in cache:
+        cache[sigma] = design_matrix(t, means, sigma)
+    return cache[sigma]
+
 # =========================
 # Metrics
 # =========================
@@ -197,11 +206,11 @@ def plot_fits(t, y, fits_dict, n, sigma, out_dir="plots", show=True):
     for obj, yhat in fits_dict.items():
         plt.plot(t, yhat, linestyle="--", linewidth=1.5, label=obj)
 
-    plt.title(f"Likelihood approximation (sigma={sigma}) for n={n}")
+    plt.title(f"Likelihood approximation (sigma={sigma_n}) for n={n}")
     plt.legend(ncol=2, fontsize=9)
     plt.tight_layout()
 
-    fname = os.path.join(out_dir, f"fits_sigma{sigma}_n{n}.png")
+    fname = os.path.join(out_dir, f"fits_sigma{sigma_n}_n{n}.png")
     plt.savefig(fname, dpi=180)
     if show:
         plt.show()
@@ -215,8 +224,7 @@ def plot_fits(t, y, fits_dict, n, sigma, out_dir="plots", show=True):
 if __name__ == "__main__":
     # Config
     t = np.linspace(-10, 50, 1000)
-    means = np.linspace(-10, 50, 150)
-    sigma = 0.5
+    means = np.linspace(-20, 50, 150)
     n_values = list(range(20))
     normalize_target = True
 
@@ -232,8 +240,15 @@ if __name__ == "__main__":
     plot_ns = [0, 3, 9, 15, 19]
     include_L1_in_plots = True
 
-    # Precompute dictionary
-    Phi = design_matrix(t, means, sigma)
+    # Start with a default and override any n.
+    sigma_of_n = {n: 1.0 for n in n_values}
+    sigma_of_n[0] = 2.0
+    # sigma_of_n[1] = 1.2
+    # sigma_of_n[2] = 1.4
+    # sigma_of_n[3] = 1.6
+
+   # Cache Phi per sigma
+    Phi_cache = {}
 
     # Run
     summary = {obj: {"rmse": [], "tv": [], "max_abs": [], "effK": [], "time": []} for obj in objectives}
@@ -241,7 +256,15 @@ if __name__ == "__main__":
     # Also store fits for plotting for selected n
     fits_for_plot = {n: {} for n in plot_ns}
 
+    sigmas_used = []
+
     for n in n_values:
+
+        sigma_n = float(sigma_of_n[n])
+        sigmas_used.append(sigma_n)
+
+        Phi = get_Phi_cached(t, means, sigma_n, Phi_cache)
+
         y_raw = poisson_like_unnormalized(t, n)
         y = normalize_on_grid(y_raw) if normalize_target else y_raw
 
@@ -271,19 +294,19 @@ if __name__ == "__main__":
 
     # Print once, cleanly
     rows = summarize(summary, objectives)
-    title = f"Objective comparison | sigma={sigma} | normalize_target={normalize_target}"
+    title = f"Objective comparison | sigma={sigma_n} | normalize_target={normalize_target}"
     meta = f"n_values={n_values} | means={len(means)} | grid={len(t)} | rel_eps={rel_eps}"
     print_table(rows, title=title, meta=meta, sort_by="meanTV")
 
     print_effk_by_n(summary, objectives, n_values)
 
     # Save CSV
-    save_csv(rows, path=os.path.join("results", f"objective_summary_sigma{sigma}.csv"))
+    save_csv(rows, path=os.path.join("results", f"objective_summary_sigma{sigma_n}.csv"))
 
     # Plots
     if do_plots:
         for n in plot_ns:
             y_raw = poisson_like_unnormalized(t, n)
             y = normalize_on_grid(y_raw) if normalize_target else y_raw
-            saved = plot_fits(t, y, fits_for_plot[n], n=n, sigma=sigma, out_dir="plots", show=True)
+            saved = plot_fits(t, y, fits_for_plot[n], n=n, sigma=sigma_n, out_dir="plots", show=True)
             print(f"Saved plot: {saved}")
