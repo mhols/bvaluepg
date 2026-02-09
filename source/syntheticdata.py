@@ -22,11 +22,11 @@ def spatial_covariance_gaussian(n, m, rho, v2):
     :param v: autocorrelation at origin (i.e. the "amplitude")
     """
 
-    x, y = np.meshgrid( np.arange(n), np.arange(m))
+    x, y = np.meshgrid( np.arange(m), np.arange(n))
     x = image_to_scanorder(x)
     y = image_to_scanorder(y)
 
-    d2 = ( (x[:, None] - x[None, :])**2  + (y[:,None] - y[None, :])**2)
+    d2 = ( (y[:, None] - y[None, :])**2  + (x[:,None] - x[None, :])**2)
 
     return v2 * np.exp(-d2/(2 * rho**2))  + 0.000001 * v2 * np.identity(n*m)
 

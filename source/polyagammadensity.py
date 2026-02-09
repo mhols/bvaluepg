@@ -359,7 +359,7 @@ class Mixin2D:
         sd.scanorder_to_image(d, self.n, self.m)
     
     def imshow(self, d):
-        plt.imshow( sd.scanorder_to_image(d, self.n, self.m).T)
+        plt.imshow( sd.scanorder_to_image(d, self.n, self.m))
 
 
 

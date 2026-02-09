@@ -215,8 +215,8 @@ def plot_fits(t, y, fits_dict, n, sigma, out_dir="plots", show=True):
 if __name__ == "__main__":
     # Config
     t = np.linspace(-10, 50, 1000)
-    means = np.linspace(-10, 50, 150)
-    sigma = 0.5
+    means = np.linspace(-15, 50, 150)
+    sigma = 2
     n_values = list(range(20))
     normalize_target = True
 
