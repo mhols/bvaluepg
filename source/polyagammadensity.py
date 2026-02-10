@@ -306,7 +306,7 @@ class SmoothRampMixin:
 
     def field_from_f(self, f):
 
-        return np.log(1+np.exp(f))
+        return np.log1p(np.exp(-np.abs(f))) + np.maximum(f, 0.0)
     
     def f_from_field(self, field):
         return np.log(np.exp(field) - 1) 
