@@ -40,11 +40,6 @@ class Density:
         assert len(nobs) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
         self.nobs = nobs
 
-    @property
-    def Lprior(self):
-        if self._Lprior is None:
-            self._Lprior = sp.linalg.cholesky(self.prior_covariance, lower=True)
-        return self._Lprior
     
     @property
     def nbins(self):
@@ -308,7 +303,12 @@ class SmoothRampMixin:
 
 
     def field_from_f(self, f):
+<<<<<<< HEAD
         return softplus(f)
+=======
+
+        return np.log1p(np.exp(-np.abs(f))) + np.maximum(f, 0.0)
+>>>>>>> 208587a4dcb64ad252313e2cb0f881bb3301e8cd
     
     def f_from_field(self, field):
         return np.log(np.exp(field) - 1) 
