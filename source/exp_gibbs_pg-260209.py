@@ -42,6 +42,15 @@ def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
 
     return random_polyagamma(h=b, z=c, method="saddle")
 
+# Idee Sigma0_inv_dot(v) mit L =pdg.Lprior
+def sigma0_inv_dot(v, L):
+    """Berechne Sigma0^{-1} @ v unter Verwendung der Cholesky-Zerlegung L von Sigma0."""
+    # Rechne L @ y = v
+    y = spla.solve_triangular(L, v, lower=True)
+    # Rechne L.T @ x = y
+    x = spla.solve_triangular(L, y, lower=False)
+    return x
+
 
 def gibbs_sampler(
     pgd: PolyaGammaDensity,
@@ -83,7 +92,15 @@ def gibbs_sampler(
     Sigma0 = pgd.prior_covariance
     mu0 = pgd.prior_mean
     # Precompute the inverse once (symmetric, positive definite)
-    Sigma0_inv = np.linalg.inv(Sigma0)
+    # Sigma0_inv = np.linalg.inv(Sigma0)
+    L = pgd.Lprior
+    I = np.eye(pgd.nbins)
+
+    X = spla.solve_triangular(L, I, lower=True)         # X = L^{-1}
+    Sigma0_inv = spla.solve_triangular(L.T, X, lower=False)  # (L^T)^{-1} @ L^{-1}
+
+
+
     Sigma0_inv_mu0 = Sigma0_inv @ mu0
 
     # Initialiesieren
@@ -141,6 +158,11 @@ def gibbs_sampler(
 
 
 def main():
+
+    # brauch ich zum debuggen, damit ich von außerhalb der Funktion auf die Variablen zugreifen kann
+    # wandern spaeter ins Returnn der Funktion main() oder in eine neue Funktion, die die Ergebnisse zurückgibt
+    # global samples, f_est, field_est, events, f_true
+
     # --- setup ---
     n, m = 20, 20
     lam = 10
@@ -197,9 +219,9 @@ def main():
     
     plt.show()
 
+    return samples, f_est, field_est, events, f_true
 
 if __name__ == "__main__":
-    main()
-
+    samples, f_est, field_est, events, f_true = main()
 
 #https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.solve_triangular.html
