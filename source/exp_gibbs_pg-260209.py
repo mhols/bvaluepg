@@ -42,14 +42,14 @@ def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
 
     return random_polyagamma(h=b, z=c, method="saddle")
 
-# Idee Sigma0_inv_dot(v) mit L =pdg.Lprior
-def sigma0_inv_dot(v, L):
-    """Berechne Sigma0^{-1} @ v unter Verwendung der Cholesky-Zerlegung L von Sigma0."""
-    # Rechne L @ y = v
-    y = spla.solve_triangular(L, v, lower=True)
-    # Rechne L.T @ x = y
-    x = spla.solve_triangular(L, y, lower=False)
-    return x
+# # Idee Sigma0_inv_dot(v) mit L =pdg.Lprior
+# def sigma0_inv_dot(v, L):
+#     """Berechne Sigma0^{-1} @ v unter Verwendung der Cholesky-Zerlegung L von Sigma0."""
+#     # Rechne L @ y = v
+#     y = spla.solve_triangular(L, v, lower=True)
+#     # Rechne L.T @ x = y
+#     x = spla.solve_triangular(L, y, lower=False)
+#     return x
 
 
 def gibbs_sampler(
@@ -93,7 +93,7 @@ def gibbs_sampler(
     mu0 = pgd.prior_mean
     # Precompute the inverse once (symmetric, positive definite)
     # Sigma0_inv = np.linalg.inv(Sigma0)
-    L = pgd.Lprior
+    L = pgd._Lprior
     I = np.eye(pgd.nbins)
 
     X = spla.solve_triangular(L, I, lower=True)         # X = L^{-1}

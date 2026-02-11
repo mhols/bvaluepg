@@ -39,8 +39,12 @@ class Density:
         """
         assert len(nobs) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
         self.nobs = nobs
+    @property
+    def Lprior(self):
+        if self._Lprior is None:
+            self._Lprior = sp.linalg.cholesky(self.prior_covariance, lower=True)
+        return self._Lprior
 
-    
     @property
     def nbins(self):
         return self.prior_mean.shape[0]
