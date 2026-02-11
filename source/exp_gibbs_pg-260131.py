@@ -202,4 +202,4 @@ if __name__ == "__main__":
     main()
 
 
-# https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.solve_triangular.html
+#https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.solve_triangular.html
