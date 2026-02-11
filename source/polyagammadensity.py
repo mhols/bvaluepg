@@ -14,6 +14,9 @@ def sigmoid(f):
 def der_sigmoid(f):
     return sigmoid(f)*sigmoid(-f)
 
+def softplus(t):
+    return np.log1p(np.exp(-np.abs(t))) + np.maximum(t, 0.0) 
+
 
 class Density:
 
@@ -305,8 +308,7 @@ class SmoothRampMixin:
 
 
     def field_from_f(self, f):
-
-        return np.log(1+np.exp(f))
+        return softplus(f)
     
     def f_from_field(self, field):
         return np.log(np.exp(field) - 1) 
@@ -392,14 +394,14 @@ if __name__ == '__main__':
 
     n, m = 20, 20
 
-    pm = 1
-    lam = 10   ## then mean(n) = lam/2
-    gam = 1 #16 * 20**2 / lam**2
+    pm = 5
+    lam = 20   ## then mean(n) = lam/2
+    gam = 5 #16 * 20**2 / lam**2
     rho = 3
     
-    DensityClass = PolyaGammaDensity2D ##RampDensity
+    #DensityClass = PolyaGammaDensity2D ##RampDensity
 
-    #DensityClass = RampDensity2D
+    DensityClass = RampDensity2D
 
     pgd = DensityClass(
         prior_mean = pm * np.ones( n * m),
