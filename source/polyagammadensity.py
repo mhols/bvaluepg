@@ -39,6 +39,7 @@ class Density:
         """
         assert len(nobs) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
         self.nobs = nobs
+    
     @property
     def Lprior(self):
         if self._Lprior is None:
@@ -84,8 +85,7 @@ class Density:
         return field
     
     def density_under_gaussian(self, field, mu, gamma2):
-        tmp = (self.f_from_field(field) - mu)**2/(2*gamma2)
-        tmp = np.exp(-tmp)
+        tmp = np.exp( - (self.f_from_field(field) - mu)**2/(2*gamma2))
         tmp /= np.abs(self.derivative_field_from_f(self.f_from_field(field)))
 
         return tmp / np.sum(tmp)
@@ -307,12 +307,7 @@ class SmoothRampMixin:
 
 
     def field_from_f(self, f):
-<<<<<<< HEAD
         return softplus(f)
-=======
-
-        return np.log1p(np.exp(-np.abs(f))) + np.maximum(f, 0.0)
->>>>>>> 208587a4dcb64ad252313e2cb0f881bb3301e8cd
     
     def f_from_field(self, field):
         return np.log(np.exp(field) - 1) 
@@ -417,7 +412,7 @@ if __name__ == '__main__':
 
     plt.figure()
     plt.title('density of distribution of field')
-    ff = np.linspace(0, lam, 1000)[1:-1]
+    ff = np.linspace(0, lam, 100000)[1:-1]
     plt.plot( ff, pgd.density_under_gaussian(ff, pm, gam))
     plt.show()
 
