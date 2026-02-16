@@ -43,13 +43,13 @@ def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
     return random_polyagamma(h=b, z=c, method="saddle")
 
 # # Idee Sigma0_inv_dot(v) mit L =pdg.Lprior
-# def sigma0_inv_dot(v, L):
-#     """Berechne Sigma0^{-1} @ v unter Verwendung der Cholesky-Zerlegung L von Sigma0."""
-#     # Rechne L @ y = v
-#     y = spla.solve_triangular(L, v, lower=True)
-#     # Rechne L.T @ x = y
-#     x = spla.solve_triangular(L, y, lower=False)
-#     return x
+def sigma0_inv_dot(v, L):
+    """Berechne Sigma0^{-1} @ v unter Verwendung der Cholesky-Zerlegung L von Sigma0."""
+    # Rechne L @ y = v
+    y = spla.solve_triangular(L, v, lower=True, trans=False)
+    # Rechne L.T @ x = y
+    x = spla.solve_triangular(L, y, lower=True, trans=True)
+    return x
 
 
 def gibbs_sampler(
@@ -139,9 +139,10 @@ def gibbs_sampler(
         chol = np.linalg.cholesky(A)
         # Löse den Mittelwert unter Verwendung der Cholesky-Faktoren.
         # Löse zunächst L y = bvec.
-        y = spla.solve_triangular(chol, bvec, lower=True)
+        y = spla.solve_triangular(chol, bvec, lower=True, trans=False)
         # Löse L^T m = y
-        m = spla.solve_triangular(chol.T, y, lower=False)
+        # m = spla.solve_triangular(chol.T, y, lower=False)
+        m = spla.solve_triangular(chol, y, lower=True, trans=True)
 
         # Ziehe eine zufällig aus N(0, A^{-1})
         z = np.random.normal(size=nbins)

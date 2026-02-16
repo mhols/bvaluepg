@@ -285,7 +285,7 @@ class SigmoidMixin:
         return self.lam * sigmoid(f) * sigmoid(-f)
     
     def derivative_log_field_from_f(self, f):
-        return sigmoid(-f) 
+        return sigmoid(-f)
  
         
     def first_guess_estimator(self):
