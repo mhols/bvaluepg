@@ -183,10 +183,6 @@ grid_df = pd.DataFrame(rows)
 grid_df["x_center"] = 0.5 * (grid_df["xmin"] + grid_df["xmax"])
 grid_df["y_center"] = 0.5 * (grid_df["ymin"] + grid_df["ymax"])
 
-
-print("Saved: earthquake_grid_counts_30x30.npy")
-print("Saved: earthquake_grid_counts_30x30.csv")
-
 # Heatmap
 plt.figure(figsize=(8, 6))
 plt.imshow(
