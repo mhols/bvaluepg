@@ -1,6 +1,0 @@
-\beamer@sectionintoc {1}{Einleitung}{3}{0}{1}
-\beamer@sectionintoc {2}{Polya-Gamma Verteilung}{4}{0}{2}
-\beamer@sectionintoc {3}{Data Augmentation mit Polya-Gamma}{8}{0}{3}
-\beamer@sectionintoc {4}{Anwendung in der Erdbeben-Vorhersage}{11}{0}{4}
-\beamer@sectionintoc {5}{Anwendung in der Erdbeben-Vorhersage}{14}{0}{5}
-\beamer@sectionintoc {6}{Fazit und Diskussion}{19}{0}{6}
