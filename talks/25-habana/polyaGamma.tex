@@ -5,29 +5,29 @@
 
 \usetheme{Berlin}
 
-\title{Polya-Gamma Distribution and Data Augmentation}
+\title{Polya-Gamma Verteilung und Data Augmentation}
 \author{Toni Luhdo}
-\date{\today}
+\date{March 4, 2025}
 
 \begin{document}
 	
 	\frame{\titlepage}
 	
-	\begin{frame}{Introduction}
+	\begin{frame}{Einführung}
 		\begin{itemize}
-			\item Logistic regression is a fundamental model for classification problems.
-			\item Bayesian inference requires efficient sampling methods.
-			\item The Polya-Gamma distribution provides an elegant solution for the Gibbs sampling strategy.
+			\item Logistische Regression ist ein fundamentales Modell für Klassifikationsprobleme.
+			\item Die Bayessche Inferenz erfordert effiziente Sampling-Methoden.
+			\item Die Polya-Gamma-Verteilung ermöglicht eine elegante Lösung zur Gibbs-Sampling-Strategie.
 		\end{itemize}
 	\end{frame}
 	
-	\begin{frame}{Polya-Gamma Distribution}
-		\textbf{Definition:} A random variable $\omega$ is called Polya-Gamma distributed with parameters b und c if it has the following density function:
+	\begin{frame}{Polya-Gamma-Verteilung}
+		\textbf{Definition:} Eine Zufallsvariable $\omega$ heißt PolyaGamma verteilt mit den Parametern b und c wenn sie die folgende Dichtefunktion besitzt:
 		\begin{equation}
 			p(\omega | b, c) = \frac{\exp(-c^2 \omega /2) p(\omega | b, 0)}{E_{PG(b,0)}[\exp(-c^2 \omega /2)]}
 		\end{equation}
-		where $p(\omega | b, 0)$ is the standard Polya-Gamma density.
-%		Given by... und Gamma Funktion
+		wobei $p(\omega | b, 0)$ die Standard-Polya-Gamma-Dichte ist.
+%		Gegeben durch... und Gamma Funktion
 %		Angabe Standard Polyagamma
 		\begin{itemize}
 			\item $b \in \mathbb{R}^{+}, \quad b > 0$ Steuert die Form der Verteilung (Shape-Parameter)
@@ -36,8 +36,8 @@
 		\end{itemize}
 	\end{frame}
 	
-	\begin{frame}{Laplace-Transformations-Properties}
-		Die Laplace-Transformation der Polya-Gamma Distribution ist gegeben durch:
+	\begin{frame}{Laplace-Transformations-Eigenschaften}
+		Die Laplace-Transformation der Polya-Gamma-Verteilung ist gegeben durch:
 		\begin{equation}
 			E[\exp(-\omega t)] =\frac{ \cosh^{b}(c/2)}{cosh^{b}(\sqrt{\frac{c^2/2+t}{2}})}
 		\end{equation}
@@ -47,7 +47,7 @@
 		\end{itemize}
 	\end{frame}
 
-\begin{frame}{Alternative Darstellung der Polya-Gamma Distribution}
+\begin{frame}{Alternative Darstellung der Polya-Gamma-Verteilung}
 	\begin{itemize}
 		\item Die Verteilung kann als unendliche Summe von Gamma-verteilten Variablen dargestellt werden:
 		\begin{equation}
@@ -58,13 +58,13 @@
 \end{frame}
 
 	
-	\begin{frame}{Properties der Polya-Gamma-Klasse}
+	\begin{frame}{Eigenschaften der Polya-Gamma-Klasse}
 		\begin{itemize}
 			\item Geschlossen unter Faltung: Sind $\omega_1 \sim PG(b_1, z)$ und $\omega_2 \sim PG(b_2, z)$ unabhängig, dann gilt:
 			\begin{equation}
 				\omega_1 + \omega_2 \sim PG(b_1 + b_2, z)
 			\end{equation}
-			\item Expectation:
+			\item Erwartungswert:
 			\begin{equation}
 				E(\omega) = \frac{b}{2c} \tanh(c/2)
 %				, \quad \text{Var}(\omega) = \frac{b}{4c^3} \text{sech}^2(c/2)
@@ -78,7 +78,7 @@
 			P(y_i = 1 | x_i, \beta) = \frac{1}{1 + e^{-x_i^T \beta}}
 		\end{equation}
 		\begin{itemize}
-			\item Introduction eines latenten Polya-Gamma Parameters $\omega_i$ ermöglicht eine Gibbs-Sampling Methode.
+			\item Einführung eines latenten Polya-Gamma Parameters $\omega_i$ ermöglicht eine Gibbs-Sampling Methode.
 			\item Die posteriori Verteilung ist normal für $\beta$ und Polya-Gamma für $\omega$. Umformulieren oben umbennen in omega und direkt in Gleichung
 		\end{itemize}
 	\end{frame}
@@ -101,7 +101,7 @@
 	\begin{frame}{Gibbs-Sampler für das logistische Modell}
 		\begin{enumerate}
 			\item Ziehe ($\omega_i | \beta) \sim PG(n_i, x_i^T \beta)$ für alle $i$.
-			\item Ziehe ($\beta | z, \omega) \sim N(m_{\omega}, V_{\omega})$, where:
+			\item Ziehe ($\beta | z, \omega) \sim N(m_{\omega}, V_{\omega})$, wobei:
 			\begin{equation}
 				m_{\omega} = V_{\omega} X^T \kappa, \quad V_{\omega} = (X^T \Omega X + B^{-1})^{-1}
 			\end{equation}
@@ -117,7 +117,7 @@
 %			\begin{equation}
 %				\log N(m) = a - b m
 %			\end{equation}
-%			where $N(m)$ die Anzahl der Erdbeben mit Magnitude größer als $m$ ist.
+%			wobei $N(m)$ die Anzahl der Erdbeben mit Magnitude größer als $m$ ist.
 %			\item Der Parameter $b$ ist entscheidend für die Charakterisierung seismischer Aktivität.
 %		\end{itemize}
 %	\end{frame}
@@ -181,7 +181,7 @@
 %			\begin{equation}
 %				\log N(m) = a - b m
 %			\end{equation}
-%			where:
+%			wobei:
 %			\begin{itemize}
 %				\item $N(m)$ die Anzahl der Erdbeben mit einer Magnitude größer als $m$ ist,
 %				\item $a$ ein empirischer Parameter ist, der die gesamte seismische Aktivität in einer Region beschreibt (je größer $a$, desto mehr Erdbeben treten auf),
@@ -222,9 +222,9 @@
 	
 	
 	
-	\begin{frame}{Summary}
+	\begin{frame}{Zusammenfassung}
 		\begin{itemize}
-			\item Die Polya-Gamma Distribution vereinfacht die Bayessche Inferenz für logistische Modelle erheblich.
+			\item Die Polya-Gamma-Verteilung vereinfacht die Bayessche Inferenz für logistische Modelle erheblich.
 			\item Die Gibbs-Sampling-Strategie ermöglicht effiziente numerische Berechnungen.
 			\item Die Methode ist gut geeignet für großskalige Datenanalysen und maschinelles Lernen.
 		\end{itemize}
@@ -234,12 +234,12 @@
 
 
 
-	\begin{frame}{References}
+	\begin{frame}{Referenzen}
 		Polson, N. G., Scott, J. G.,  Windle, J. (2013). Bayesian inference for logistic models using Polya-Gamma latent variables. \textit{Journal of the American Statistical Association}, 108(504), 1339-1349.
 	\end{frame}
 
 
-\begin{frame}{Anhang: Bedeutung der Parameter $b$ und $c$ in der Polya-Gamma Distribution}
+\begin{frame}{Anhang: Bedeutung der Parameter $b$ und $c$ in der Polya-Gamma-Verteilung}
 	\begin{itemize}
 		\item **Parameter $b$ (Shape-Parameter):**
 		\begin{itemize}
