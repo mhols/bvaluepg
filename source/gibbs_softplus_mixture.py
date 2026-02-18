@@ -415,7 +415,7 @@ if __name__ == "__main__":
             return 60
 
         sigma_of_n = {"default": 1.0}
-            sigma_of_n[0]=1.5
+        sigma_of_n[0]=1.5
 
         mix = precompute_softplus_mixtures(
             nmax,

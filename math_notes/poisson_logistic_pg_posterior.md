@@ -67,7 +67,12 @@ Log-Posterior:
 
 ## 3) Trick 1: Einführung von \(k_i\) (Poisson-Splitting)
 
-Wir nutzen die Identität
+Wir nutzen die Identität (TODO explain better). Der trick ist eigentlich
+
+\[
+e^{-\lambda \sigma(f_i)} = e^{-\lambda (1-\sigma(-f_i))} = e^{-\lambda} \sum_{k_i=0}^\infty 
+\frac{(\lambda\sigma(-f_i))^{k_i}}{k_i!} 
+\]
 
 \[
 \lambda\sigma(f_i)=\frac{\lambda e^{f_i}}{1+e^{f_i}}.
@@ -76,7 +81,7 @@ Wir nutzen die Identität
 Führe latente Zählvariable \(k_i\) ein, so dass
 
 \[
-k_i\mid f_i \sim \text{Poisson}\!\left(\lambda(1-\sigma(f_i))\right)
+k_i\mid f_i \sim \text{Poisson}\!\left(\lambda\sigma(-f_i)\right)
 =\text{Poisson}\!\left(\frac{\lambda}{1+e^{f_i}}\right),
 \]
 und \(n_i\mid f_i\) wie oben, **unabhängig** gegeben \(f_i\).
