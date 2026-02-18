@@ -132,7 +132,7 @@ else:
 ax.set_axis_off()
 plt.title("Earthquakes (points)")
 plt.tight_layout()
-plt.show()
+# plt.show()
 
 # -----------------------
 # 5) Anzahl Events in 30x30 Boxen (Grid / Heatmap-Daten)
@@ -192,6 +192,7 @@ plt.imshow(
     extent=[minx, maxx, miny, maxy],
     aspect="auto",
 )
+plt.colorbar()
 plt.title("Event counts per 30x30 grid cell")
 plt.xlabel("longitude")
 plt.ylabel("latitude")
