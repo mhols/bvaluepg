@@ -25,7 +25,7 @@ import scipy.linalg as spla
 import matplotlib.pyplot as plt
 
 from polyagamma import random_polyagamma
-from polyagammadensity import PolyaGammaDensity
+from polyagammadensity import PolyaGammaDensity, inv_sigmoid
 import syntheticdata as sd
 
 from pathlib import Path
@@ -190,12 +190,12 @@ def main():
 
     # --- Choose lam so that 0 <= rate <= lam is plausible ---
     # (lam ist die Obergrenze meiner Poisson-Rate pro Zelle)
-    lam = max(1, int(np.max(nobs) * 1.2) + 1)
+    lam = max(1, int(np.max(nobs) + 2 * np.sqrt(np.max(nobs))) + 1)
 
     # --- Build model ---
     pgd = PolyaGammaDensity(
-        prior_mean=np.zeros(n * m),
-        prior_covariance=sd.spatial_covariance_gaussian(n, m, rho=3, v2=1),
+        prior_mean=inv_sigmoid(5 * np.ones(n * m) / lam),
+        prior_covariance=sd.spatial_covariance_gaussian(n, m, rho=3, v2=5/lam),
         lam=lam,
     )
 
@@ -241,6 +241,13 @@ def main():
         plt.colorbar()
 
     plt.tight_layout()
+
+    plt.figure()
+    ff = np.linspace(0, lam, 100000)[1:-1]
+    plt.plot( ff, pgd.density_under_gaussian(ff, pgd.prior_mean[0], pgd.prior_covariance[0,0]))
+
+    plt.figure()
+    plt.hist( pgd.nobs )
     plt.show()
 
     print("Gibbs sampling done.")

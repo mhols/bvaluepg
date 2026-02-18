@@ -11,6 +11,9 @@ import matplotlib.pyplot as plt
 def sigmoid(f):
     return 1/(1+np.exp(-f))   #TODO what if f gets big ????
 
+def inv_sigmoid(u):
+    return np.log(u/(1-u))
+
 def der_sigmoid(f):
     return sigmoid(f)*sigmoid(-f)
 
