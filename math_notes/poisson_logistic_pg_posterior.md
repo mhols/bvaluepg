@@ -138,7 +138,7 @@ Pólya–Gamma-Identität (schematisch):
 \omega\sim \text{PG}(b,0)
 \]
 (bzw. in manchen Darstellungen \(\omega\mid f\sim\text{PG}(b,f)\); entscheidend ist:
-**bedingt auf \(\omega\) wird es quadratisch in \(f\)**).
+**bedingt auf \(\omega\) wird es quadratisch ( der Logarithmus sonst Gauss) in \(f\)**).
 
 Für alle Komponenten zusammen (Vektorform):
 
