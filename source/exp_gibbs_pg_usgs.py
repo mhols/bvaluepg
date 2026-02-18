@@ -1,4 +1,5 @@
 """
+Daten von https://www.usgs.gov/programs/earthquake-hazards
 
 Der Kernidee besteht aus drei Schritten pro Iteration:
 1. **Sample für latente „negative“ Zählungen** k aus einer Poisson-Verteilung
@@ -17,7 +18,6 @@ Der Kernidee besteht aus drei Schritten pro Iteration:
    kappa = 0,5*(nobs - k).  Wir nehmen eine Sample von f, indem wir dieses
    lineare System lösen und dann Gaußsches Rauschen hinzufügen, das mit dem
    Cholesky-Faktor der Präzisionsmatrix skaliert ist.
-
 """
 
 import numpy as np
@@ -27,6 +27,15 @@ import matplotlib.pyplot as plt
 from polyagamma import random_polyagamma
 from polyagammadensity import PolyaGammaDensity
 import syntheticdata as sd
+
+from pathlib import Path
+
+# exp_gibbs_pg.py liegt in repo/source/
+HERE = Path(__file__).resolve().parent          # .../repo/source
+REPO_ROOT = HERE.parent                         # .../repo
+DATA_DIR = REPO_ROOT / "data"
+
+counts_path = DATA_DIR / "eq_counts_30x30.npy"
 
 
 def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
@@ -93,7 +102,8 @@ def gibbs_sampler(
     mu0 = pgd.prior_mean
     # Precompute the inverse once (symmetric, positive definite)
     # Sigma0_inv = np.linalg.inv(Sigma0)
-    L = pgd._Lprior
+    # L = pgd._Lprior
+    L = np.asarray(pgd.Lprior, dtype=float)
     I = np.eye(pgd.nbins)
 
     X = spla.solve_triangular(L, I, lower=True)         # X = L^{-1}
@@ -165,18 +175,31 @@ def main():
     # global samples, f_est, field_est, events, f_true
 
     # --- setup ---
-    n, m = 20, 20
+    n, m = 30, 30
     lam = 10
+    # pgd = PolyaGammaDensity(
+    #     prior_mean=np.zeros(n * m),
+    #     prior_covariance=sd.spatial_covariance_gaussian(n, m, rho=3, v2=1),
+    #     lam=lam,
+    # )
+
+    # --- Load earthquake grid counts (nobs) ---
+    counts = np.load(counts_path)                    # shape (30, 30)
+    n, m = counts.shape                              # sollte (30,30) sein
+    nobs = counts.ravel(order="C").astype(int)       # Länge = 900
+
+    # --- Choose lam so that 0 <= rate <= lam is plausible ---
+    # (lam ist die Obergrenze meiner Poisson-Rate pro Zelle)
+    lam = max(1, int(np.max(nobs) * 1.2) + 1)
+
+    # --- Build model ---
     pgd = PolyaGammaDensity(
         prior_mean=np.zeros(n * m),
         prior_covariance=sd.spatial_covariance_gaussian(n, m, rho=3, v2=1),
         lam=lam,
     )
 
-    # Generieren Sie eine zufällige Grundwahrheit und Beobachtungen.
-    f_true = pgd.random_prior_parameters()
-    events = pgd.random_events_from_f(f_true)
-    pgd.set_data(events)
+    pgd.set_data(nobs)
 
     # Run Gibbs sampler
     n_iter = 200  
@@ -191,38 +214,38 @@ def main():
         random_seed=0,
     )
 
-    # Berechnen Sie den posterioren Mittelwert des latenten Feldes.
+    # Berechne posterioren Mittelwert des latenten Feldes.
     f_est = samples.mean(axis=0)
     field_est = pgd.field_from_f(f_est)
 
-    # Wahre und geschätzte Felder visualisieren
-    plt.figure(figsize=(12, 4))
-    plt.subplot(1, 3, 1)
-    plt.title("True field (λσ(f_true))")
-    plt.imshow(sd.scanorder_to_image(pgd.field_from_f(f_true), n, m).T)
+    
+
+    # Observed counts vs estimated intensity field visualisieren
+    plt.figure(figsize=(10, 4))
+    plt.subplot(1, 2, 1)
+    plt.title("Observed counts (nobs)")
+    plt.imshow(counts.T)
     plt.colorbar()
-    plt.subplot(1, 3, 2)
-    plt.title("Observed events")
-    plt.imshow(sd.scanorder_to_image(events, n, m).T)
-    plt.colorbar()
-    plt.subplot(1, 3, 3)
-    plt.title("Gibbs estimate of field")
+
+    plt.subplot(1, 2, 2)
+    plt.title("Estimated rate field (lam * sigmoid(f))")
     plt.imshow(sd.scanorder_to_image(field_est, n, m).T)
     plt.colorbar()
+
+        # --- Plot stored Gibbs samples (rate fields) ---
+    for i, sample in enumerate(samples):
+        plt.figure(figsize=(4, 4))
+        plt.title(f"Gibbs sample {i}")
+        sample_field = pgd.field_from_f(sample)
+        plt.imshow(sd.scanorder_to_image(sample_field, n, m).T)
+        plt.colorbar()
+
     plt.tight_layout()
-    #plt.show()
+    plt.show()
 
     print("Gibbs sampling done.")
 
-    for sample in samples:
-        plt.figure()
-        plt.imshow(sd.scanorder_to_image(pgd.field_from_f(sample), n, m).T)
-    
-    plt.show()
-
-    return samples, f_est, field_est, events, f_true
+    return samples, f_est, field_est, counts, (n, m), lam
 
 if __name__ == "__main__":
-    samples, f_est, field_est, events, f_true = main()
-
-#https://docs.scipy.org/doc/scipy/reference/generated/scipy.linalg.solve_triangular.html
+    main()

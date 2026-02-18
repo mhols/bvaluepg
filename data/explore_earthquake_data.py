@@ -7,7 +7,7 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 
 # -----------------------
-# 0) Immer im Script-Ordner arbeiten
+# 0) Im Script-Ordner arbeiten
 # -----------------------
 SCRIPT_DIR = Path(__file__).resolve().parent
 os.chdir(SCRIPT_DIR)
@@ -15,8 +15,8 @@ os.chdir(SCRIPT_DIR)
 # -----------------------
 # 1) Datei wählen
 # -----------------------
-JSON_FILE = "earthquakes_3comma5_cl_2010-2020.json"
-CSV_FILE = "earthquakes_3comma5_cl_2010-2020.csv"
+JSON_FILE = "earthquakes_3point5_cl_2010-2020.json"
+CSV_FILE = "earthquakes_3point5_cl_2010-2020.csv"
 
 print("Working directory (script dir):", os.getcwd())
 print("Data files here:", [f for f in os.listdir(".") if f.endswith((".json", ".csv"))])
@@ -155,6 +155,7 @@ ys = gdf.geometry.y.to_numpy()
 # wahrscheinlich brauchen ich noch ne Projektion fuer gleich große Flaechen
 
 # 2D-Histogramm: counts[y_bin, x_bin]
+# https://numpy.org/doc/stable/reference/generated/numpy.histogram2d.html
 counts, y_edges_out, x_edges_out = np.histogram2d(ys, xs, bins=[y_edges, x_edges])
 counts = counts.astype(int)
 
@@ -196,3 +197,18 @@ plt.xlabel("longitude")
 plt.ylabel("latitude")
 plt.tight_layout()
 plt.show()
+
+# --- Export für das Gibbs-Experiment ---
+np.save("eq_counts_30x30.npy", counts.astype(int))
+grid_df.to_csv("eq_grid_30x30.csv", index=False)
+
+meta = {
+    "GRID_N": GRID_N,
+    "minx": float(minx), "maxx": float(maxx),
+    "miny": float(miny), "maxy": float(maxy),
+}
+import json
+with open("eq_grid_meta.json", "w") as f:
+    json.dump(meta, f, indent=2)
+
+print("Saved: eq_counts_30x30.npy, eq_grid_30x30.csv, eq_grid_meta.json")
