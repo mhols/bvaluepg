@@ -1,0 +1,304 @@
+\documentclass[11pt]{beamer}
+
+% Theme / appearance
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{caption}[numbered]
+
+% Encoding and language
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman,english]{babel} % English main, German available
+
+% Math and symbols
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{bm}
+\usepackage{siunitx}
+
+% Graphics and tikz
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
+% Micro typography
+\usepackage{microtype}
+
+% Colors, links
+\usepackage{xcolor}
+% \usepackage[hidelinks]{hyperref}
+
+% Useful shortcuts
+\newcommand{\logit}{\operatorname{logit}}
+\newcommand{\sigmoid}{\sigma}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\operatorname{Var}}
+
+% Title data — anpassen nach Bedarf
+\title[Poisson \(\to\) Polya–Gamma]{From Poisson to Polya–Gamma in Spatial Models}
+\author[T. Luhdo]{Toni Luhdo}
+\institute[UP]{University of Potsdam / PG Project}
+\date[Habana 2026]{Habana Encuentro, 2026}
+
+% Optional: Outline before sections
+\AtBeginSection[]{
+  \begin{frame}{Outline}
+    \tableofcontents[currentsection]
+  \end{frame}
+}
+
+\begin{document}
+
+\begin{frame}{TODOs}
+  \begin{itemize}
+    \item neue plots
+    \item plots drehen
+    \item andere Farbskala
+    \item weniger sections
+    \item references slide
+    \item thx attention slide
+    \item Figure_1 aufteilen
+    % \item vielleicht ne Slide zu cholesky (wir berechnen nicht direkt die inverse)
+  \end{itemize}
+\end{frame}
+
+\titlepage
+
+\section{Motivation: Earthquake Intensity Field}
+
+\begin{frame}{Earthquake Events as Point Data}
+We observe earthquake epicenters as spatial point data.
+
+\begin{center}
+\includegraphics[width=0.8\textwidth]{figures/earthquakes_points.png}
+\end{center}
+
+Goal:
+\begin{itemize}
+\item Estimate a smooth spatial intensity field.
+\item Identify high-risk regions.
+\item Quantify uncertainty.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{From Points to Counts}
+After gridding the region:
+
+\[
+n_i = \text{number of earthquakes in cell } i
+\]
+
+\begin{center}
+\includegraphics[width=0.95\textwidth]{figures/Figure_1.png}
+\end{center}
+
+We now model:
+\[
+n_i \sim \text{Poisson}(\lambda_i)
+\]
+\end{frame}
+
+\section{Poisson Model with Logistic Structure}
+
+\begin{frame}{Basic Poisson Model}
+\[
+n_i \sim \text{Poisson}(\lambda_i)
+\]
+
+Instead of modeling $\lambda_i$ directly,
+we introduce a latent field $f_i$:
+
+\[
+\lambda_i = \lambda \, \sigma(f_i),
+\quad
+\sigma(f) = \frac{1}{1+e^{-f}}
+\]
+
+\begin{itemize}
+\item $f_i$ captures spatial structure
+\item $\lambda$ is global intensity
+\item $\sigma$ keeps rates bounded and stable
+\end{itemize}
+\end{frame}
+
+
+\section{Likelihood Derivation}
+
+\begin{frame}{Poisson Likelihood}
+\[
+p(n_i \mid f_i,\lambda)
+=
+\frac{(\lambda \sigma(f_i))^{n_i}}{n_i!}
+\exp(-\lambda \sigma(f_i))
+\]
+
+Log-likelihood:
+\[
+\ell(f)
+=
+\sum_i
+\left(
+n_i \log \sigma(f_i)
+-
+\lambda \sigma(f_i)
+\right)
+\]
+
+Problem:
+\begin{itemize}
+\item Non-quadratic in $f$
+\item No conjugacy with Gaussian prior
+\end{itemize}
+\end{frame}
+
+
+\section{Poisson Splitting Trick}
+
+\begin{frame}{Introduce Latent Counts}
+Define additional latent variables:
+
+\[
+k_i \sim \text{Poisson}(\lambda(1-\sigma(f_i)))
+\]
+
+Since
+
+\[
+\sigma(f) = \frac{e^f}{1+e^f}
+\quad
+1-\sigma(f)=\frac{1}{1+e^f}
+\]
+
+we obtain:
+
+\[
+p(n_i,k_i \mid f_i)
+\propto
+\frac{e^{n_i f_i}}{(1+e^{f_i})^{n_i+k_i}}
+\]
+
+Define:
+\[
+b_i = n_i + k_i
+\]
+\end{frame}
+
+
+\section{Pólya--Gamma Identity}
+
+\begin{frame}{Key Identity}
+Polson–Scott–Windle identity:
+
+\[
+\frac{e^{\kappa f}}{(1+e^f)^b}
+=
+2^{-b}
+\int_0^\infty
+e^{-\frac{\omega f^2}{2}}
+p(\omega \mid b,0)
+\, d\omega
+\]
+
+with
+
+\[
+\kappa = n_i - \frac{b_i}{2}
+\]
+
+Conditional representation:
+
+\[
+\omega_i \mid f_i,b_i
+\sim
+\text{PG}(b_i,f_i)
+\]
+\end{frame}
+
+
+\begin{frame}{Why This Is Powerful}
+After introducing $\omega_i$:
+
+\[
+\log p(f_i \mid \omega_i)
+=
+-\frac12 \omega_i f_i^2
++
+\kappa_i f_i
++
+\text{const}
+\]
+
+This is quadratic in $f_i$.
+
+\bigskip
+
+Quadratic ⇒ Gaussian conditional posterior.
+\end{frame}
+
+
+\section{Gibbs Sampler}
+
+\begin{frame}{Full Conditional Updates}
+
+For each iteration:
+
+\textbf{1) Latent counts}
+\[
+k_i \sim \text{Poisson}\left(\frac{\lambda}{1+e^{f_i}}\right)
+\]
+
+\textbf{2) Pólya–Gamma}
+\[
+\omega_i \sim \text{PG}(b_i,f_i)
+\]
+
+\textbf{3) Latent field}
+\[
+f \sim \mathcal{N}(m,Q^{-1})
+\]
+
+where
+
+\[
+Q = \Sigma^{-1} + \Omega
+\]
+\end{frame}
+
+\begin{frame}{Why This Works So Well}
+\begin{itemize}
+\item No Metropolis tuning
+\item Exact conditional updates
+\item Fully Gaussian step for high-dimensional $f$
+\item Works beautifully with sparse precision matrices
+\end{itemize}
+\end{frame}
+
+
+\section{Application: Earthquake Data}
+
+\begin{frame}{Observed Counts}
+\includegraphics[width=0.99\textwidth]{figures/Figure_1.png}
+\end{frame}
+
+\begin{frame}{Estimated Rate Field}
+\includegraphics[width=0.99\textwidth]{figures/estimated_rate_field.png}
+
+Posterior mean:
+\[
+\hat{\lambda}_i = \lambda \, \sigma(f_i)
+\]
+\end{frame}
+
+
+\begin{frame}{Takeaways}
+\begin{itemize}
+\item Poisson model with logistic link
+\item Poisson splitting introduces logistic structure
+\item Pólya–Gamma augmentation makes inference Gaussian
+\item Efficient Gibbs sampling for spatial fields
+\item Application: Earthquake intensity estimation
+\end{itemize}
+\end{frame}
+
+\end{document}
