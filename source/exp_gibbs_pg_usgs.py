@@ -23,6 +23,9 @@ Der Kernidee besteht aus drei Schritten pro Iteration:
 import numpy as np
 import scipy.linalg as spla
 import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+from matplotlib.colors import PowerNorm
+
 
 from polyagamma import random_polyagamma
 from polyagammadensity import PolyaGammaDensity, inv_sigmoid
@@ -224,12 +227,12 @@ def main():
     plt.figure(figsize=(10, 4))
     plt.subplot(1, 2, 1)
     plt.title("Observed counts (nobs)")
-    plt.imshow(counts.T)
+    plt.imshow(counts, origin="lower", norm=PowerNorm(gamma=0.5))
     plt.colorbar()
 
     plt.subplot(1, 2, 2)
     plt.title("Estimated rate field (lam * sigmoid(f))")
-    plt.imshow(sd.scanorder_to_image(field_est, n, m).T)
+    plt.imshow(sd.scanorder_to_image(field_est, n, m), origin="lower", norm=PowerNorm(gamma=0.5))
     plt.colorbar()
 
         # --- Plot stored Gibbs samples (rate fields) ---
@@ -237,7 +240,7 @@ def main():
         plt.figure(figsize=(4, 4))
         plt.title(f"Gibbs sample {i}")
         sample_field = pgd.field_from_f(sample)
-        plt.imshow(sd.scanorder_to_image(sample_field, n, m).T)
+        plt.imshow(sd.scanorder_to_image(sample_field, n, m), origin="lower")
         plt.colorbar()
 
     plt.tight_layout()
