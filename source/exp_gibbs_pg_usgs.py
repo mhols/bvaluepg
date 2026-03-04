@@ -227,21 +227,24 @@ def main():
     plt.figure(figsize=(10, 4))
     plt.subplot(1, 2, 1)
     plt.title("Observed counts (nobs)")
-    plt.imshow(counts, origin="lower", norm=PowerNorm(gamma=0.5))
+    plt.imshow(counts, origin="lower")
+    # plt.imshow(counts, origin="lower", norm=PowerNorm(gamma=0.5))
     plt.colorbar()
 
     plt.subplot(1, 2, 2)
     plt.title("Estimated rate field (lam * sigmoid(f))")
-    plt.imshow(sd.scanorder_to_image(field_est, n, m), origin="lower", norm=PowerNorm(gamma=0.5))
+    plt.imshow(sd.scanorder_to_image(field_est, n, m), origin="lower")
+    # plt.imshow(sd.scanorder_to_image(field_est, n, m), origin="lower", norm=PowerNorm(gamma=0.5))
+
     plt.colorbar()
 
         # --- Plot stored Gibbs samples (rate fields) ---
-    for i, sample in enumerate(samples):
-        plt.figure(figsize=(4, 4))
-        plt.title(f"Gibbs sample {i}")
-        sample_field = pgd.field_from_f(sample)
-        plt.imshow(sd.scanorder_to_image(sample_field, n, m), origin="lower")
-        plt.colorbar()
+    # for i, sample in enumerate(samples):
+    #     plt.figure(figsize=(4, 4))
+    #     plt.title(f"Gibbs sample {i}")
+    #     sample_field = pgd.field_from_f(sample)
+    #     plt.imshow(sd.scanorder_to_image(sample_field, n, m), origin="lower")
+    #     plt.colorbar()
 
     plt.tight_layout()
 
@@ -251,6 +254,11 @@ def main():
 
     plt.figure()
     plt.hist( pgd.nobs )
+    plt.show()
+
+    plt.title("Estimated rate field (lam * sigmoid(f))")
+    plt.imshow(sd.scanorder_to_image(field_est, n, m), origin="lower", norm=PowerNorm(gamma=0.5))
+    plt.colorbar()
     plt.show()
 
     print("Gibbs sampling done.")

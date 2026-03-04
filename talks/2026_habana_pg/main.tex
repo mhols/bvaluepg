@@ -52,13 +52,9 @@
 
 \begin{frame}{TODOs}
   \begin{itemize}
-    \item neue plots
-    \item plots drehen
-    \item andere Farbskala
     \item weniger sections
     \item references slide
     \item thx attention slide
-    \item Figure_1 aufteilen
     % \item vielleicht ne Slide zu cholesky (wir berechnen nicht direkt die inverse)
   \end{itemize}
 \end{frame}
@@ -153,9 +149,9 @@ Problem:
 \end{frame}
 
 
-\section{Poisson Splitting Trick}
+% \section{Poisson Splitting Trick}
 
-\begin{frame}{Introduce Latent Counts}
+\begin{frame}{Poisson Splitting Trick - Introduce Latent Counts}
 Define additional latent variables:
 
 \[
@@ -277,12 +273,27 @@ Q = \Sigma^{-1} + \Omega
 
 \section{Application: Earthquake Data}
 
-\begin{frame}{Observed Counts}
-\includegraphics[width=0.99\textwidth]{figures/Figure_1.png}
+\begin{frame}{Earthquake Events as Point Data}
+We observe earthquake epicenters as spatial point data.
+
+\begin{center}
+\includegraphics[width=1.1\textwidth]{figures/earthquakes_points.png}
+\end{center}
+
 \end{frame}
 
+\begin{frame}{Observed Counts}
+\includegraphics[width=1.2\textwidth]{figures/figure_1.png}
+\end{frame}
+
+\begin{frame}{Observed Counts log scale}
+\includegraphics[width=0.99\textwidth]{figures/figure_2.png}
+\end{frame}
+
+
+
 \begin{frame}{Estimated Rate Field}
-\includegraphics[width=0.99\textwidth]{figures/estimated_rate_field.png}
+\includegraphics[width=0.9\textwidth]{figures/estimated_rate_field.png}
 
 Posterior mean:
 \[
