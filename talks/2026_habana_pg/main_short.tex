@@ -24,6 +24,7 @@
 
 % Micro typography
 \usepackage{microtype}
+\usepackage{appendixnumberbeamer}
 
 % Colors, links
 \usepackage{xcolor}
@@ -36,10 +37,10 @@
 \newcommand{\Var}{\operatorname{Var}}
 
 % Title data — anpassen nach Bedarf
-\title[Poisson \(\to\) Polya–Gamma]{From Poisson to Polya–Gamma in Spatial Models}
+\title[Poisson \(\to\) P\'olya–Gamma]{From Poisson to P\'olya–Gamma in Spatial Models}
 \author[T. Luhdo]{Toni Luhdo}
 \institute[UP]{University of Potsdam}
-\date[Habana 2026]{Habana Encuentro, 2026}
+\date[Habana Cuba - March 7, 2026]{Encuentro de Estadisticos @ ICIMAF Habana, March 7, 2026}
 
 % Optional: Outline before sections
 \AtBeginSection[]{
@@ -85,6 +86,58 @@ We now model:
 n_i \sim \text{Poisson}(\lambda_i)
 \]
 \end{frame}
+
+% \section{Pólya--Gamma Identity}
+
+% \begin{frame}{Key Identity}
+% Polson–Scott–Windle identity:
+
+% \[
+% \frac{e^{\kappa f}}{(1+e^f)^b}
+% =
+% 2^{-b}
+% \int_0^\infty
+% e^{-\frac{\omega f^2}{2}}
+% p(\omega \mid b,0)
+% \, d\omega
+% \]
+
+% with
+
+% \[
+% \kappa = n_i - \frac{b_i}{2}
+% \]
+
+% Conditional representation:
+
+% \[
+% \omega_i \mid f_i,b_i
+% \sim
+% \text{PG}(b_i,f_i)
+% \]
+% \end{frame}
+
+
+% \begin{frame}{Why This Is Powerful}
+% After introducing $\omega_i$:
+
+% \[
+% \log p(f_i \mid \omega_i)
+% =
+% -\frac12 \omega_i f_i^2
+% +
+% \kappa_i f_i
+% +
+% \text{const}
+% \]
+
+% This is quadratic in $f_i$.
+
+% \bigskip
+
+% Quadratic $\implies$ Gaussian conditional posterior.
+% \end{frame}
+
 
 \section{Poisson Model with Logistic Structure}
 
@@ -512,57 +565,6 @@ b_i = n_i + k_i
 \end{frame}
 
 
-\section{Pólya--Gamma Identity}
-
-\begin{frame}{Key Identity}
-Polson–Scott–Windle identity:
-
-\[
-\frac{e^{\kappa f}}{(1+e^f)^b}
-=
-2^{-b}
-\int_0^\infty
-e^{-\frac{\omega f^2}{2}}
-p(\omega \mid b,0)
-\, d\omega
-\]
-
-with
-
-\[
-\kappa = n_i - \frac{b_i}{2}
-\]
-
-Conditional representation:
-
-\[
-\omega_i \mid f_i,b_i
-\sim
-\text{PG}(b_i,f_i)
-\]
-\end{frame}
-
-
-\begin{frame}{Why This Is Powerful}
-After introducing $\omega_i$:
-
-\[
-\log p(f_i \mid \omega_i)
-=
--\frac12 \omega_i f_i^2
-+
-\kappa_i f_i
-+
-\text{const}
-\]
-
-This is quadratic in $f_i$.
-
-\bigskip
-
-Quadratic $\implies$ Gaussian conditional posterior.
-\end{frame}
-
 
 \section{Gibbs Sampler}
 
@@ -614,11 +616,24 @@ We observe earthquake epicenters as spatial point data.
 \end{frame}
 
 \begin{frame}{Observed Counts}
-\includegraphics[width=1.1\textwidth]{figures/figure_1.png}
+\hspace{-1.2cm}
+  \begin{minipage}[h]{0.99\textwidth}
+    \begin{figure}
+      \includegraphics[width=1.2\textwidth]{figures/figure_1.png}
+    \end{figure}
+  \end{minipage}
 \end{frame}
+  
 
-\begin{frame}{Observed Counts log scale}
-\includegraphics[width=1.1\textwidth]{figures/figure_2.png}
+
+
+\begin{frame}{Observed Counts power scale}
+ \hspace{-1.2cm} 
+  \begin{minipage}[h]{0.99\textwidth}
+    \begin{figure}
+      \includegraphics[width=1.2\textwidth]{figures/figure_2.png}
+    \end{figure}
+  \end{minipage}
 \end{frame}
 
 \begin{frame}{Takeaways}
@@ -634,9 +649,9 @@ We observe earthquake epicenters as spatial point data.
 \begin{frame}{References}
   \scriptsize
 \begin{itemize}
-\item Polson, N. G., Scott, J. G., & Windle, J. (2013). Bayesian inference for logistic models using Pólya–Gamma latent variables. \textit{Journal of the American Statistical Association}, 108(504), 1339-1349.
-\item Linderman, S., Johnson, M., & Adams, R. P. (2015). Dependent multinomial models made easy: Stick-breaking with the Pólya–Gamma augmentation. In \textit{International Conference on Machine Learning} (pp. 1114-1123).
-\item Zhou, M., & Carin, L. (2015). Negative binomial process count and mixture modeling. \textit{IEEE Transactions on Pattern Analysis and Machine Intelligence}, 37(2), 307-320.
+\item Polson, N. G., Scott, J. G., \& Windle, J. (2013). Bayesian inference for logistic models using Pólya–Gamma latent variables. \textit{Journal of the American Statistical Association}, 108(504), 1339-1349.
+\item Linderman, S., Johnson, M., \& Adams, R. P. (2015). Dependent multinomial models made easy: Stick-breaking with the Pólya–Gamma augmentation. In \textit{International Conference on Machine Learning} (pp. 1114-1123).
+\item Zhou, M., \& Carin, L. (2015). Negative binomial process count and mixture modeling. \textit{IEEE Transactions on Pattern Analysis and Machine Intelligence}, 37(2), 307-320.
 \end{itemize}
 \end{frame}
 
@@ -647,8 +662,9 @@ We observe earthquake epicenters as spatial point data.
   Questions?
   \end{center}
 \end{frame}
-\section*{Appendix}
 
+\appendix
+\section*{Appendix}
 \begin{frame}{Estimated Rate Field}
 \includegraphics[width=0.9\textwidth]{figures/estimated_rate_field.png}
 
