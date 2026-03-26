@@ -199,7 +199,7 @@ def plot_residuals(t, y, fits_dict, n, sigma, out_dir="plots", show=True):
     plt.figure(figsize=(11, 6))
 
     for obj, yhat in fits_dict.items():
-        plt.plot(t,y - y_hat, linestyle="--", linewidth=1.5, label=obj)
+        plt.plot(t,y - yhat, linestyle="--", linewidth=1.5, label=obj)
 
     plt.title(f"y - y_hat (sigma={sigma}) for n={n}")
     plt.legend(ncol=2, fontsize=9)
