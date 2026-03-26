@@ -175,7 +175,7 @@ def main():
 
     # brauch ich zum debuggen, damit ich von außerhalb der Funktion auf die Variablen zugreifen kann
     # wandern spaeter ins Returnn der Funktion main() oder in eine neue Funktion, die die Ergebnisse zurückgibt
-    # global samples, f_est, field_est, events, f_true
+    global samples, f_est, field_est, events, f_true
 
     # --- setup ---
     n, m = 30, 30
