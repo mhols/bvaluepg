@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
 
 
 class QuadTree:
@@ -73,6 +75,79 @@ class QuadTree:
         _quadtree(self.xmin, self.xmax, self.ymin, self.ymax, self.x, self.y, 0)
 
 
+    def plot(self, ax=None, show_points=True, cmap='viridis', color_by_count=True, alpha=0.6):
+        """
+        Plot des QuadTrees als Rechtecke.
+
+        Parameters
+        ----------
+        ax : matplotlib axis, optional
+            Falls None, wird eine neue Figure/Achse erzeugt.
+        show_points : bool
+            Falls True, werden die Originalpunkte zusätzlich geplottet.
+        cmap : str
+            Matplotlib-Colormap für die Einfärbung der Zellen.
+        color_by_count : bool
+            Falls True, werden die Zellen nach ihrer Punktzahl eingefärbt.
+            Falls False, werden nur die Ränder gezeichnet.
+        alpha : float
+            Transparenz der Rechtecke.
+        """
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(8, 8))
+        else:
+            fig = ax.figure
+
+        counts = np.array([cell['count'] for cell in self.lop], dtype=float)
+
+        if len(counts) == 0:
+            raise ValueError("QuadTree enthält keine Zellen zum Plotten.")
+
+        if color_by_count:
+            norm = plt.Normalize(vmin=counts.min(), vmax=counts.max())
+            cmap_obj = plt.get_cmap(cmap)
+        else:
+            norm = None
+            cmap_obj = None
+
+        for cell in self.lop:
+            width = cell['xmax'] - cell['xmin']
+            height = cell['ymax'] - cell['ymin']
+
+            if color_by_count:
+                facecolor = cmap_obj(norm(cell['count']))
+            else:
+                facecolor = 'none'
+
+            rect = Rectangle(
+                (cell['xmin'], cell['ymin']),
+                width,
+                height,
+                facecolor=facecolor,
+                edgecolor='black',
+                linewidth=0.5,
+                alpha=alpha if color_by_count else 1.0,
+            )
+            ax.add_patch(rect)
+
+        if show_points:
+            ax.scatter(self.x, self.y, s=4, c='red', alpha=0.5)
+
+        ax.set_xlim(self.xmin, self.xmax)
+        ax.set_ylim(self.ymin, self.ymax)
+        ax.set_aspect('equal')
+        ax.set_title('QuadTree')
+        ax.set_xlabel('x')
+        ax.set_ylabel('y')
+
+        if color_by_count:
+            sm = plt.cm.ScalarMappable(cmap=cmap_obj, norm=norm)
+            sm.set_array([])
+            fig.colorbar(sm, ax=ax, label='count')
+
+        return ax
+
+
 if __name__ == '__main__':
 
     xs = np.random.uniform(size=10000)
@@ -84,5 +159,8 @@ if __name__ == '__main__':
     n = [ l['count'] for l in Q.lop]
 
     print(sum(n))
+
+    Q.plot()
+    plt.show()
 
 
