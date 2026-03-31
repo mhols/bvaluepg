@@ -375,7 +375,7 @@ Es gilt
 1 - \sigma(x) = \sigma(-x),
 \]
 
-DAraus folgt
+Daraus folgt
 
 \[
 \boxed{

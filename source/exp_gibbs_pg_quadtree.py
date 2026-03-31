@@ -17,7 +17,7 @@ Waere es statistisch sauberer, die Zellfläche als Exposure einzubauen, also
 
 from pathlib import Path
 
-# from mini_variable_explorer import explore
+from mini_variable_explorer import explore
 
 import numpy as np
 import pandas as pd
@@ -283,4 +283,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # explore(locals())
+    explore(locals())
