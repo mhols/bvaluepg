@@ -150,8 +150,8 @@ class QuadTree:
 
 if __name__ == '__main__':
 
-    xs = np.random.uniform(size=10000)
-    ys = np.random.uniform(size=10000)
+    xs = np.random.uniform(size=1000)
+    ys = np.random.uniform(size=1000)
 
 
     Q = QuadTree(0, 1, 0, 1, xs, ys, 25, 10)

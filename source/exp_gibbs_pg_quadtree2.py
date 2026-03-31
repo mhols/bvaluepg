@@ -1,18 +1,21 @@
 """
-Gibbs-Sampling mit Pólya-Gamma-Augmentation auf einem adaptiven QuadTree-Grid.
+Gibbs-Sampling mit Pólya-Gamma-Augmentation auf einem adaptiv erzeugten QuadTree-Grid.
 
+Diese Variante orientiert sich an exp_gibbs_pg_quadtree.py,
+erzeugt den QuadTree aber direkt aus den Rohdaten über die Klasse QuadTree,
+statt ein zuvor gespeichertes Grid aus CSV/NPY zu laden.
 
 Aktueller Stand:
+- Rohdaten: Erdbebenpunkte aus GeoJSON oder CSV
+- Grid: wird on-the-fly per QuadTree-Klasse erzeugt
 - Beobachtungen: Counts pro QuadTree-Zelle
 - Prior: Gaußsche Kovarianz über die Zellzentren
 - Visualisierung: Rechtecke statt imshow
 
-Wichtiger Hinweis:
-Das Modell verwendet hier zunächst noch
-    rate_i = lam * sigmoid(f_i)
 
-Waere es statistisch sauberer, die Zellfläche als Exposure einzubauen, also
-    rate_i = area_i * lam * sigmoid(f_i).
+
+Waere es statistisch sauberer, die Zellfläche als Exposure einzubauen oder, also
+    rate_i = area_i * lam * sigmoid(f_i).?
 """
 
 from pathlib import Path
@@ -21,6 +24,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import geopandas as gpd
 import scipy.linalg as spla
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
@@ -28,14 +32,45 @@ from matplotlib.colors import PowerNorm
 
 from polyagamma import random_polyagamma
 from polyagammadensity import PolyaGammaDensity, inv_sigmoid
+from quadtree import QuadTree
 
 
 HERE = Path(__file__).resolve().parent          # .../bvaluepg/source
 REPO_ROOT = HERE.parent                         # .../bvaluepg
 DATA_DIR = REPO_ROOT / "data"
 
-GRID_CSV_PATH = DATA_DIR / "eq_quadtree_grid.csv"
-COUNTS_NPY_PATH = DATA_DIR / "eq_quadtree_counts.npy"
+JSON_FILE = DATA_DIR / "earthquakes_3point5_cl_2010-2020.json"
+CSV_FILE = DATA_DIR / "earthquakes_3point5_cl_2010-2020.csv"
+
+# QuadTree-Parameter
+NMAX = 25
+MAX_DEPTH = 12
+
+
+def load_earthquake_data() -> gpd.GeoDataFrame:
+    """Lade Erdbebendaten aus GeoJSON oder CSV als GeoDataFrame."""
+    if JSON_FILE.exists():
+        gdf = gpd.read_file(JSON_FILE)
+        if gdf.crs is None:
+            gdf = gdf.set_crs("EPSG:4326", allow_override=True)
+        return gdf
+
+    if CSV_FILE.exists():
+        df = pd.read_csv(CSV_FILE)
+        lat_col = "latitude"
+        lon_col = "longitude"
+        gdf = gpd.GeoDataFrame(
+            df,
+            geometry=gpd.points_from_xy(df[lon_col], df[lat_col]),
+            crs="EPSG:4326",
+        )
+        return gdf
+
+    raise FileNotFoundError(
+        "Keine Erdbebendaten gefunden. Erwartet wird eine der Dateien:\n"
+        f"- {JSON_FILE}\n"
+        f"- {CSV_FILE}"
+    )
 
 
 def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
@@ -44,6 +79,7 @@ def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
     b = np.clip(b, 1, None)
     c = np.asarray(c, dtype=float)
     return random_polyagamma(h=b, z=c, method="saddle")
+
 
 
 def gaussian_covariance_from_coords(
@@ -64,6 +100,7 @@ def gaussian_covariance_from_coords(
     cov = v2 * np.exp(-dist2 / (2.0 * rho**2))
     cov += jitter * np.eye(len(x))
     return cov
+
 
 
 def gibbs_sampler(
@@ -128,6 +165,7 @@ def gibbs_sampler(
     return f_samples
 
 
+
 def plot_quadtree_values(
     grid_df: pd.DataFrame,
     values: np.ndarray,
@@ -179,15 +217,31 @@ def plot_quadtree_values(
     plt.tight_layout()
 
 
+
+def build_quadtree_grid(gdf: gpd.GeoDataFrame, countmax: int, maxdepth: int) -> tuple[QuadTree, pd.DataFrame]:
+    """Erzeuge aus den Punktdaten einen QuadTree und gib zusätzlich ein Grid-DataFrame zurück."""
+    xs = gdf.geometry.x.to_numpy(dtype=float)
+    ys = gdf.geometry.y.to_numpy(dtype=float)
+
+    minx, miny, maxx, maxy = gdf.total_bounds
+    qt = QuadTree(minx, maxx, miny, maxy, xs, ys, countmax=countmax, maxdepth=maxdepth)
+
+    grid_df = pd.DataFrame(qt.lop).copy()
+    grid_df["x_center"] = 0.5 * (grid_df["xmin"] + grid_df["xmax"])
+    grid_df["y_center"] = 0.5 * (grid_df["ymin"] + grid_df["ymax"])
+
+    return qt, grid_df
+
+
+
 def main():
-    global grid_df, samples, f_est, field_est, nobs, lam, area
+    global gdf, qt, grid_df, samples, f_est, field_est, nobs, lam, area
 
-    if not GRID_CSV_PATH.exists():
-        raise FileNotFoundError(
-            f"{GRID_CSV_PATH} wurde nicht gefunden. Bitte zuerst adaptiv_grid.py ausführen."
-        )
+    gdf = load_earthquake_data()
+    print(f"Loaded {len(gdf)} earthquake events")
+    print(f"CRS: {gdf.crs}")
 
-    grid_df = pd.read_csv(GRID_CSV_PATH)
+    qt, grid_df = build_quadtree_grid(gdf, countmax=NMAX, maxdepth=MAX_DEPTH)
 
     # Counts / Zentren / Zellflächen laden
     nobs = grid_df["count"].to_numpy().astype(int)
@@ -199,7 +253,7 @@ def main():
     )
 
     nbins = len(nobs)
-    print(f"Loaded {nbins} quadtree cells")
+    print(f"Constructed {nbins} quadtree cells")
     print(f"Total observed events: {nobs.sum()}")
     print(f"Min/Max counts per cell: {nobs.min()} / {nobs.max()}")
     print(f"Min/Max cell area: {area.min():.6f} / {area.max():.6f}")
@@ -276,9 +330,8 @@ def main():
     plt.show()
 
     print("Gibbs sampling on quadtree grid done.")
-    print("Hinweis: Zellflächen sind bereits geladen, aber noch nicht als Exposure im Modell verwendet.")
 
-    return samples, f_est, field_est, nobs, grid_df, lam, area
+    return samples, f_est, field_est, nobs, grid_df, lam, area, qt
 
 
 if __name__ == "__main__":
