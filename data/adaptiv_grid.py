@@ -46,9 +46,10 @@ elif os.path.exists(CSV_FILE):
     # Standardspaltennamen – falls anders, bitte hier anpassen
     lat_col = "latitude"
     lon_col = "longitude"
+    npoints = df.count
     gdf = gpd.GeoDataFrame(
         df,
-        geometry=gpd.points_from_xy(df[lon_col], df[lat_col]),
+        geometry=gpd.points_from_xy(df[lon_col]+3*np.random.normal(size=npoints), df[lat_col]+0.5*np.random.normal(size=npoints)),
         crs="EPSG:4326",
     )
 else:
@@ -60,6 +61,7 @@ else:
 print("Rows:", len(gdf))
 print("Columns:", list(gdf.columns))
 print("CRS:", gdf.crs)
+
 
 # -----------------------------------------------------
 # 2) Deskriptive Statistik
@@ -201,7 +203,9 @@ leaves: list[dict] = []
 indices = np.arange(len(xs))
 
 def subdivide(xmin: float, xmax: float, ymin: float, ymax: float,
-              idx: np.ndarray, depth: int = 0) -> None:
+              idx: np.ndarray, xs: np.ndarray, 
+              ys: np.ndarray, depth: int, 
+              leaves=[]) -> None:
     """
     Rekursive Funktion zum Erstellen des QuadTrees. Solange die
     Anzahl der Indizes größer als NMAX ist und die maximale Tiefe
@@ -241,13 +245,15 @@ def subdivide(xmin: float, xmax: float, ymin: float, ymax: float,
     # Nordosten (NE): x > midx, y > midy
     idx_ne = idx[(xs[idx] > midx) & (ys[idx] > midy)]
     # Rekursion für jeden Unterbereich
-    subdivide(xmin, midx, ymin, midy, idx_sw, depth + 1)
-    subdivide(midx, xmax, ymin, midy, idx_se, depth + 1)
-    subdivide(xmin, midx, midy, ymax, idx_nw, depth + 1)
-    subdivide(midx, xmax, midy, ymax, idx_ne, depth + 1)
+    subdivide(xmin, midx, ymin, midy, idx_sw, xs, ys, depth + 1, leaves)
+    subdivide(midx, xmax, ymin, midy, idx_se, xs, ys, depth + 1, leaves)
+    subdivide(xmin, midx, midy, ymax, idx_nw, xs, ys, depth + 1, leaves)
+    subdivide(midx, xmax, midy, ymax, idx_ne, xs, ys, depth + 1, leaves)
+
+
 
 # QuadTree generieren
-subdivide(minx, maxx, miny, maxy, indices, depth=0)
+subdivide(minx, maxx, miny, maxy, indices, xs, ys, depth=0, leaves=leaves)
 
 print(f"\nNumber of quadtree cells (leaves): {len(leaves)}")
 
@@ -318,3 +324,23 @@ plt.show()
 grid_df.to_csv("eq_quadtree_grid.csv", index=False)
 np.save("eq_quadtree_counts.npy", grid_df["count"].to_numpy())
 print("Saved quadtree grid to eq_quadtree_grid.csv and eq_quadtree_counts.npy")
+
+
+
+if __name__ == '__main__':
+
+    xs = np.random.uniform(size=10000)
+    ys = np.random.uniform(size=10000)
+
+    n = np.arange(10000)
+
+    leaves = []
+    subdivide(xmin=0, xmax=1, ymin=0, ymax=1, idx=n, xs=xs, ys=ys, depth=0, leaves=leaves)
+
+    for l in leaves:
+        print(l['count'])
+
+    counts = [l['count'] for l in leaves]
+
+    plt.plot(counts, 'o')
+    plt.show()

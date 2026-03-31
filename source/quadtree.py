@@ -37,7 +37,7 @@ class QuadTree:
             # else...
 
 
-             # Mittelpunkte berechnen
+            # Mittelpunkte berechnen
             midx = 0.5 * (xmin + xmax)
             midy = 0.5 * (ymin + ymax)
             # Punkte den vier Quadranten zuordnen
