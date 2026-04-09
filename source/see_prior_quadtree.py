@@ -10,9 +10,7 @@ What it does
     * prior mean of latent field f
     * prior sd of latent field f
     * a few prior samples of f
-    * the implied rate field softplus(f)
-
-This can be changed to show the prior for the sigmoid-transformed field. Only need to change softplus for sigmoid.
+    * the prior-induced rate field softplus(f)
 
 """
 
@@ -34,7 +32,7 @@ from exp_gibbs_pg_quadtree2 import build_quadtree_grid, gaussian_covariance_from
 COUNTMAX = 25
 MAX_DEPTH = 12
 
-RHO = 1
+RHO = 1.5
 JITTER = 1e-8
 
 N_SAMPLES = 3
@@ -150,8 +148,9 @@ def main():
         * (grid_df["ymax"].to_numpy(dtype=float) - grid_df["ymin"].to_numpy(dtype=float))
     )
 
-    lam = max(1, int(np.max(nobs) + 2 * np.sqrt(np.max(nobs))) + 1)
-    V2 = 5 / lam
+    # lam = max(1, int(np.max(nobs) + 2 * np.sqrt(np.max(nobs))) + 1)
+    # V2 = 5 / lam
+    V2 = 5.0
 
     nbins = len(nobs)
     print(f"Constructed {len(grid_df)} quadtree cells")
@@ -160,8 +159,10 @@ def main():
     print(f"Min/Max cell area        = {area.min():.6f} / {area.max():.6f}")
 
     # Prior on latent field f
-    baseline_rate = np.clip(5.0, 1e-6, lam - 1e-6)
-    prior_mean = inv_softplus((baseline_rate / lam) * np.ones(nbins))
+    # baseline_rate = np.clip(5.0, 1e-6, lam - 1e-6)
+    # prior_mean = inv_sigmoid((baseline_rate / lam) * np.ones(nbins))
+    baseline_rate = 5.0
+    prior_mean = inv_softplus(baseline_rate * np.ones(nbins))
     prior_cov = gaussian_covariance_from_coords(
         x_center,
         y_center,
@@ -177,7 +178,7 @@ def main():
     print(f"MAX_DEPTH = {MAX_DEPTH}")
     print(f"RHO = {RHO}")
     print(f"V2 = {V2}")
-    print(f"LAM0 = {lam}")
+    # print(f"LAM0 = {lam}")
     print(f"N_SAMPLES = {N_SAMPLES}")
 
     # Observed counts for reference
