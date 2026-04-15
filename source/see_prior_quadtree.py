@@ -32,10 +32,10 @@ from quadtree import QuadTree
 COUNTMAX = 25
 MAX_DEPTH = 12
 
-RHO = 1.5
+#RHO = 1.5
 JITTER = 1e-8
-V2 = 10.0
-baseline_rate = 5.0
+#V2 = 10.0
+#baseline_rate = 5.0
 
 
 # plotting / sampling
@@ -171,7 +171,13 @@ def plot_quadtree_values(
     return ax
 
 
-def make_prior_model(grid_df: pd.DataFrame, nobs: np.ndarray) -> tuple[RampDensity, np.ndarray, np.ndarray]:
+def make_prior_model(
+    grid_df: pd.DataFrame, 
+    nobs: np.ndarray,
+    rho: float,
+    v2: float,
+    baseline_rate: float
+    ) -> tuple[RampDensity, np.ndarray, np.ndarray]:
     # catch cell centers as floats for covariance construction
     x_center = grid_df["x_center"].to_numpy(dtype=float)
     y_center = grid_df["y_center"].to_numpy(dtype=float)
@@ -182,8 +188,8 @@ def make_prior_model(grid_df: pd.DataFrame, nobs: np.ndarray) -> tuple[RampDensi
     Sigma0 = gaussian_covariance_from_coords(
         x_center,
         y_center,
-        rho=RHO,
-        v2=V2,
+        rho=rho,
+        v2=v2,
         jitter=JITTER,
     )
 
@@ -301,7 +307,7 @@ def plot_covariance_and_correlation(
 # ============================================================
 # MAIN
 # ============================================================
-def main():
+def main(rho = 1.5, v2 = 10, baseline_rate = 5):
     # build quadtree and prior model
     rng = np.random.default_rng(SEED)
 
@@ -309,7 +315,16 @@ def main():
     qt, grid_df = build_quadtree_grid(gdf, countmax=COUNTMAX, maxdepth=MAX_DEPTH)
 
     nobs = grid_df["count"].to_numpy(dtype=int)
-    rd, prior_mean, Sigma0 = make_prior_model(grid_df, nobs)
+    rd, prior_mean, Sigma0 = make_prior_model(
+        grid_df, 
+        nobs, 
+        rho, 
+        v2, 
+        baseline_rate
+        )
+   
+    print(f"rho={rho}, v2={v2}, baseline_rate={baseline_rate}")
+
 
     f_prior_sd = np.sqrt(np.diag(Sigma0))
     rate_prior_mean = rd.field_from_f(prior_mean)
@@ -328,8 +343,13 @@ def main():
     # Prior mean / sd in latent space and induced mean rate
     plot_quadtree_values(grid_df, prior_mean, "Prior mean of latent field f", cmap="coolwarm")
     plot_quadtree_values(grid_df, f_prior_sd, "Prior standard deviation of latent field f", cmap="magma")
-    plot_quadtree_values(grid_df, rate_prior_mean, "Prior-induced mean rate = softplus(mu)", cmap="viridis", power_gamma=0.7)
-
+    plot_quadtree_values(
+        grid_df, 
+        rate_prior_mean, 
+        f"Prior mean rate | rho={rho}, v2={v2}, baseline={baseline_rate}",
+        cmap="viridis",
+        power_gamma=0.7,
+        )
     # Samples from the prior in latent and rate space
     f_samples = draw_prior_samples(rd, N_PRIOR_SAMPLES, rng)
     rate_samples = rd.field_from_f(f_samples)
@@ -396,4 +416,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    rho_values = [0.5]
+    v2_values = [1.0, 5.0, 10.0]
+    baseline_values = [5.0]
+
+    for rho in rho_values:
+        for v2 in v2_values:
+            for baseline_rate in baseline_values:
+                print("\n" + "=" * 70)
+                main(rho=rho, v2=v2, baseline_rate=baseline_rate)
