@@ -148,6 +148,21 @@ class QuadTree:
         return ax
 
 
+
+    def cell_areas(self):
+        """
+        Calculates the area of each QuadTree cell/patch.
+
+        Returns
+        -------
+        np.ndarray
+            Array of cell areas (in coordinate units).
+        """
+        return np.array([
+            (cell['xmax'] - cell['xmin']) * (cell['ymax'] - cell['ymin'])
+            for cell in self.lop
+        ], dtype=float)
+
 if __name__ == '__main__':
 
     xs = np.random.uniform(size=1000)
@@ -158,9 +173,11 @@ if __name__ == '__main__':
 
     n = [ l['count'] for l in Q.lop]
 
-    print(sum(n))
+    print("Total number of points:", sum(n))
+    areas = Q.cell_areas()
+
+    print("Number of cells:", len(areas))
+    print("First 5 cell areas:", areas[:5])
 
     Q.plot()
     plt.show()
-
-

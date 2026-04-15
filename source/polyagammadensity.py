@@ -20,6 +20,8 @@ def der_sigmoid(f):
 def softplus(t):
     return np.log1p(np.exp(-np.abs(t))) + np.maximum(t, 0.0) 
 
+def inv_softplus(t):
+    return np.log(np.expm1(t))
 
 class Density:
 
