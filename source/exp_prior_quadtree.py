@@ -46,10 +46,10 @@ BASELINE_RATE = 5.0
 PRIOR_V2_FACTOR = 5.0
 
 # Exploration settings
-N_PRIOR_SAMPLES = 300
+N_PRIOR_SAMPLES = 500
 N_RATE_SAMPLES_TO_PLOT = 6
 N_COUNT_SAMPLES_TO_PLOT = 6
-N_SELECTED_CELLS = 6
+N_SELECTED_CELLS = 4
 RANDOM_SEED = 0
 
 
@@ -172,7 +172,8 @@ def make_prior_model(grid_df: pd.DataFrame, nobs: np.ndarray) -> tuple[PolyaGamm
     y_center = grid_df["y_center"].to_numpy(dtype=float)
 
     # lambda is global rate parameter
-    lam = max(1, int(np.max(nobs) + 2 * np.sqrt(np.max(nobs))) + 1) # max count + 2 sd as a heuristic for an upper bound on the rate + 1 for safety margin
+    # lam = max(1, int(np.max(nobs) + 2 * np.sqrt(np.max(nobs))) + 1) # max count + 2 sd as a heuristic for an upper bound on the rate + 1 for safety margin
+    lam = 100  # fix lambda for diagnostics, otherwise it can be very large and lead to numerical issues in the prior covariance
     v2 = PRIOR_V2_FACTOR / lam # marginale Varianz 
     Sigma0 = gaussian_covariance_from_coords(x_center, y_center, rho=RHO, v2=v2)
 
@@ -407,6 +408,38 @@ def main2():
 if __name__ == "__main__":
     main()
 
+# # eine Zelle samplen und analysieren
+# idx = 118
 
+# f_i = f_samples[:, idx]
+# r_i = rate_samples[:, idx]
+# n_i = count_samples[:, idx]
+
+# print(f"Cell {idx}")
+# print(f"area = {grid_df.iloc[idx]['area']:.6f}")
+# print(f"observed count = {nobs[idx]}")
+# print(f"prior mean f (MC) = {f_i.mean():.4f}")
+# print(f"prior sd f (MC) = {f_i.std():.4f}")
+# print(f"prior mean rate (MC) = {r_i.mean():.4f}")
+# print(f"prior sd rate (MC) = {r_i.std():.4f}")
+# print(f"prior-predictive mean count (MC) = {n_i.mean():.4f}")
+# print(f"prior-predictive sd count (MC) = {n_i.std():.4f}")
+
+# fig, axes = plt.subplots(1, 3, figsize=(14, 4))
+
+# axes[0].hist(f_i, bins=30)
+# axes[0].set_title(f"Cell {idx}: latent f")
+# axes[0].set_xlabel("f")
+
+# axes[1].hist(r_i, bins=30)
+# axes[1].set_title(f"Cell {idx}: prior-induced rate")
+# axes[1].set_xlabel("rate = lam * sigmoid(f)")
+
+# axes[2].hist(n_i, bins=30)
+# axes[2].set_title(f"Cell {idx}: prior-predictive counts")
+# axes[2].set_xlabel("count")
+
+# plt.tight_layout()
+# plt.show()
 
 # fixes lambda testen
