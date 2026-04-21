@@ -3,7 +3,15 @@ __doc__="a class to use the Polya-Gamma technique for density estimation"
 import numpy as np
 import scipy as sp
 import scipy.linalg.blas as blas
-import syntheticdata as sd
+import scipy.linalg as spla
+import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
+from matplotlib.colors import PowerNorm
+
+
+from polyagamma import random_polyagamma
+
+#import syntheticdata as sd
 import matplotlib.pyplot as plt
 
 #import polyagamma    ### TODO
@@ -23,17 +31,46 @@ def softplus(t):
 def inv_softplus(t):
     return np.log(np.expm1(t))
 
+def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
+    """Ziehen aus PG(b, c) unter Verwendung des Pakets „polyagamma“.
+
+    """
+    b = np.asarray(b, dtype=int)
+
+    # Ensure positivity (polyagamma requires h >= 1)
+    b = np.clip(b, 1, None)
+
+    c = np.asarray(c, dtype=float)
+
+    return random_polyagamma(h=b, z=c, method="saddle")
+
+# # Idee Sigma0_inv_dot(v) mit L =pdg.Lprior
+def sigma0_inv_dot(v, L):
+    """Berechne Sigma0^{-1} @ v unter Verwendung der Cholesky-Zerlegung L von Sigma0."""
+    # Rechne L @ y = v
+    y = spla.solve_triangular(L, v, lower=True, trans=False)
+    # Rechne L.T @ x = y
+    x = spla.solve_triangular(L, y, lower=True, trans=True)
+    return x
+
 class Density:
 
-    def __init__(self, prior_mean, prior_covariance, **kwargs):
-
-        self.prior_mean = prior_mean
-        self.prior_covariance = prior_covariance
+    def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
 
         self.kwargs = kwargs
+        self.set_prior_Gaussian(prior_mean, prior_covariance)
 
-        self._Lprior = None # for lazy evaluation
 
+    def set_prior_Gaussian(self, prior_mean, prior_covariance):
+        """
+        """
+        try:
+            self.prior_mean = prior_mean.ravel()  ## make it one dimensional
+        except:
+            pass
+
+        self.prior_covariance = prior_covariance
+        self._Lprior = None
 
     def set_data(self, nobs):
         """
@@ -177,14 +214,21 @@ class Density:
         """
 
         """
-        if Guassian pixelwise proxy is given, use a baseline Poisson based proxy
+        if Gaussian pixelwise proxy is given, use a baseline Poisson based proxy
         """
 
         if f is None:
-            f = self.f_from_field(np.clip(self.nobs, 1, None))
+            f = self.f_from_field(self.nobs) #np.clip(self.nobs, 1, None))
 
         if s2 is None:
-            s2 = f / self.derivative_field_from_f(f)**2
+            s2 = max(0.1, f) / self.derivative_field_from_f(f)**2
+
+        D = np.diag(s2)
+
+        tmp = f - self.prior_mean
+        tmp = np.linalg.solve(self.prior_covariance + D, tmp)
+        tmp = np.dot(self.prior_covariance, tmp)
+        return self.prior_mean + tmp
 
         """
         D = diag(s2), G = self.prior_covariance, mu = self.priori_mean 
@@ -217,7 +261,7 @@ class Density:
         return tmp
     
     
-    def max_logposterior_estimator(self, f0=None, method='Powell', niter=10, eps=1e-6):
+    def max_logposterior_estimator(self, f0=None, method='Powell', niter=10000, eps=1e-6):
         """
         Docstring for grad_scipy_logposterior
         
@@ -259,6 +303,10 @@ class Density:
 
 class SigmoidMixin:
 
+    def __init__(self, prior_mean, prior_covariance, **kwargs):
+        self.last_sample = None
+        super().__init__(prior_mean, prior_covariance, **kwargs)
+
     @property
     def lam(self):
         return self.kwargs['lam']
@@ -294,18 +342,102 @@ class SigmoidMixin:
  
         
     def first_guess_estimator(self):
+
+        field = np.clip(self.nobs + 1, 0.5, 0.999 * self.lam)
         
-        f = self.nobs / self.lam
+        f = self.f_from_field( field )
+        v = self.derivative_field_from_f(f)
 
-        f = np.clip(f, 0.001, 0.999)
- 
 
-        return super().first_guess_estimator( f, self.nobs * sigmoid(-f)) 
+        return super().first_guess_estimator( f, field/v**2) 
         
 
+    def sample_posterior(self,
+        n_iter: int,
+        burn_in: int = 0,
+        thin: int = 1,
+        initial_f: np.ndarray | None = None,
+        random_seed: int | None = None
+    ):
+        if random_seed is not None:
+            np.random.seed(random_seed)
 
-    def sample_f_cond_polyagamma(self):
-        pass
+        if initial_f is None and self.last_sample is None:
+            initial_f = 0
+        elif not self.last_sample is None:
+            initial_f = self.last_sample
+        else:
+            pass
+
+        nbins = self.nbins
+        # Precompute the prior precision matrix and its product with the prior mean
+        mu0 = self.prior_mean
+        # Precompute the inverse once (symmetric, positive definite)
+        # Sigma0_inv = np.linalg.inv(Sigma0)
+        # L = pgd._Lprior
+        L = np.asarray(self.Lprior, dtype=float)
+        I = np.eye(self.nbins)
+
+        X = spla.solve_triangular(L, I, lower=True)         # X = L^{-1}
+        Sigma0_inv = spla.solve_triangular(L.T, X, lower=False)  # (L^T)^{-1} @ L^{-1}
+
+
+        Sigma0_inv_mu0 = Sigma0_inv @ mu0
+
+        # Initialiesieren
+        if initial_f is None:
+            f = mu0.copy()
+        else:
+            f = np.asarray(initial_f, dtype=float).copy()
+            if f.shape != mu0.shape:
+                raise ValueError("initial_f must have shape matching prior_mean")
+
+        # Samples speichern
+        n_keep = max(0, (n_iter - burn_in) // thin)
+        f_samples = np.zeros((n_keep, nbins))
+
+        # Gibbs loop
+        # sample_idx = 0
+        for it in range(n_iter):
+            # --- Step 1: sample k gegenben f ---
+            # Die Rate für die latenten „negativen“ Zählungen ist lam * sigmoid(-f)
+            rate_neg = self.field_from_f(-f)
+            k = np.random.poisson(rate_neg)
+
+            # --- Step 2: sample w gegeben f und counts ---
+            b_counts = (self.nobs + k).astype(int)  # Gültigen PG-Formparameter sicherstellen
+            w = sample_polya_gamma(b_counts, f)
+
+            # --- Step 3: sample f gegeben w, k ---
+            # Kappa berechnen
+            kappa = 0.5 * (self.nobs - k)
+            # Posterior-Präzision und Mittelwert
+            A = Sigma0_inv + np.diag(w)
+            # Rechte Seite: Sigma0_inv * mu0 + kappa
+            bvec = Sigma0_inv_mu0 + kappa
+            # Löse A m = bvec für m (posteriorer Mittelwert)
+            # Cholesky-Faktorisierung für numerische Stabilität.
+            chol = np.linalg.cholesky(A)
+            # Löse den Mittelwert unter Verwendung der Cholesky-Faktoren.
+            # Löse zunächst L y = bvec.
+            y = spla.solve_triangular(chol, bvec, lower=True, trans=False)
+            # Löse L^T m = y
+            # m = spla.solve_triangular(chol.T, y, lower=False)
+            m = spla.solve_triangular(chol, y, lower=True, trans=True)
+
+            # Ziehe eine zufällig aus N(0, A^{-1})
+            z = np.random.normal(size=nbins)
+            # Löse L^T x = z für x, sodass x ~ N(0, A^{-1})
+            eps = spla.solve_triangular(chol.T, z, lower=False)
+            f = m + eps
+
+            # Speichern, wenn burn_in abgeschlossen ist und bei Ausdünnungsintervall
+            if it >= burn_in and ((it - burn_in) % thin == 0):
+                #f_samples[sample_idx] = f
+                # sample_idx += 1
+                self.last_sample = f
+                yield f
+        return
 
 
 class SmoothRampMixin:
@@ -324,7 +456,7 @@ class SmoothRampMixin:
         return sigmoid(f) / self.field_from_f(f) 
        
     def first_guess_estimator(self):
-        f = np.clip(self.nobs, 1, None)
+        f = np.clip(self.nobs+1, 1, None)
         s2 = f * (1-np.exp(-f))**2
         return super().first_guess_estimator(f, s2)
       
@@ -344,28 +476,66 @@ class SmoothRampMixin:
 
 class PolyaGammaDensity(SigmoidMixin, Density):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
+        super().__init__(prior_mean, prior_covariance, **kwargs)
 
 
 class RampDensity(SmoothRampMixin, Density):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self,prior_mean=None, prior_covariance=None,  **kwargs):
+        super().__init__(prior_mean, prior_covariance, **kwargs)
 
 class Mixin2D:
 
-    def __init__(self, **kwargs):
-        self.n = kwargs['n']
-        self.m = kwargs['m']
+    #def __init__(self, **kwargs):
+    #    self.n = kwargs['n']
+    #    self.m = kwargs['m']
+    #
+    #    assert self.n * self.m == self.prior_mean.shape[0], "wrong dimension n, m"
+    #    return super().__init__(**kwargs)
+    
+    @property
+    def n(self):
+        return self.kwargs['n']
+    
+    @property
+    def m(self):
+        return self.kwargs['m']
+    
+    @classmethod
+    def image_to_scanorder(cls, image):
+        assert len(image.shape)==2, 'image must be 2 dimensional'
+        return image.ravel()
 
-        assert self.n * self.m == kwargs['prior_mean'].shape[0], "wrong dimension n, m"
-        return super().__init__(**kwargs)
+    def scanorder_to_image(self, linear_image, n=None, m=None):
+        if n is None:
+            n = self.n
+        if m is None:
+            m = self.m
+        assert len(linear_image) == n*m, 'number of elements do not correspond'
+        return np.reshape(linear_image, (n, m))
+    
+    def random_catalog_from_nobs(self, nobs):
+
+        nobs = self.scanorder_to_image(nobs.ravel())
+
+        x = []
+        y = []
+
+        for i in range(self.n):
+            for j in range(self.m):
+                for k in range(nobs[i,j]):
+                    x.append(i+np.random.uniform())
+                    y.append(j+np.random.uniform())
+        return np.array(x), np.array(y)
+
+
+
 
     def to_image(self, d):
-        sd.scanorder_to_image(d, self.n, self.m)
+        self.scanorder_to_image(d, self.n, self.m)
     
     def imshow(self, d):
-        plt.imshow( sd.scanorder_to_image(d, self.n, self.m))
+        plt.imshow( self.scanorder_to_image(d, self.n, self.m))
 
 
 
@@ -374,14 +544,13 @@ class PolyaGammaDensity2D(Mixin2D, PolyaGammaDensity):
     Docstring for PolyGammaDensity2D
     specialized in 2Dimensional data
     """
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
+        super().__init__(prior_mean, prior_covariance, **kwargs)
 
    
 class RampDensity2D(Mixin2D, RampDensity):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
+    def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
+        super().__init__(prior_mean, prior_covariance, **kwargs)
     
 
     
@@ -402,10 +571,12 @@ if __name__ == '__main__':
     lam = 20   ## then mean(n) = lam/2
     gam = 5 #16 * 20**2 / lam**2
     rho = 3
-    
-    #DensityClass = PolyaGammaDensity2D ##RampDensity
 
-    DensityClass = RampDensity2D
+    kwargs={'lam' : lam, 'n': n, 'm': m}
+    
+    DensityClass = PolyaGammaDensity2D ##RampDensity
+
+    #DensityClass = RampDensity2D
 
     pgd = DensityClass(
         prior_mean = pm * np.ones( n * m),
@@ -418,7 +589,7 @@ if __name__ == '__main__':
     plt.figure()
     plt.title('density of distribution of field')
     ff = np.linspace(0, lam, 100000)[1:-1]
-    plt.plot( ff, pgd.density_under_gaussian(ff, pm, gam))
+    plt.plot( ff, DensityClass(**kwargs).density_under_gaussian(ff, pm, gam))
     plt.show()
 
     prior = pgd.random_prior_parameters()
@@ -490,5 +661,10 @@ if __name__ == '__main__':
     plt.figure()
     plt.title('gradient')
     plt.imshow( sd.scanorder_to_image( pgd.neg_grad_logposterior(res), n, m ).T)
+
+    for res in pgd.sample_posterior(initial_f=res, n_iter=10):
+        plt.figure()
+        pgd.imshow(res)
+
 
     plt.show()
