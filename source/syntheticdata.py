@@ -145,17 +145,6 @@ def experiment_1(
     estim.imshow(sres/130)
 
 
-
-    
-        
-
-
-
-
-
-
-
-
 def experiment_2(nn=5, ncheck=5, a=1, b=2):
 
     tmp = checkerboard(nn, ncheck, a, b)
@@ -168,7 +157,8 @@ def experiment_2(nn=5, ncheck=5, a=1, b=2):
 
 if __name__ == "__main__":
 
-    experiment_1()
+    #experiment_1()
+    experiment_1(a=1.5, b=2)
     #experiment_2()
 
 

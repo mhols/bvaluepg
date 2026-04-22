@@ -45,6 +45,8 @@ def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
     return random_polyagamma(h=b, z=c, method="saddle")
 
 # # Idee Sigma0_inv_dot(v) mit L =pdg.Lprior
+## TODO into util.py
+
 def sigma0_inv_dot(v, L):
     """Berechne Sigma0^{-1} @ v unter Verwendung der Cholesky-Zerlegung L von Sigma0."""
     # Rechne L @ y = v
@@ -54,6 +56,9 @@ def sigma0_inv_dot(v, L):
     return x
 
 class Density:
+    """
+    Basis class for density computation
+    """
 
     def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
 
@@ -67,7 +72,7 @@ class Density:
         try:
             self.prior_mean = prior_mean.ravel()  ## make it one dimensional
         except:
-            pass
+            self.prior_mean = prior_mean
 
         self.prior_covariance = prior_covariance
         self._Lprior = None
@@ -85,6 +90,9 @@ class Density:
     
     @property
     def Lprior(self):
+        """
+        Lazy evaluation of Chlesky factor of prior covariance
+        """
         if self._Lprior is None:
             self._Lprior = sp.linalg.cholesky(self.prior_covariance, lower=True)
         return self._Lprior
