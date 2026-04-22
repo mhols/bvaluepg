@@ -5,51 +5,54 @@ import time
 import numpy as np
 import scipy.linalg as spla
 import matplotlib.pyplot as plt
-
+from pathlib import Path
+import pickle
 from cvxopt import matrix as cvxmat, solvers as cvxsolvers
 cvxsolvers.options["show_progress"] = False
 
-from polyagammadensity import RampDensity, RampDensity2D
+#from polyagammadensity import RampDensity, RampDensity2D
 
 
 # =========================
 # Density wrapper
 # =========================
-class SoftplusMixtureDensity(RampDensity):
-    """
-    Softplus density + Gaussian-mixture likelihood approximation.
-
-    """
-    def __init__(self, prior_mean: np.ndarray, prior_covariance: np.ndarray, mix: dict, **kwargs):
-        super().__init__(
-            prior_mean=np.asarray(prior_mean, dtype=float),
-            prior_covariance=np.asarray(prior_covariance, dtype=float),
-            **kwargs,
-        )
-        self.mix = mix
 
 
-class SoftplusMixtureDensity2D(RampDensity2D):
-    """
-    2D version specialized for image-like grids.
-    """
-    def __init__(
-        self,
-        prior_mean: np.ndarray,
-        prior_covariance: np.ndarray,
-        mix: dict,
-        n: int,
-        m: int,
-        **kwargs,
-    ):
-        super().__init__(
-            prior_mean=np.asarray(prior_mean, dtype=float),
-            prior_covariance=np.asarray(prior_covariance, dtype=float),
-            n=n,
-            m=m,
-            **kwargs,
-        )
-        self.mix = mix
+# class SoftplusMixtureDensity(RampDensity):
+#     """
+#     Softplus density + Gaussian-mixture likelihood approximation.
+
+#     """
+#     def __init__(self, prior_mean: np.ndarray, prior_covariance: np.ndarray, mix: dict, **kwargs):
+#         super().__init__(
+#             prior_mean=np.asarray(prior_mean, dtype=float),
+#             prior_covariance=np.asarray(prior_covariance, dtype=float),
+#             **kwargs,
+#         )
+#         self.mix = mix
+
+
+# class SoftplusMixtureDensity2D(RampDensity2D):
+#     """
+#     2D version specialized for image-like grids.
+#     """
+#     def __init__(
+#         self,
+#         prior_mean: np.ndarray,
+#         prior_covariance: np.ndarray,
+#         mix: dict,
+#         n: int,
+#         m: int,
+#         **kwargs,
+#     ):
+#         super().__init__(
+#             prior_mean=np.asarray(prior_mean, dtype=float),
+#             prior_covariance=np.asarray(prior_covariance, dtype=float),
+#             n=n,
+#             m=m,
+#             **kwargs,
+#         )
+#         self.mix = mix
 
 
 # =========================
@@ -388,86 +391,120 @@ def precompute_softplus_mixtures(
 
     return mix
 
+def load_or_build_mix(nmax_mix: int, cache_dir: Path) -> dict:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = cache_dir / f"softplus_mix_L1_nmax{nmax_mix}_tail60.pkl"
+
+    if cache_path.exists():
+        print(f"[mix] loading cache: {cache_path}")
+        with open(cache_path, "rb") as f:
+            return pickle.load(f)
+
+    print(f"[mix] building mix up to nmax_mix={nmax_mix}")
+
+    def K_of_n(n: int) -> int:
+        return 60
+
+    sigma_of_n = {"default": 1.0, 0: 1.5}
+
+    mix = precompute_softplus_mixtures(
+        nmax_mix,
+        t_N=1500,
+        K_of_n=K_of_n,
+        sigma_of_n=sigma_of_n,
+        normalize_target=True,
+        thr_active=1e-12,
+        tail_start=60,
+        t_half_width=20.0,
+        means_half_width=15.0,
+        verbose=True,
+    )
+
+    with open(cache_path, "wb") as f:
+        pickle.dump(mix, f)
+
+    print(f"[mix] saved cache: {cache_path}")
+    return mix
 
 # =========================
 # Demo
 # =========================
-if __name__ == "__main__":
-    np.random.seed(0)
+# if __name__ == "__main__":
+#     np.random.seed(0)
 
-    try:
-        import syntheticdata as sd
+#     try:
+#         import syntheticdata as sd
 
-        n, m = 20, 20
-        N = n * m
+#         n, m = 20, 20
+#         N = n * m
 
-        lam_bar = 5.0
-        prior_mean = np.log(np.expm1(lam_bar)) * np.ones(N)
-        prior_cov = sd.spatial_covariance_gaussian(n, m, rho=3, v2=lam_bar)
+#         lam_bar = 5.0
+#         prior_mean = np.log(np.expm1(lam_bar)) * np.ones(N)
+#         prior_cov = sd.spatial_covariance_gaussian(n, m, rho=3, v2=lam_bar)
 
-        nmax = 80
+#         nmax = 80
 
-        def K_of_n(n_):
-            return 60
+#         def K_of_n(n_):
+#             return 60
 
-        sigma_of_n = {"default": 1.0, 0: 1.5}
+#         sigma_of_n = {"default": 1.0, 0: 1.5}
 
-        mix = precompute_softplus_mixtures(
-            nmax,
-            t_N=1500,
-            K_of_n=K_of_n,
-            sigma_of_n=sigma_of_n,
-            normalize_target=True,
-            thr_active=1e-12,
-            tail_start=60,
-            t_half_width=20.0,
-            means_half_width=15.0,
-            verbose=True,
-        )
+#         mix = precompute_softplus_mixtures(
+#             nmax,
+#             t_N=1500,
+#             K_of_n=K_of_n,
+#             sigma_of_n=sigma_of_n,
+#             normalize_target=True,
+#             thr_active=1e-12,
+#             tail_start=60,
+#             t_half_width=20.0,
+#             means_half_width=15.0,
+#             verbose=True,
+#         )
 
-        dens = SoftplusMixtureDensity2D(
-            prior_mean=prior_mean,
-            prior_covariance=prior_cov,
-            mix=mix,
-            n=n,
-            m=m,
-        )
+#         dens = SoftplusMixtureDensity2D(
+#             prior_mean=prior_mean,
+#             prior_covariance=prior_cov,
+#             mix=mix,
+#             n=n,
+#             m=m,
+#         )
 
-        f_true = dens.random_prior_parameters()
-        rate_true = dens.field_from_f(f_true)
-        nobs = dens.random_events_from_field(rate_true)
-        dens.set_data(nobs)
+#         f_true = dens.random_prior_parameters()
+#         rate_true = dens.field_from_f(f_true)
+#         nobs = dens.random_events_from_field(rate_true)
+#         dens.set_data(nobs)
 
-        samples = gibbs_sampler(
-            dens,
-            n_iter=200,
-            burn_in=100,
-            thin=10,
-            initial_f=dens.first_guess_estimator(),
-            random_seed=1,
-        )
+#         samples = gibbs_sampler(
+#             dens,
+#             n_iter=200,
+#             burn_in=100,
+#             thin=10,
+#             initial_f=dens.first_guess_estimator(),
+#             random_seed=1,
+#         )
 
-        f_est = samples.mean(axis=0)
-        rate_est = np.mean([dens.field_from_f(s) for s in samples], axis=0)
+#         f_est = samples.mean(axis=0)
+#         rate_est = np.mean([dens.field_from_f(s) for s in samples], axis=0)
 
-        plt.figure(figsize=(12, 4))
-        plt.subplot(1, 3, 1)
-        plt.title("True field")
-        dens.imshow(rate_true)
-        plt.colorbar()
+#         plt.figure(figsize=(12, 4))
+#         plt.subplot(1, 3, 1)
+#         plt.title("True field")
+#         dens.imshow(rate_true)
+#         plt.colorbar()
 
-        plt.subplot(1, 3, 2)
-        plt.title("Observed events")
-        dens.imshow(nobs)
-        plt.colorbar()
+#         plt.subplot(1, 3, 2)
+#         plt.title("Observed events")
+#         dens.imshow(nobs)
+#         plt.colorbar()
 
-        plt.subplot(1, 3, 3)
-        plt.title("Posterior mean E[softplus(f)]")
-        dens.imshow(rate_est)
-        plt.colorbar()
+#         plt.subplot(1, 3, 3)
+#         plt.title("Posterior mean E[softplus(f)]")
+#         dens.imshow(rate_est)
+#         plt.colorbar()
 
-        plt.tight_layout()
-        plt.show()
+#         plt.tight_layout()
+#         plt.show()
 
-    except Exception as e:
-        print("[warn] demo failed:", repr(e))
+#     except Exception as e:
+#         print("[warn] demo failed:", repr(e))

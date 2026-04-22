@@ -55,11 +55,11 @@ def checkerboard(nn, ncheck, a, b):
 
 def experiment_1(
     EstimatorClass=pgd.PolyaGammaDensity2D, 
-    n=50, nn=20, a=4.5, b=5.5, rho=16, v2=0.1, lam=10):
+    n=50, nn=20, a=4.5, b=5.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
 
 
     # preparing data
-    estim = EstimatorClass(n=n, m=n, lam=lam)
+    estim = EstimatorClass(n=n, m=n, lam=lam, nmax_mix=nmax_mix)
 
     ## from intensity to parameters
     aa = estim.f_from_field(a)
@@ -73,10 +73,13 @@ def experiment_1(
     data = estim.random_events_from_field(estim.field_from_f(estim.prior_mean))
     estim.set_data(data)
     
+    print('artificial data')
     plt.figure()
     plt.title('artificial Poisson rate')
     estim.imshow(estim.field_from_f(estim.prior_mean))
+    print('...done')
 
+    print('artificial catalog')
     plt.figure()
     plt.title('artificial Catalog observations')
     plt.gca().set_aspect('equal')
@@ -85,6 +88,7 @@ def experiment_1(
     plt.gca().margins(0)
     x, y = estim.random_catalog_from_nobs(estim.nobs)
     plt.plot(x, y, '.')
+    print('...done')
 
     #plt.figure()
     #rp = estim.random_prior_parameters()
@@ -93,16 +97,20 @@ def experiment_1(
     #plt.figure()
     #estim.imshow(estim.field_from_f(estim.prior_mean))
 
+    print('binned observations')
     plt.figure()
     plt.title('Binned observations')
     plt.xticks([])
     plt.yticks([])
     estim.imshow(estim.nobs)
+    print('...done')
 
 
     ## inversion
 
     #plt.figure()
+
+    print('first guess gaussian aproximation')
     estim.set_data(data)
     estim.set_prior_Gaussian(estim.f_from_field(data.mean())*np.ones(estim.prior_mean.shape), ck.spatial_covariance_matern_2_3(n, n, rho, v2))
 
@@ -114,20 +122,26 @@ def experiment_1(
     plt.xticks([])
     plt.yticks([])
     estim.imshow(estim.field_from_f(fge))
+    print()
 
+    """
+    print('Maximum Posterior Estimator')
     plt.figure()
     plt.title('Maximum posterior of field')
     plt.xticks([])
     plt.yticks([])
     mpe = estim.max_logposterior_estimator(method='CG')
     estim.imshow(estim.field_from_f(mpe))
+    print('...done')
+    """
 
     plt.figure()
 
 
+    print('sampling 130 posterior')
     sres=0
     count = 0
-    for i, res in enumerate(estim.sample_posterior(initial_f = mpe, n_iter=130)):
+    for i, res in enumerate(estim.sample_posterior(initial_f = fge, n_iter=130)):
         field = estim.field_from_f(res)
         sres += field
         if i%10==1 and count<12:
@@ -143,6 +157,7 @@ def experiment_1(
     plt.yticks([])
     
     estim.imshow(sres/130)
+    print('...done')
 
 
 def experiment_2(nn=5, ncheck=5, a=1, b=2):
@@ -157,8 +172,8 @@ def experiment_2(nn=5, ncheck=5, a=1, b=2):
 
 if __name__ == "__main__":
 
-    #experiment_1()
-    experiment_1(a=1.5, b=2)
+    experiment_1(EstimatorClass=pgd.RampDensity2D, nmax_mix=60 )
+    #experiment_1(a=1 b=2)
     #experiment_2()
 
 

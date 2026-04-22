@@ -21,8 +21,7 @@ import syntheticdata as sd
 
 from gibbs_softplus_mixture import (
     SoftplusMixtureDensity2D,
-    gibbs_sampler,
-    precompute_softplus_mixtures,
+    gibbs_sampler, load_or_build_mix
 )
 
 HERE = Path(__file__).resolve().parent
@@ -32,40 +31,6 @@ RESULTS_DIR = REPO_ROOT / "results"
 COUNTS_PATH = DATA_DIR / "eq_counts_30x30.npy"
 
 
-def load_or_build_mix(nmax_mix: int, cache_dir: Path) -> dict:
-    cache_dir.mkdir(parents=True, exist_ok=True)
-    cache_path = cache_dir / f"softplus_mix_L1_nmax{nmax_mix}_tail60.pkl"
-
-    if cache_path.exists():
-        print(f"[mix] loading cache: {cache_path}")
-        with open(cache_path, "rb") as f:
-            return pickle.load(f)
-
-    print(f"[mix] building mix up to nmax_mix={nmax_mix}")
-
-    def K_of_n(n: int) -> int:
-        return 60
-
-    sigma_of_n = {"default": 1.0, 0: 1.5}
-
-    mix = precompute_softplus_mixtures(
-        nmax_mix,
-        t_N=1500,
-        K_of_n=K_of_n,
-        sigma_of_n=sigma_of_n,
-        normalize_target=True,
-        thr_active=1e-12,
-        tail_start=60,
-        t_half_width=20.0,
-        means_half_width=15.0,
-        verbose=True,
-    )
-
-    with open(cache_path, "wb") as f:
-        pickle.dump(mix, f)
-
-    print(f"[mix] saved cache: {cache_path}")
-    return mix
 
 
 def main():

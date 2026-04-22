@@ -5,6 +5,8 @@ import scipy as sp
 import scipy.linalg.blas as blas
 import scipy.linalg as spla
 import matplotlib.pyplot as plt
+import gibbs_softplus_mixture as gsm
+from pathlib import Path
 from matplotlib.colors import LogNorm
 from matplotlib.colors import PowerNorm
 
@@ -451,6 +453,9 @@ class SigmoidMixin:
 
 class SmoothRampMixin:
 
+    def __init__(self, prior_mean, prior_covariance, nmax_mix:int=60, cache_dir:Path=Path('.mixture'), **kwargs) -> dict:
+        self.mix = gsm.load_or_build_mix(nmax_mix, cache_dir)
+        super().__init__(prior_mean, prior_covariance, **kwargs)
 
     def field_from_f(self, f):
         return softplus(f)
@@ -469,20 +474,61 @@ class SmoothRampMixin:
         s2 = f * (1-np.exp(-f))**2
         return super().first_guess_estimator(f, s2)
       
-    def sample_polyagamma_cond_f(self):
-
-        field = self.field_from_f(-self.f)
-        kk = self.random_events_from_field(field)  ### the random events k given f
-
-        # self.polya = [ polyagamma( n + k , f) for n, k, f in zip(self.nobs, kk, self.f)]
-
-        return 
  
+    def sample_posterior(
+        self,
+        n_iter: int,
+        burn_in: int = 0,
+        thin: int = 1,
+        initial_f: np.ndarray | None = None,
+        random_seed: int | None = None):
 
-    def sample_f_cond_polyagamma(self):
-        pass
+        """
+        Generic Gibbs sampler for any density object with attributes:
+        - prior_mean
+        - Lprior
+        - nobs
+        - nbins
+        - mix
 
+        """
+        if random_seed is not None:
+            np.random.seed(random_seed)
 
+        #if getattr(dens, "nobs", None) is None:
+        #    raise ValueError("Call dens.set_data(nobs) before running the sampler.")
+
+        #if not hasattr(dens, "mix"):
+        #    raise ValueError("Density object must have a `mix` attribute.")
+
+        N = self.nbins
+
+        if initial_f is None:
+            try:
+                f = self.first_guess_estimator()
+            except Exception:
+                f = self.prior_mean.copy()
+        else:
+            f = np.asarray(initial_f, dtype=float).copy()
+            if f.shape != (N,):
+                raise ValueError("initial_f must have shape (nbins,)")
+
+        n_keep = max(0, (n_iter - burn_in) // thin)
+        #f_samples = np.zeros((n_keep, N), dtype=float)
+
+        idx = 0
+        for it in range(n_iter):
+            print(it)
+            z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
+            f = gsm.sample_f_cond_z(z, self.nobs, self.prior_mean, self.Lprior, self.mix)
+
+            if it >= burn_in and ((it - burn_in) % thin == 0):
+                #f_samples[idx] = f
+                idx += 1
+                yield f
+
+        return
+    
 class PolyaGammaDensity(SigmoidMixin, Density):
 
     def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
