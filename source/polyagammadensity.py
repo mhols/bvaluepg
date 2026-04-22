@@ -81,6 +81,7 @@ class Density:
         """
         assert len(nobs) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
         self.nobs = nobs
+        self.ndata = sum(self.nobs)
     
     @property
     def Lprior(self):
