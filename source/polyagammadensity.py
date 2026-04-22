@@ -241,35 +241,6 @@ class Density:
         tmp = np.dot(self.prior_covariance, tmp)
         return self.prior_mean + tmp
 
-        """
-        D = diag(s2), G = self.prior_covariance, mu = self.priori_mean 
-
-        compute
-
-        tmp = D^{-1} f + G^{-1} mu
-        """
-        tmp = sp.linalg.solve_triangular(
-            self.Lprior, self.prior_mean, lower=True, trans=False)
-        tmp = sp.linalg.solve_triangular(self.Lprior, tmp, lower=True, trans=True)
-
-        tmp += f/s2
-
-        """
-        compute (D^{-1} + G^{-1})^{-1} tmp
-        using equivalent expression
-
-        L ( L^{T} D^{-1} L + Id )^{-1} L^T tmp
-        
-        """
-
-        ### TODO: replace by blas low lewel methods for matrix multiplication
-        T = np.dot( self.Lprior.T , 1/s2[:, None] * self.Lprior)
-        np.fill_diagonal(T, np.diagonal(T) + 1)
-        tmp = np.dot(self.Lprior.T, tmp)
-        tmp = np.linalg.solve(T, tmp)  ## TODO use the fact that T.T = T
-        tmp = np.dot(self.Lprior, tmp)
-
-        return tmp
     
     
     def max_logposterior_estimator(self, f0=None, method='Powell', niter=10000, eps=1e-6):
@@ -310,7 +281,6 @@ class Density:
 
         print(res) 
         return res['x']
-        #return np.asarray(grad, dtype=float).reshape(-1)  ## what is this ?
 
 class SigmoidMixin:
 
@@ -322,10 +292,6 @@ class SigmoidMixin:
     def lam(self):
         return self.kwargs['lam']
 
-    #def field_from_f(self, f):
-    #
-    #    return self.lam * sigmoid(f)
-    
     def derivative_field_from_f(self, f):
         return self.lam * sigmoid(f) * sigmoid(-f)
     
@@ -454,8 +420,19 @@ class SigmoidMixin:
 class SmoothRampMixin:
 
     def __init__(self, prior_mean, prior_covariance, nmax_mix:int=60, cache_dir:Path=Path('.mixture'), **kwargs) -> dict:
-        self.mix = gsm.load_or_build_mix(nmax_mix, cache_dir)
+        self._mix = None
+        self.nmax_mix = nmax_mix
+        self.cache_dir = cache_dir 
         super().__init__(prior_mean, prior_covariance, **kwargs)
+
+    @property
+    def mix(self):
+        """
+        lazy computation of property
+        """
+        if self._mix is None:
+            self._mix = gsm.load_or_build_mix(self.nmax_mix, self.cache_dir)
+        return self._mix
 
     def field_from_f(self, f):
         return softplus(f)
@@ -484,6 +461,8 @@ class SmoothRampMixin:
         random_seed: int | None = None):
 
         """
+        TODO: introduce one more layer of classes to make this a generic mixin
+        for Gaussian mixtures
         Generic Gibbs sampler for any density object with attributes:
         - prior_mean
         - Lprior
@@ -492,14 +471,8 @@ class SmoothRampMixin:
         - mix
 
         """
-        if random_seed is not None:
+        if not random_seed is None:
             np.random.seed(random_seed)
-
-        #if getattr(dens, "nobs", None) is None:
-        #    raise ValueError("Call dens.set_data(nobs) before running the sampler.")
-
-        #if not hasattr(dens, "mix"):
-        #    raise ValueError("Density object must have a `mix` attribute.")
 
         N = self.nbins
 
@@ -513,7 +486,9 @@ class SmoothRampMixin:
             if f.shape != (N,):
                 raise ValueError("initial_f must have shape (nbins,)")
 
-        n_keep = max(0, (n_iter - burn_in) // thin)
+        #
+        # 
+        # n_keep = max(0, (n_iter - burn_in) // thin)
         #f_samples = np.zeros((n_keep, N), dtype=float)
 
         idx = 0

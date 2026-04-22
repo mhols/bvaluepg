@@ -172,8 +172,8 @@ def experiment_2(nn=5, ncheck=5, a=1, b=2):
 
 if __name__ == "__main__":
 
-    experiment_1(EstimatorClass=pgd.RampDensity2D, nmax_mix=60 )
-    #experiment_1(a=1 b=2)
+    #experiment_1(EstimatorClass=pgd.RampDensity2D, nmax_mix=60 )
+    experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D)
     #experiment_2()
 
 
