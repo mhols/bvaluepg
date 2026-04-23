@@ -504,7 +504,6 @@ class SmoothRampMixin:
 
         idx = 0
         for it in range(total_iter):
-            print(it)
             z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
             #f = gsm.sample_f_cond_z(z, self.nobs, self.prior_mean, self.Lprior, self.mix)
             f = gsm.sample_f_cond_z_cache(z, fz_cache, self.mix)
