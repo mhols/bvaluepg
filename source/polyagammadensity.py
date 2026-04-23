@@ -491,8 +491,10 @@ class SmoothRampMixin:
         # n_keep = max(0, (n_iter - burn_in) // thin)
         #f_samples = np.zeros((n_keep, N), dtype=float)
 
+        total_iter = burn_in + n_iter * thin
+
         idx = 0
-        for it in range(n_iter):
+        for it in range(total_iter):
             print(it)
             z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
             f = gsm.sample_f_cond_z(z, self.nobs, self.prior_mean, self.Lprior, self.mix)
