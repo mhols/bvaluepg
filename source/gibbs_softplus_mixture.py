@@ -4,55 +4,10 @@ import os
 import time
 import numpy as np
 import scipy.linalg as spla
-import matplotlib.pyplot as plt
 from pathlib import Path
 import pickle
 from cvxopt import matrix as cvxmat, solvers as cvxsolvers
 cvxsolvers.options["show_progress"] = False
-
-#from polyagammadensity import RampDensity, RampDensity2D
-
-
-# =========================
-# Density wrapper
-# =========================
-
-
-# class SoftplusMixtureDensity(RampDensity):
-#     """
-#     Softplus density + Gaussian-mixture likelihood approximation.
-
-#     """
-#     def __init__(self, prior_mean: np.ndarray, prior_covariance: np.ndarray, mix: dict, **kwargs):
-#         super().__init__(
-#             prior_mean=np.asarray(prior_mean, dtype=float),
-#             prior_covariance=np.asarray(prior_covariance, dtype=float),
-#             **kwargs,
-#         )
-#         self.mix = mix
-
-
-# class SoftplusMixtureDensity2D(RampDensity2D):
-#     """
-#     2D version specialized for image-like grids.
-#     """
-#     def __init__(
-#         self,
-#         prior_mean: np.ndarray,
-#         prior_covariance: np.ndarray,
-#         mix: dict,
-#         n: int,
-#         m: int,
-#         **kwargs,
-#     ):
-#         super().__init__(
-#             prior_mean=np.asarray(prior_mean, dtype=float),
-#             prior_covariance=np.asarray(prior_covariance, dtype=float),
-#             n=n,
-#             m=m,
-#             **kwargs,
-#         )
-#         self.mix = mix
 
 
 # =========================
@@ -103,6 +58,45 @@ def sample_z_cond_f(f: np.ndarray, nobs: np.ndarray, mix: dict) -> np.ndarray:
 # =========================
 # Step 2: sample f | z, n
 # =========================
+def prepare_f_cond_z(
+    nobs: np.ndarray,
+    prior_mean: np.ndarray,
+    Lprior: np.ndarray,
+    mix: dict,
+) -> dict:
+    """
+    Precompute all quantities in p(f | z, n) that are fixed across Gibbs iterations.
+
+    sigma[n_i] depends only on n_i, and nobs is fixed.
+    """
+    nobs = np.asarray(nobs, dtype=int)
+    prior_mean = np.asarray(prior_mean, dtype=float)
+    L = np.asarray(Lprior, dtype=float)
+
+    N = int(prior_mean.shape[0])
+
+    sigma = np.empty(N, dtype=float)
+    for i in range(N):
+        sigma[i] = float(mix["sigma"][int(nobs[i])])
+
+    s2 = sigma * sigma
+    dinv = 1.0 / (s2 + 1e-15)
+
+    T = np.eye(N) + L.T @ (dinv[:, None] * L)
+    cholT = spla.cholesky(T, lower=True)
+
+    # C^{-1} prior_mean
+    y = spla.solve_triangular(L, prior_mean, lower=True)
+    Cinv_prior_mean = spla.solve_triangular(L.T, y, lower=False)
+
+    return {
+        "nobs": nobs,
+        "L": L,
+        "dinv": dinv,
+        "cholT": cholT,
+        "Cinv_prior_mean": Cinv_prior_mean,
+    }
+
 def sample_f_cond_z(
     z: np.ndarray,
     nobs: np.ndarray,
@@ -153,60 +147,42 @@ def sample_f_cond_z(
     return mean + noise
 
 
-# =========================
-# Gibbs sampler
-# =========================
-def gibbs_sampler(
-    dens,
-    n_iter: int,
-    burn_in: int = 0,
-    thin: int = 1,
-    initial_f: np.ndarray | None = None,
-    random_seed: int | None = None,
+def sample_f_cond_z_cache(
+    z: np.ndarray,
+    cache: dict,
+    mix: dict,
 ) -> np.ndarray:
     """
-    Generic Gibbs sampler for any density object with attributes:
-      - prior_mean
-      - Lprior
-      - nobs
-      - nbins
-      - mix
-
+    Sample f | z, n using precomputed quantities from prepare_f_cond_z().
     """
-    if random_seed is not None:
-        np.random.seed(random_seed)
+    z = np.asarray(z, dtype=int)
 
-    if getattr(dens, "nobs", None) is None:
-        raise ValueError("Call dens.set_data(nobs) before running the sampler.")
+    nobs = cache["nobs"]
+    L = cache["L"]
+    dinv = cache["dinv"]
+    cholT = cache["cholT"]
+    Cinv_prior_mean = cache["Cinv_prior_mean"]
 
-    if not hasattr(dens, "mix"):
-        raise ValueError("Density object must have a `mix` attribute.")
+    N = int(nobs.shape[0])
 
-    N = dens.nbins
+    mu = np.empty(N, dtype=float)
+    for i in range(N):
+        n_i = int(nobs[i])
+        mu[i] = float(mix["means"][n_i][int(z[i])])
 
-    if initial_f is None:
-        try:
-            f = dens.first_guess_estimator()
-        except Exception:
-            f = dens.prior_mean.copy()
-    else:
-        f = np.asarray(initial_f, dtype=float).copy()
-        if f.shape != (N,):
-            raise ValueError("initial_f must have shape (nbins,)")
+    b = Cinv_prior_mean + dinv * mu
 
-    n_keep = max(0, (n_iter - burn_in) // thin)
-    f_samples = np.zeros((n_keep, N), dtype=float)
+    Lt_b = L.T @ b
+    y = spla.solve_triangular(cholT, Lt_b, lower=True)
+    x = spla.solve_triangular(cholT.T, y, lower=False)
+    mean = L @ x
 
-    idx = 0
-    for it in range(n_iter):
-        z = sample_z_cond_f(f, dens.nobs, dens.mix)
-        f = sample_f_cond_z(z, dens.nobs, dens.prior_mean, dens.Lprior, dens.mix)
+    u = np.random.normal(size=N)
+    v = spla.solve_triangular(cholT.T, u, lower=False)
+    noise = L @ v
 
-        if it >= burn_in and ((it - burn_in) % thin == 0):
-            f_samples[idx] = f
-            idx += 1
+    return mean + noise
 
-    return f_samples
 
 
 # =========================
@@ -426,85 +402,3 @@ def load_or_build_mix(nmax_mix: int, cache_dir: Path) -> dict:
     print(f"[mix] saved cache: {cache_path}")
     return mix
 
-# =========================
-# Demo
-# =========================
-# if __name__ == "__main__":
-#     np.random.seed(0)
-
-#     try:
-#         import syntheticdata as sd
-
-#         n, m = 20, 20
-#         N = n * m
-
-#         lam_bar = 5.0
-#         prior_mean = np.log(np.expm1(lam_bar)) * np.ones(N)
-#         prior_cov = sd.spatial_covariance_gaussian(n, m, rho=3, v2=lam_bar)
-
-#         nmax = 80
-
-#         def K_of_n(n_):
-#             return 60
-
-#         sigma_of_n = {"default": 1.0, 0: 1.5}
-
-#         mix = precompute_softplus_mixtures(
-#             nmax,
-#             t_N=1500,
-#             K_of_n=K_of_n,
-#             sigma_of_n=sigma_of_n,
-#             normalize_target=True,
-#             thr_active=1e-12,
-#             tail_start=60,
-#             t_half_width=20.0,
-#             means_half_width=15.0,
-#             verbose=True,
-#         )
-
-#         dens = SoftplusMixtureDensity2D(
-#             prior_mean=prior_mean,
-#             prior_covariance=prior_cov,
-#             mix=mix,
-#             n=n,
-#             m=m,
-#         )
-
-#         f_true = dens.random_prior_parameters()
-#         rate_true = dens.field_from_f(f_true)
-#         nobs = dens.random_events_from_field(rate_true)
-#         dens.set_data(nobs)
-
-#         samples = gibbs_sampler(
-#             dens,
-#             n_iter=200,
-#             burn_in=100,
-#             thin=10,
-#             initial_f=dens.first_guess_estimator(),
-#             random_seed=1,
-#         )
-
-#         f_est = samples.mean(axis=0)
-#         rate_est = np.mean([dens.field_from_f(s) for s in samples], axis=0)
-
-#         plt.figure(figsize=(12, 4))
-#         plt.subplot(1, 3, 1)
-#         plt.title("True field")
-#         dens.imshow(rate_true)
-#         plt.colorbar()
-
-#         plt.subplot(1, 3, 2)
-#         plt.title("Observed events")
-#         dens.imshow(nobs)
-#         plt.colorbar()
-
-#         plt.subplot(1, 3, 3)
-#         plt.title("Posterior mean E[softplus(f)]")
-#         dens.imshow(rate_est)
-#         plt.colorbar()
-
-#         plt.tight_layout()
-#         plt.show()
-
-#     except Exception as e:
-#         print("[warn] demo failed:", repr(e))
