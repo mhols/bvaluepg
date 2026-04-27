@@ -58,7 +58,9 @@ def checkerboard(nn, ncheck, a, b):
 
 def experiment_1(
     EstimatorClass=pgd.PolyaGammaDensity2D, 
-    n=64, nn=20, a=4.5, b=5.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
+    # n=64, nn=20, a=4.5, b=5.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
+    n=64, nn=20, a=3.5, b=6.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
+
 
 
     # preparing data
@@ -157,10 +159,10 @@ def experiment_1(
     plt.figure()
 
 
-    print('sampling 130 posterior')
+    print('sampling 230 posterior')
     sres=0
     count = 0
-    for i, res in enumerate(estim.sample_posterior(initial_f = fge, n_iter=130)):
+    for i, res in enumerate(estim.sample_posterior(initial_f = fge, n_iter=230)):
         field = estim.field_from_f(res)
         sres += field
         if i%10==1 and count<12:
@@ -175,7 +177,7 @@ def experiment_1(
     plt.xticks([])
     plt.yticks([])
     
-    estim.imshow(sres/130)
+    estim.imshow(sres/230)
     print('...done')
 
 
