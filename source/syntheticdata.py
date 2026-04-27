@@ -43,19 +43,22 @@ def single_square(n, nn, a, b):
     return res
 
 def checkerboard(nn, ncheck, a, b):
-
-    n = nn*ncheck
-
+    """
+    Create a checkerboard where:
+    nn     = block size (cells per square)
+    ncheck = number of blocks per axis
+    Total output size is (nn * ncheck) x (nn * ncheck).
+    """
+    n = nn * ncheck
     mask = ((np.indices((n, n)) // nn).sum(axis=0) % 2)
-
-    return (a+b)/2 + 0.5 * (a-b) * mask
+    return (a + b) / 2 + 0.5 * (a - b) * mask
     
 
 
 
 def experiment_1(
     EstimatorClass=pgd.PolyaGammaDensity2D, 
-    n=50, nn=20, a=4.5, b=5.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
+    n=64, nn=20, a=4.5, b=5.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
 
 
     # preparing data
@@ -65,10 +68,26 @@ def experiment_1(
     aa = estim.f_from_field(a)
     bb = estim.f_from_field(b)
 
-    pm = single_square(n, nn, aa, bb)
+    # pm = single_square(n, nn, aa, bb)
+    ncheck = 4
+    assert n % ncheck == 0, 'n must be divisible by ncheck for checkerboard data'
+    pm = checkerboard(n // ncheck, ncheck, aa, bb)
     covar = ck.spatial_covariance_matern_2_3(n, n, rho, v2)
 
     estim.set_prior_Gaussian(pm, covar)
+
+    # Visualize the induced prior density on the Poisson intensity.
+    # The Gaussian prior is placed on the latent field f, while the
+    # Poisson intensity is obtained through the link function.
+    plt.figure()
+    plt.title('Induced prior density on Poisson intensity')
+    ff = np.linspace(0.001, lam - 0.001, 2000)
+    plt.plot(ff, estim.density_under_gaussian(ff, aa, v2), label='low region')
+    plt.plot(ff, estim.density_under_gaussian(ff, bb, v2), label='high region')
+    plt.xlabel('Poisson intensity')
+    plt.ylabel('density')
+    plt.legend()
+    plt.grid(True)
 
     data = estim.random_events_from_field(estim.field_from_f(estim.prior_mean))
     estim.set_data(data)
@@ -161,7 +180,6 @@ def experiment_1(
 
 
 def experiment_2(nn=5, ncheck=5, a=1, b=2):
-
     tmp = checkerboard(nn, ncheck, a, b)
     plt.figure()
     plt.imshow(tmp)
@@ -174,8 +192,7 @@ if __name__ == "__main__":
 
     #experiment_1(EstimatorClass=pgd.RampDensity2D, nmax_mix=60 )
     experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D)
-    #experiment_2()
+    # experiment_2()
 
 
     plt.show()
-
