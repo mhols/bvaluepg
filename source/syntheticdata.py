@@ -58,8 +58,8 @@ def checkerboard(nn, ncheck, a, b):
 
 def experiment_1(
     EstimatorClass=pgd.PolyaGammaDensity2D, 
-    n=64, nn=20, a=4.5, b=5.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
-    # n=64, nn=20, a=3.5, b=6.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
+    # n=64, nn=20, a=4.5, b=5.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
+    n=64, nn=20, a=3.5, b=6.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
 
 
 
@@ -108,7 +108,7 @@ def experiment_1(
     plt.yticks([])
     plt.gca().margins(0)
     x, y = estim.random_catalog_from_nobs(estim.nobs)
-    plt.plot(x, y, '.')
+    plt.plot(x, y, '.', markersize=1)
     print('...done')
 
     #plt.figure()
