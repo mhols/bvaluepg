@@ -129,7 +129,7 @@ n_i \sim \operatorname{Poisson}(\lambda_i)
 \]
 
 \begin{center}
-\includegraphics[width=0.65\textwidth]{figures/Figure_4.png}
+\includegraphics[width=0.70\textwidth]{figures/Figure_4.png}
 \end{center}
 
 The observations are discrete and noisy; the latent rate field is not observed.
@@ -161,231 +161,89 @@ Same generative mechanism, but a second synthetic data set for comparison.
 \section{Bayesian Inference}
 
 \begin{frame}{Posterior Target}
-We observe counts on grid cells and model
+We want:
 \[
-n_i \mid f_i \sim \operatorname{Poisson}(\lambda\sigmoid(f_i)),
-\qquad
-f \sim \mathcal N(\mu,\Sigma).
+p(f\mid n) \propto p(n\mid f)\,p(f)
 \]
 
-The posterior target is
+Likelihood:
 \[
-p(f\mid n) \propto p(n\mid f)\,p(f).
+p(n_i\mid f_i)=\frac{(\lambda\sigmoid(f_i))^{n_i}}{n_i!}
+\exp(-\lambda\sigmoid(f_i))
 \]
 
-The log-likelihood is, up to constants independent of $f$,
-\[
-\ell(f)
-=
-\sum_i \left(
- n_i\log\sigmoid(f_i)
- - \lambda\sigmoid(f_i)
-\right).
-\]
-
-\medskip
-\textbf{Obstacle:} the sigmoid makes this non-quadratic in $f$.
+Problem:
+\begin{itemize}
+\item nonlinear sigmoid term
+\item no Gaussian conjugacy
+\end{itemize}
 \end{frame}
 
-\begin{frame}{Poisson Splitting}
-The difficult term is the exponential part
+\begin{frame}{Poisson Splitting Trick}
+Introduce latent counts:
 \[
-\exp\{-\lambda\sigmoid(f_i)\}.
+k_i \sim \operatorname{Poisson}(\lambda(1-\sigmoid(f_i)))
 \]
 
-Using
-\[
-\sigmoid(f_i)=1-\sigmoid(-f_i),
-\]
-we rewrite
-\[
-e^{-\lambda\sigmoid(f_i)}
-=
-e^{-\lambda(1-\sigmoid(-f_i))}
-=
-e^{-\lambda}\,e^{\lambda\sigmoid(-f_i)}.
-\]
-
-Now expand the remaining exponential as a Poisson series:
-\[
-e^{\lambda\sigmoid(-f_i)}
-=
-\sum_{k_i=0}^{\infty}
-\frac{\left(\lambda\sigmoid(-f_i)\right)^{k_i}}{k_i!}.
-\]
-\end{frame}
-
-\begin{frame}{Latent Negative Counts}
-This suggests introducing auxiliary counts
-\[
-k_i\mid f_i \sim \operatorname{Poisson}(\lambda\sigmoid(-f_i))
-=
-\operatorname{Poisson}\left(\frac{\lambda}{1+e^{f_i}}\right).
-\]
-
-Together with
-\[
-n_i\mid f_i \sim \operatorname{Poisson}(\lambda\sigmoid(f_i)),
-\]
-we obtain the augmented likelihood
+Then the augmented likelihood can be rewritten in logistic form:
 \[
 p(n_i,k_i\mid f_i)
 \propto
-\left(\sigmoid(f_i)\right)^{n_i}
-\left(\sigmoid(-f_i)\right)^{k_i}.
+\frac{e^{n_i f_i}}{(1+e^{f_i})^{n_i+k_i}}
 \]
 
-Using
-\[
-\sigmoid(f_i)=\frac{e^{f_i}}{1+e^{f_i}},
-\qquad
-\sigmoid(-f_i)=\frac{1}{1+e^{f_i}},
-\]
-this becomes
-\[
-p(n_i,k_i\mid f_i)
-\propto
-\frac{e^{n_i f_i}}{(1+e^{f_i})^{n_i+k_i}}.
-\]
+This opens the door for P\'olya--Gamma augmentation.
 \end{frame}
 
-\begin{frame}{P\'olya--Gamma Identity}
-Define
+\begin{frame}{P\'olya--Gamma Augmentation}
+Introduce:
 \[
-b_i=n_i+k_i,
-\qquad
-\kappa_i=n_i-\frac{b_i}{2}=\frac{n_i-k_i}{2}.
+\omega_i \mid f_i \sim PG(b_i,f_i),
+\qquad b_i=n_i+k_i
 \]
 
-Then the augmented likelihood can be written in the canonical logistic form
+Conditional on $\omega_i$:
 \[
-\frac{e^{n_i f_i}}{(1+e^{f_i})^{b_i}}
+\log p(f_i\mid\omega_i)
 =
-2^{-b_i}\,e^{\kappa_i f_i}\,\cosh^{-b_i}\left(\frac{f_i}{2}\right).
+-\frac12\omega_i f_i^2 + \kappa_i f_i + c
 \]
 
-The P\'olya--Gamma identity gives
-\[
-\frac{e^{\kappa_i f_i}}{(1+e^{f_i})^{b_i}}
-\propto
-\int_0^\infty
-\exp\left(
--\frac12\omega_i f_i^2 + \kappa_i f_i
-\right)
-\,p(\omega_i\mid b_i,0)\,d\omega_i.
-\]
-\end{frame}
-
-\begin{frame}{Conditional Quadratic Form}
-Introducing latent variables
-\[
-\omega_i\mid f_i,b_i \sim PG(b_i,f_i),
-\]
-the conditional log-likelihood becomes
-\[
-\log p(f\mid n,k,\omega)
-=
--\frac12 f^\top \Omega f
-+ 
-\kappa^\top f
-+c,
-\]
-where
-\[
-\Omega=\operatorname{diag}(\omega_1,\dots,\omega_N),
-\qquad
-\kappa=(\kappa_1,\dots,\kappa_N)^\top.
-\]
-
-\medskip
-\textbf{Key point:} conditional on $\omega$, the likelihood is quadratic in $f$.
-\end{frame}
-
-\begin{frame}{Combining with the Gaussian Prior}
-The Gaussian prior contributes
-\[
-\log p(f)
-=
--\frac12(f-\mu)^\top\Sigma^{-1}(f-\mu)+c.
-\]
-
-Expanding the quadratic term:
-\[
-(f-\mu)^\top\Sigma^{-1}(f-\mu)
-=
-f^\top\Sigma^{-1}f
--2f^\top\Sigma^{-1}\mu
-+\mu^\top\Sigma^{-1}\mu.
-\]
-
-Ignoring constants independent of $f$,
-\[
-\log p(f)
-=
--\frac12 f^\top\Sigma^{-1}f
-+f^\top\Sigma^{-1}\mu
-+c.
-\]
+Now the model becomes quadratic in $f$.
 \end{frame}
 
 \begin{frame}{Gaussian Conditional Posterior}
-Combining likelihood and prior gives
+Combining with the Gaussian prior gives:
 \[
-\log p(f\mid n,k,\omega)
-=
--\frac12 f^\top(\Sigma^{-1}+\Omega)f
-+f^\top(\Sigma^{-1}\mu+\kappa)
-+c.
+f\mid n,k,\omega \sim \mathcal N(m,Q^{-1})
 \]
-
-Define
+with
 \[
-Q=\Sigma^{-1}+\Omega,
+Q = \Sigma^{-1}+\Omega,
 \qquad
-h=\Sigma^{-1}\mu+\kappa.
+\Omega=\operatorname{diag}(\omega_1,\dots,\omega_n)
 \]
 
-Then
-\[
-\log p(f\mid n,k,\omega)
-=
--\frac12 f^\top Qf+f^\top h+c.
-\]
-
-Completing the square yields
-\[
-f\mid n,k,\omega
-\sim
-\mathcal N(m,Q^{-1}),
-\qquad
-m=Q^{-1}h.
-\]
+This is the key computational simplification.
 \end{frame}
 
 \begin{frame}{Efficient Sampling via Cholesky}
-Formally, the Gaussian update involves $Q^{-1}$:
+Instead of computing $Q^{-1}$ explicitly:
 \[
-m=Q^{-1}h,
-\qquad
-f\sim\mathcal N(m,Q^{-1}).
+Q = LL^\top
 \]
 
-In practice we do not compute the inverse explicitly. We factorize
+Then solve triangular systems to sample from
 \[
-Q=LL^\top
-\]
-using Cholesky decomposition and solve triangular systems.
-
-A sample can be generated as
-\[
-f=m+L^{-\top}z,
-\qquad
-z\sim\mathcal N(0,I).
+\mathcal N(m,Q^{-1})
 \]
 
-The expensive part per Gibbs iteration is the factorization / linear solve, because $\Omega$ changes with the P\'olya--Gamma variables.
+Main computational cost per Gibbs iteration:
+\begin{itemize}
+\item update latent variables
+\item Cholesky factorization / linear solve
+\end{itemize}
 \end{frame}
-
 
 % -------------------------------------------------
 \section{Results}
@@ -449,13 +307,11 @@ Both reconstructions illustrate the same principle: noisy event counts are regul
 \begin{itemize}
 \item Point events can be modeled via latent spatial Poisson fields.
 \item A Gaussian prior on $f$ induces flexible rate priors.
-\item Poisson splitting converts the model into a logistic form.
-\item P\'olya--Gamma augmentation then restores conditional Gaussian structure.
+\item P\'olya--Gamma augmentation restores conditional Gaussian structure.
 \item Gibbs sampling becomes efficient via Cholesky updates.
-% \item The framework extends naturally to real earthquake data and adaptive grids.
+\item The framework extends naturally to real earthquake data and adaptive grids.
 \end{itemize}
 \end{frame}
-
 
 \begin{frame}{Outlook}
 Future directions:
@@ -466,6 +322,13 @@ Future directions:
 \item Real earthquake catalogs
 \item Spatio-temporal extensions
 \end{itemize}
+\end{frame}
+
+\begin{frame}{Thank you}
+\begin{center}
+\Large Thank you for your attention!\\[1em]
+Questions?
+\end{center}
 \end{frame}
 
 \begin{frame}{Limitations of the Sigmoid Link}
@@ -507,12 +370,6 @@ Cristina presents an alternative inference strategy based on this softer, unboun
 \end{block}
 \end{frame}
 
-\begin{frame}{Thank you}
-\begin{center}
-\Large Thank you for your attention!\\[1em]
-Questions?
-\end{center}
-\end{frame}
 
 % -------------------------------------------------
 \appendix
