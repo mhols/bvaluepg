@@ -37,6 +37,7 @@
 
 \begin{document}
 
+% -------------------------------------------------
 \begin{frame}
 \titlepage
 \end{frame}
@@ -45,6 +46,7 @@
 \tableofcontents
 \end{frame}
 
+% -------------------------------------------------
 \section{Motivation}
 
 \begin{frame}{From Point Events to Counts}
@@ -102,6 +104,7 @@ The covariance matrix is built from a spatial kernel:
 \end{itemize}
 \end{frame}
 
+% -------------------------------------------------
 \section{Why Replace the Sigmoid Link?}
 
 \begin{frame}{Sigmoid Link}
@@ -159,78 +162,89 @@ The model can saturate even when the underlying rate should still increase.
 \end{alertblock}
 \end{frame}
 
-\section{Soft-ramp / Softplus Link}
 
-\begin{frame}{Soft-ramp Link}
-We replace the bounded sigmoid link by the soft-ramp / softplus link:
+\begin{frame}{A Sharper Soft-ramp Family}
+Instead of fixing one softplus link, we can introduce a sharpness parameter:
 \[
-\lambda_i = \softplus(f_i),
+L_\kappa(f)
+=
+\frac{1}{\kappa}\log(1+e^{\kappa f}),
 \qquad
-\softplus(f)=\log(1+e^f).
+\kappa>0.
 \]
 
 \medskip
-The link is positive, smooth, and unbounded.
+This keeps the main properties of the softplus link:
+\[
+L_\kappa(f)>0,
+\qquad
+L_\kappa(f)\approx f
+\quad\text{for large positive }f.
+\]
 
 \medskip
-\begin{center}
-\begin{tabular}{lll}
-\toprule
-Regime & Approximation & Interpretation \\
-\midrule
-\(f_i\ll 0\) & \(\softplus(f_i)\approx 0\) & low rate \\
-\(f_i\gg 0\) & \(\softplus(f_i)\approx f_i\) & approximately linear growth \\
-\bottomrule
-\end{tabular}
-\end{center}
+The derivative is
+\[
+L_\kappa'(f)=\sigma(\kappa f).
+\]
+
+
 \end{frame}
 
+\begin{frame}{Effect of the Sharpness Parameter}
 
+\begin{center}
+\maybeincludegraphics[width=0.76\textwidth]{figures/soft_ramp_family.png}
+\end{center}
+
+
+\end{frame}
 
 \begin{frame}{Observation Model}
 After discretization into grid cells:
 \[
 n_i \mid f_i \sim \Poisson(\lambda_i),
 \qquad
-\lambda_i=\softplus(f_i).
+\lambda_i=L_\kappa(f_i)
+=
+\frac{1}{\kappa}\softplus(\kappa f_i).
 \]
 
 The likelihood contribution is
 \[
-p(n_i\mid f_i)
+p(n_i\mid f_i;\kappa)
 \propto
-\softplus(f_i)^{n_i}
-\exp\{-\softplus(f_i)\}.
+L_\kappa(f_i)^{n_i}
+\exp\{-L_\kappa(f_i)\}.
 \]
 
 \medskip
-\begin{alertblock}{Consequence}
+\begin{alertblock}{Downside}
 The likelihood is non-Gaussian in \(f_i\), so the posterior is not available in closed form.
 \end{alertblock}
 \end{frame}
 
-
-
+% -------------------------------------------------
 \section{Inference with the New Link}
 
-
-
-\begin{frame}{Making the Softplus Link Tractable}
+\begin{frame}{Making the Soft-ramp Link Tractable}
 For each count value \(n\), approximate the one-dimensional likelihood by a Gaussian mixture in \(f\):
 \[
-p(n\mid f)
+p(n\mid f;\kappa)
 \approx
-\sum_{k=1}^{K_n}
-w_{n,k}\,
-\N\!\left(f\mid \mu_{n,k},\sigma_n^2\right).
+\sum_{r=1}^{R_n}
+w_{n,r}^{(\kappa)}
+\,
+\N\!\left(
+f\mid \mu_{n,r}^{(\kappa)},(\sigma_n^{(\kappa)})^2
+\right).
 \]
 
-\medskip
-The mixture is precomputed once for each possible observed count.
+
 
 \medskip
 \begin{block}{Key effect}
-The softplus likelihood becomes conditionally Gaussian.
+The soft-ramp likelihood becomes conditionally Gaussian.
 \end{block}
 \end{frame}
 
@@ -240,21 +254,26 @@ The softplus likelihood becomes conditionally Gaussian.
 \end{center}
 
 \medskip
-A precomputed Gaussian mixture approximates the Poisson--softplus likelihood for each observed count.
+A precomputed Gaussian mixture approximates the Poisson--soft-ramp likelihood for each observed count.
 \end{frame}
 
 \begin{frame}{Latent Mixture Variables}
 Introduce a latent indicator for every cell:
 \[
-z_i \in \{1,\dots,K_{n_i}\}.
+z_i \in \{1,\dots,R_{n_i}\}.
 \]
 
-Conditional on \(f_i\) and \(n_i\),
+Conditional on \(f_i\), \(n_i\), and \(\kappa\),
 \[
-p(z_i=k\mid f_i,n_i)
+p(z_i=r\mid f_i,n_i;\kappa)
 \propto
-w_{n_i,k}\,
-\N\!\left(f_i\mid \mu_{n_i,k},\sigma_{n_i}^2\right).
+w_{n_i,r}^{(\kappa)}
+\,
+\N\!\left(
+f_i\mid
+\mu_{n_i,r}^{(\kappa)},
+(\sigma_{n_i}^{(\kappa)})^2
+\right).
 \]
 
 \medskip
@@ -268,12 +287,12 @@ Repeat:
 \begin{enumerate}
 \item Sample mixture assignments:
 \[
-z_i \sim p(z_i\mid f_i,n_i).
+z_i \sim p(z_i\mid f_i,n_i;\kappa).
 \]
 
 \item Sample the full latent field:
 \[
-f\sim p(f\mid z,n).
+f\sim p(f\mid z,n;\kappa).
 \]
 \end{enumerate}
 
@@ -288,16 +307,21 @@ Conditional on \(z\), the field update is Gaussian.
 
 Given \(z\), the approximate likelihood is Gaussian in \(f\):
 \[
-p(n,z\mid f)
+p(n,z\mid f;\kappa)
 \propto
 \N(f\mid \mu_z,D),
 \]
 where
 \[
 \mu_z=
-(\mu_{n_1,z_1},\dots,\mu_{n_N,z_N})^\top,
+(\mu_{n_1,z_1}^{(\kappa)},\dots,\mu_{n_N,z_N}^{(\kappa)})^\top,
 \qquad
-D=\operatorname{diag}(\sigma_{n_1}^2,\dots,\sigma_{n_N}^2).
+D=
+\operatorname{diag}
+\left(
+(\sigma_{n_1}^{(\kappa)})^2,\dots,
+(\sigma_{n_N}^{(\kappa)})^2
+\right).
 \]
 
 Combining this with
@@ -306,7 +330,7 @@ f\sim\N(\mu_0,\Sigma_0)
 \]
 gives
 \[
-f\mid z,n \sim \N(m_{\mathrm{post}},\Sigma_{\mathrm{post}}),
+f\mid z,n;\kappa \sim \N(m_{\mathrm{post}},\Sigma_{\mathrm{post}}),
 \]
 with
 \[
@@ -329,38 +353,58 @@ The posterior covariance conditional on \(z\) is
 (\Sigma_0^{-1}+D^{-1})^{-1}.
 \]
 
-Since \(D\) depends only on the observed counts \(n_i\),
+Since \(D\) depends only on the observed counts \(n_i\) and on the chosen \(\kappa\),
 \[
 D \text{ is fixed during sampling.}
 \]
 
 \medskip
-\begin{block}{Computational consequence}
-The expensive matrix factorization is done once.
+\begin{alertblock}{}
 At each Gibbs step, only \(\mu_z\) and the posterior mean are updated.
-\end{block}
+\end{alertblock}
 \end{frame}
 
-
+% -------------------------------------------------
 \section{Results}
 
 \begin{frame}{Initial Gaussian Approximation}
 \begin{center}
 \maybeincludegraphics[width=0.82\textwidth]{figures/gaussian_est_field.png}
 \end{center}
-
-
 \end{frame}
 
 \begin{frame}{Posterior Mean}
 \begin{center}
 \maybeincludegraphics[width=0.72\textwidth]{figures/posterior_mean.png}
 \end{center}
-
-
 \end{frame}
 
-\begin{frame}{Sampling Cost: Sigmoid vs Softplus}
+\begin{frame}{Effect of \(\kappa\) on the Prior Rate}
+\small
+
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+\(\kappa\) & Mean rate & Minimum rate & Fraction \(<0.1\) \\
+\midrule
+\(0.5\) & \(2.046\) & \(0.487\) & \(0.0\%\) \\
+\(1.0\) & \(2.033\) & \(0.152\) & \(0.0\%\) \\
+\(2.0\) & \(1.979\) & \(0.017\) & \(4.4\%\) \\
+\(5.0\) & \(1.938\) & \(0.000\) & \(10.1\%\) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+
+\begin{alertblock}{}
+Increasing \(\kappa\) keeps the average rate similar, but pushes more cells
+toward near-zero intensity.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Sampling Cost: P\'olya--Gamma (PG) vs Mixture}
 \small
 
 We compare the time needed to obtain exactly \(100\) yielded posterior samples.
@@ -371,9 +415,9 @@ We compare the time needed to obtain exactly \(100\) yielded posterior samples.
 \begin{tabular}{lccc}
 \toprule
 \textbf{Grid}
-& \textbf{Sigmoid + P\'olya--Gamma}
+& \textbf{Sigmoid + PG}
 & \textbf{Softplus + mixture}
-& \textbf{Softplus / PG} \\
+& \textbf{Mixture/PG} \\
 \midrule
 \(16\times16\)
 & \(0.232\,\mathrm{s}\) \; \((2.32\,\mathrm{ms/sample})\)
@@ -394,11 +438,58 @@ We compare the time needed to obtain exactly \(100\) yielded posterior samples.
 }
 \end{center}
 
+\medskip
+
+\begin{alertblock}{}
+For larger grids, the softplus mixture sampler is substantially faster.
+At \(64\times64\), it is about \(5\) times faster than the sigmoid P\'olya--Gamma sampler.
+\end{alertblock}
+
 
 \end{frame}
 
 
 
+% -------------------------------------------------
+\section{Summary}
+
+\begin{frame}{Summary}
+\begin{itemize}
+\item The sigmoid link is bounded and can saturate.
+
+\medskip
+
+\item The soft-ramp link stays positive and avoids a fixed upper rate.
+
+\medskip
+
+\item The parameter \(\kappa\) controls how sharp the transition is.
+
+\medskip
+
+\item The mixture approximation gives an approximate Gibbs sampler.
+
+\medskip
+
+\item For larger grids, the softplus + mixture sampler is much faster.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Next Steps}
+\begin{itemize}
+\item Compare posterior fields for different values of \(\kappa\).
+
+\medskip
+
+\item Use a mixture approximation also for the sigmoid link.
+
+\medskip
+
+\item Extend to adaptive grids.
+\end{itemize}
+\end{frame}
+
+% -------------------------------------------------
 \begin{frame}
 \begin{center}
 \Large Thank you for your attention!\\[1em]
