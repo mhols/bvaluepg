@@ -1,0 +1,279 @@
+
+
+\documentclass[11pt]{beamer}
+
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+\setbeamertemplate{navigation symbols}{}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman,english]{babel}
+\usepackage{amsmath,amssymb,bm,mathtools}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{microtype}
+
+\newcommand{\E}{\mathbb E}
+\newcommand{\Var}{\operatorname{Var}}
+\newcommand{\sigmoid}{\sigma}
+
+\title[Spatial Poisson Fields]{From Point Events to Posterior Fields}
+\author[T. Luhdo]{Toni Luhdo}
+\institute[UP]{University of Potsdam}
+\date[SFB Talk 2026]{SFB / Working Group Talk}
+
+\AtBeginSection[]{
+\begin{frame}{Outline}
+\tableofcontents[currentsection]
+\end{frame}
+}
+
+\begin{document}
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}{Roadmap}
+\tableofcontents
+\end{frame}
+
+% -------------------------------------------------
+\section{Motivation}
+
+\begin{frame}{Spatial Event Data}
+Typical examples:
+\begin{itemize}
+\item Earthquakes
+\item Photon arrivals in imaging
+\item Disease outbreaks
+\item Crime hotspots
+\end{itemize}
+
+Observed data are often \textbf{point events} in space.
+
+Goal: infer an underlying smooth intensity field.
+\end{frame}
+
+\begin{frame}{Synthetic Point Catalog}
+\begin{center}
+\includegraphics[width=0.72\textwidth]{figures/Figure_3.png}
+\end{center}
+
+We observe only events, not the true latent rate.
+\end{frame}
+
+% -------------------------------------------------
+\section{Generative Model}
+
+\begin{frame}{Latent Gaussian Field}
+We introduce a latent spatial field:
+\[
+f \sim \mathcal N(\mu,\Sigma)
+\]
+
+where $\Sigma$ encodes spatial correlation.
+
+Interpretation:
+\begin{itemize}
+\item nearby cells are correlated
+\item smoothness is controlled by the covariance kernel
+\item prior information enters naturally
+\end{itemize}
+\end{frame}
+
+\begin{frame}{From Latent Field to Poisson Rate}
+Rates must be positive. We use:
+\[
+\lambda_i = \lambda\,\sigmoid(f_i),
+\qquad
+\sigmoid(x)=\frac{1}{1+e^{-x}}
+\]
+
+Then:
+\[
+0 < \lambda_i < \lambda
+\]
+
+Advantages:
+\begin{itemize}
+\item positivity
+\item bounded intensity
+\item numerically stable inference
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Induced Prior on Intensity}
+\begin{center}
+\includegraphics[width=0.78\textwidth]{figures/Figure_1.png}
+\end{center}
+
+A Gaussian prior on $f$ induces a non-Gaussian prior on $\lambda_i$.
+\end{frame}
+
+\begin{frame}{True Synthetic Rate Field}
+\begin{center}
+\includegraphics[width=0.72\textwidth]{figures/Figure_2.png}
+\end{center}
+
+Example: checkerboard structure with two intensity levels.
+\end{frame}
+
+\begin{frame}{Observation Model}
+After discretization into grid cells:
+\[
+n_i \sim \operatorname{Poisson}(\lambda_i)
+\]
+
+Observed counts:
+\begin{center}
+\includegraphics[width=0.70\textwidth]{figures/Figure_4.png}
+\end{center}
+\end{frame}
+
+% -------------------------------------------------
+\section{Bayesian Inference}
+
+\begin{frame}{Posterior Target}
+We want:
+\[
+p(f\mid n) \propto p(n\mid f)\,p(f)
+\]
+
+Likelihood:
+\[
+p(n_i\mid f_i)=\frac{(\lambda\sigmoid(f_i))^{n_i}}{n_i!}
+\exp(-\lambda\sigmoid(f_i))
+\]
+
+Problem:
+\begin{itemize}
+\item nonlinear sigmoid term
+\item no Gaussian conjugacy
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Poisson Splitting Trick}
+Introduce latent counts:
+\[
+k_i \sim \operatorname{Poisson}(\lambda(1-\sigmoid(f_i)))
+\]
+
+Then the augmented likelihood can be rewritten in logistic form:
+\[
+p(n_i,k_i\mid f_i)
+\propto
+\frac{e^{n_i f_i}}{(1+e^{f_i})^{n_i+k_i}}
+\]
+
+This opens the door for P\'olya--Gamma augmentation.
+\end{frame}
+
+\begin{frame}{P\'olya--Gamma Augmentation}
+Introduce:
+\[
+\omega_i \mid f_i \sim PG(b_i,f_i),
+\qquad b_i=n_i+k_i
+\]
+
+Conditional on $\omega_i$:
+\[
+\log p(f_i\mid\omega_i)
+=
+-\frac12\omega_i f_i^2 + \kappa_i f_i + c
+\]
+
+Now the model becomes quadratic in $f$.
+\end{frame}
+
+\begin{frame}{Gaussian Conditional Posterior}
+Combining with the Gaussian prior gives:
+\[
+f\mid n,k,\omega \sim \mathcal N(m,Q^{-1})
+\]
+with
+\[
+Q = \Sigma^{-1}+\Omega,
+\qquad
+\Omega=\operatorname{diag}(\omega_1,\dots,\omega_n)
+\]
+
+This is the key computational simplification.
+\end{frame}
+
+\begin{frame}{Efficient Sampling via Cholesky}
+Instead of computing $Q^{-1}$ explicitly:
+\[
+Q = LL^\top
+\]
+
+Then solve triangular systems to sample from
+\[
+\mathcal N(m,Q^{-1})
+\]
+
+Main computational cost per Gibbs iteration:
+\begin{itemize}
+\item update latent variables
+\item Cholesky factorization / linear solve
+\end{itemize}
+\end{frame}
+
+% -------------------------------------------------
+\section{Results}
+
+\begin{frame}{Gaussian First Guess}
+\begin{center}
+\includegraphics[width=0.72\textwidth]{figures/Figure_5.png}
+\end{center}
+
+Smooth initialization before full Gibbs sampling.
+\end{frame}
+
+\begin{frame}{Posterior Samples}
+\begin{center}
+\includegraphics[width=0.82\textwidth]{figures/Figure_6.png}
+\end{center}
+\end{frame}
+
+\begin{frame}{Posterior Mean Reconstruction}
+\begin{center}
+\includegraphics[width=0.72\textwidth]{figures/Figure_7.png}
+\end{center}
+
+Recovered spatial structure from event data.
+\end{frame}
+
+% -------------------------------------------------
+\section{Takeaways}
+
+\begin{frame}{Takeaways}
+\begin{itemize}
+\item Point events can be modeled via latent spatial Poisson fields.
+\item A Gaussian prior on $f$ induces flexible rate priors.
+\item P\'olya--Gamma augmentation restores conditional Gaussian structure.
+\item Gibbs sampling becomes efficient via Cholesky updates.
+\item The framework extends naturally to real earthquake data and adaptive grids.
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Outlook}
+Future directions:
+\begin{itemize}
+\item Quadtree / adaptive grids
+\item Sparse precision matrices
+\item Nonstationary covariance kernels
+\item Real earthquake catalogs
+\item Spatio-temporal extensions
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Thank you}
+\begin{center}
+\Large Thank you for your attention!\\[1em]
+Questions?
+\end{center}
+\end{frame}
+
+\end{document}
