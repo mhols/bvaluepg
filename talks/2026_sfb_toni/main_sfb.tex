@@ -21,7 +21,7 @@
 \title[Spatial Poisson Fields]{From Point Events to Posterior Fields}
 \author[T. Luhdo]{Toni Luhdo}
 \institute[UP]{University of Potsdam}
-\date[SFB Talk 2026]{SFB / Working Group Talk}
+\date[]{Research Group Seminar -- June 2026}
 
 \AtBeginSection[]{
 \begin{frame}{Outline}
@@ -70,17 +70,29 @@ We observe only events, not the true latent rate.
 \begin{frame}{Latent Gaussian Field}
 We introduce a latent spatial field:
 \[
-f \sim \mathcal N(\mu,\Sigma)
+f \sim \mathcal N(\mu,\Sigma).
 \]
 
-where $\Sigma$ encodes spatial correlation.
+The covariance matrix is generated from a spatial kernel:
+\[
+\Sigma_{ij}=K(x_i,x_j).
+\]
 
-Interpretation:
+Example:
+\[
+K(x_i,x_j)=v^2\exp\!\left(-\frac{\|x_i-x_j\|^2}{2\rho^2}\right)
+\]
+
+where
+
 \begin{itemize}
-\item nearby cells are correlated
-\item smoothness is controlled by the covariance kernel
-\item prior information enters naturally
+\item $v^2$ = marginal prior variance
+\item $\rho$ = correlation length
+\item nearby cells are more strongly correlated
 \end{itemize}
+
+\medskip
+Thus $\Sigma$ controls smoothness of the latent field.
 \end{frame}
 
 \begin{frame}{From Latent Field to Poisson Rate}
@@ -104,21 +116,42 @@ Advantages:
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Induced Prior on Intensity}
+\begin{frame}{Induced Local Priors on Intensity}
 \begin{center}
-\includegraphics[width=0.78\textwidth]{figures/Figure_1.png}
+\includegraphics[width=0.42\textwidth]{figures/Figure_1.png}
+\includegraphics[width=0.42\textwidth]{figures/Figure_15.png}
 \end{center}
 
-A Gaussian prior on $f$ induces a non-Gaussian prior on $\lambda_i$.
+The prior is Gaussian in the latent variable $f_i$, but the link function transforms it to the intensity scale:
+\[
+\lambda_i = \lambda\,\sigmoid(f_i).
+\]
+
+The two curves correspond to two different local prior means in latent space,
+with the same one-dimensional variance:
+\[
+f_i \sim \mathcal N(\mu_{\mathrm{low}},v^2),
+\qquad
+f_i \sim \mathcal N(\mu_{\mathrm{high}},v^2).
+\]
 \end{frame}
 
-\begin{frame}{Synthetic Example I: Structured Rate Field}
+\begin{frame}{Synthetic Example: Structured Rate Field}
 \begin{center}
-\includegraphics[width=0.72\textwidth]{figures/Figure_2.png}
+\includegraphics[width=0.61\textwidth]{figures/Figure_2.png}
 \end{center}
 
-Example I: checkerboard structure with two intensity levels.
+We use the same checkerboard structure with two different contrast settings:
+\[
+\begin{array}{c|ccc}
+& \lambda_{\mathrm{low}} & \lambda_{\mathrm{high}} & \lambda \\
+\hline
+\text{Example I} & 4.5 & 5.5 & 10 \\
+\text{Example II} & 3.5 & 6.5 & 10
+\end{array}
+\]
 \end{frame}
+
 
 \begin{frame}{Discretization: From Point Events to Counts}
 After discretization into grid cells:
@@ -127,35 +160,26 @@ n_i = \#\{\text{events in cell } i\},
 \qquad
 n_i \sim \operatorname{Poisson}(\lambda_i)
 \]
-
-\begin{center}
-\includegraphics[width=0.65\textwidth]{figures/Figure_4.png}
-\end{center}
-
-The observations are discrete and noisy; the latent rate field is not observed.
-\end{frame}
-
-\begin{frame}{Synthetic Example II: A Second Realization}
+\vspace*{-15mm}
 \begin{columns}[T]
-\begin{column}{0.49\textwidth}
-\begin{center}
-\includegraphics[width=\textwidth]{figures/Figure_9.png}
-
-\scriptsize artificial Poisson rate
-\end{center}
-\end{column}
-\begin{column}{0.49\textwidth}
-\begin{center}
-\includegraphics[width=\textwidth]{figures/Figure_11.png}
-
-\scriptsize binned observations
-\end{center}
-\end{column}
+    \begin{column}{0.49\textwidth}
+    \begin{center}
+    \includegraphics[width=\textwidth]{figures/Figure_11.png}
+    \end{center}
+    \end{column}
+    \begin{column}{0.49\textwidth}
+    \begin{center}
+    \includegraphics[width=\textwidth]{figures/Figure_4.png}
+    \end{center}
+    \end{column}
 \end{columns}
-
-\medskip
-Same generative mechanism, but a second synthetic data set for comparison.
+\vspace*{-1mm}
+The observations are discrete and noisy; the latent rate field is not observed.\\
+\vspace*{2mm}
+The generative model is now clear, but inference is not straightforward:\\
+the Poisson--sigmoid likelihood is not conjugate to the Gaussian prior.
 \end{frame}
+
 
 % -------------------------------------------------
 \section{Bayesian Inference}
@@ -175,8 +199,7 @@ p(f\mid n) \propto p(n\mid f)\,p(f).
 
 The log-likelihood is, up to constants independent of $f$,
 \[
-\ell(f)
-=
+\ell(f)=
 \sum_i \left(
  n_i\log\sigmoid(f_i)
  - \lambda\sigmoid(f_i)
@@ -184,218 +207,125 @@ The log-likelihood is, up to constants independent of $f$,
 \]
 
 \medskip
-\textbf{Obstacle:} the sigmoid makes this non-quadratic in $f$.
+\textbf{Obstacle:} the Poisson--sigmoid likelihood is not conjugate to the Gaussian prior.
 \end{frame}
 
-\begin{frame}{Poisson Splitting}
-The difficult term is the exponential part
-\[
-\exp\{-\lambda\sigmoid(f_i)\}.
-\]
-
-Using
-\[
-\sigmoid(f_i)=1-\sigmoid(-f_i),
-\]
-we rewrite
+\begin{frame}{Poisson Splitting: From Poisson to Logistic Form}
+The exponential part can be rewritten as
 \[
 e^{-\lambda\sigmoid(f_i)}
-=
-e^{-\lambda(1-\sigmoid(-f_i))}
 =
 e^{-\lambda}\,e^{\lambda\sigmoid(-f_i)}.
 \]
 
-Now expand the remaining exponential as a Poisson series:
+Expanding the second exponential suggests latent counts
 \[
-e^{\lambda\sigmoid(-f_i)}
-=
-\sum_{k_i=0}^{\infty}
-\frac{\left(\lambda\sigmoid(-f_i)\right)^{k_i}}{k_i!}.
-\]
-\end{frame}
-
-\begin{frame}{Latent Negative Counts}
-This suggests introducing auxiliary counts
-\[
-k_i\mid f_i \sim \operatorname{Poisson}(\lambda\sigmoid(-f_i))
-=
-\operatorname{Poisson}\left(\frac{\lambda}{1+e^{f_i}}\right).
+k_i\mid f_i \sim \operatorname{Poisson}(\lambda\sigmoid(-f_i)).
 \]
 
-Together with
-\[
-n_i\mid f_i \sim \operatorname{Poisson}(\lambda\sigmoid(f_i)),
-\]
-we obtain the augmented likelihood
+Together with the observed counts this gives the augmented likelihood
 \[
 p(n_i,k_i\mid f_i)
 \propto
 \left(\sigmoid(f_i)\right)^{n_i}
-\left(\sigmoid(-f_i)\right)^{k_i}.
-\]
-
-Using
-\[
-\sigmoid(f_i)=\frac{e^{f_i}}{1+e^{f_i}},
-\qquad
-\sigmoid(-f_i)=\frac{1}{1+e^{f_i}},
-\]
-this becomes
-\[
-p(n_i,k_i\mid f_i)
-\propto
+\left(\sigmoid(-f_i)\right)^{k_i}
+=
 \frac{e^{n_i f_i}}{(1+e^{f_i})^{n_i+k_i}}.
 \]
+
+\medskip
+So the Poisson model is transformed into a logistic form.
 \end{frame}
 
-\begin{frame}{P\'olya--Gamma Identity}
+\begin{frame}{P\'olya--Gamma Augmentation}
 Define
 \[
 b_i=n_i+k_i,
 \qquad
-\kappa_i=n_i-\frac{b_i}{2}=\frac{n_i-k_i}{2}.
+\kappa_i=\frac{n_i-k_i}{2}.
 \]
 
-Then the augmented likelihood can be written in the canonical logistic form
+The augmented likelihood has the standard P\'olya--Gamma form
 \[
 \frac{e^{n_i f_i}}{(1+e^{f_i})^{b_i}}
-=
-2^{-b_i}\,e^{\kappa_i f_i}\,\cosh^{-b_i}\left(\frac{f_i}{2}\right).
-\]
-
-The P\'olya--Gamma identity gives
-\[
-\frac{e^{\kappa_i f_i}}{(1+e^{f_i})^{b_i}}
 \propto
 \int_0^\infty
 \exp\left(
 -\frac12\omega_i f_i^2 + \kappa_i f_i
 \right)
-\,p(\omega_i\mid b_i,0)\,d\omega_i.
+p(\omega_i\mid b_i,0)\,d\omega_i.
 \]
-\end{frame}
 
-\begin{frame}{Conditional Quadratic Form}
-Introducing latent variables
+Equivalently, in the Gibbs sampler we draw
 \[
-\omega_i\mid f_i,b_i \sim PG(b_i,f_i),
-\]
-the conditional log-likelihood becomes
-\[
-\log p(f\mid n,k,\omega)
-=
--\frac12 f^\top \Omega f
-+ 
-\kappa^\top f
-+c,
-\]
-where
-\[
-\Omega=\operatorname{diag}(\omega_1,\dots,\omega_N),
-\qquad
-\kappa=(\kappa_1,\dots,\kappa_N)^\top.
+\omega_i\mid f_i,b_i \sim PG(b_i,f_i).
 \]
 
 \medskip
 \textbf{Key point:} conditional on $\omega$, the likelihood is quadratic in $f$.
 \end{frame}
 
-\begin{frame}{Combining with the Gaussian Prior}
-The Gaussian prior contributes
-\[
-\log p(f)
-=
--\frac12(f-\mu)^\top\Sigma^{-1}(f-\mu)+c.
-\]
-
-Expanding the quadratic term:
-\[
-(f-\mu)^\top\Sigma^{-1}(f-\mu)
-=
-f^\top\Sigma^{-1}f
--2f^\top\Sigma^{-1}\mu
-+\mu^\top\Sigma^{-1}\mu.
-\]
-
-Ignoring constants independent of $f$,
-\[
-\log p(f)
-=
--\frac12 f^\top\Sigma^{-1}f
-+f^\top\Sigma^{-1}\mu
-+c.
-\]
-\end{frame}
-
-\begin{frame}{Gaussian Conditional Posterior}
-Combining likelihood and prior gives
+\begin{frame}{Gaussian Update and Cholesky Sampling}
+Combining the quadratic likelihood with the Gaussian prior gives
 \[
 \log p(f\mid n,k,\omega)
 =
--\frac12 f^\top(\Sigma^{-1}+\Omega)f
-+f^\top(\Sigma^{-1}\mu+\kappa)
-+c.
+-\frac12 f^\top Qf+f^\top h+c,
 \]
-
-Define
+with
 \[
 Q=\Sigma^{-1}+\Omega,
 \qquad
-h=\Sigma^{-1}\mu+\kappa.
+h=\Sigma^{-1}\mu+\kappa,
+\qquad
+\Omega=\operatorname{diag}(\omega_1,\dots,\omega_N).
 \]
 
-Then
+Thus
 \[
-\log p(f\mid n,k,\omega)
-=
--\frac12 f^\top Qf+f^\top h+c.
-\]
-
-Completing the square yields
-\[
-f\mid n,k,\omega
-\sim
-\mathcal N(m,Q^{-1}),
+f\mid n,k,\omega \sim \mathcal N(m,Q^{-1}),
 \qquad
 m=Q^{-1}h.
 \]
-\end{frame}
 
-\begin{frame}{Efficient Sampling via Cholesky}
-Formally, the Gaussian update involves $Q^{-1}$:
-\[
-m=Q^{-1}h,
-\qquad
-f\sim\mathcal N(m,Q^{-1}).
-\]
-
-In practice we do not compute the inverse explicitly. We factorize
+In practice we do not compute $Q^{-1}$ explicitly. We use
 \[
 Q=LL^\top
 \]
-using Cholesky decomposition and solve triangular systems.
-
-A sample can be generated as
-\[
-f=m+L^{-\top}z,
-\qquad
-z\sim\mathcal N(0,I).
-\]
-
-The expensive part per Gibbs iteration is the factorization / linear solve, because $\Omega$ changes with the P\'olya--Gamma variables.
+and solve triangular systems.
 \end{frame}
-
 
 % -------------------------------------------------
 \section{Results}
 
 \begin{frame}{Gaussian First Guess}
+\begin{columns}[T]
+\begin{column}{0.45\textwidth}
 \begin{center}
-\includegraphics[width=0.72\textwidth]{figures/Figure_5.png}
+\includegraphics[width=\textwidth]{figures/Figure_5.png}
 \end{center}
-
-Smooth initialization before full Gibbs sampling.
+\end{column}
+\begin{column}{0.55\textwidth}
+\small
+\begin{itemize}
+\item Construct a pixelwise rate proxy from the observed counts:
+\[
+\tilde\lambda_i=\operatorname{clip}(n_i+1).
+\]
+\item Map it back to the latent scale:
+\[
+\tilde f_i=\sigmoid^{-1}\!\left(\frac{\tilde\lambda_i}{\lambda}\right).
+\]
+\end{itemize}
+\end{column}
+\end{columns}
+\begin{itemize}
+\item Approximate local uncertainty by error propagation:
+\[
+s_i^2\approx\frac{\tilde\lambda_i}{\left(\frac{d\lambda_i}{df_i}\right)^2}.
+\]
+\item Combine this noisy proxy with the Gaussian prior to obtain a smoothed initialization.
+\end{itemize}
 \end{frame}
 
 \begin{frame}{Posterior Samples}
@@ -405,41 +335,41 @@ Smooth initialization before full Gibbs sampling.
 \end{frame}
 
 \begin{frame}{Posterior Mean Reconstruction: Example I}
+Recovered spatial structure from event data.
+The posterior mean is smoother than the discrete observations and reflects the spatial prior.
+
 \begin{center}
 \includegraphics[width=0.72\textwidth]{figures/Figure_7.png}
 \end{center}
 
-Recovered spatial structure from event data.
 \end{frame}
 
-\begin{frame}{Posterior Mean Reconstruction: Example II}
-\begin{center}
-\includegraphics[width=0.72\textwidth]{figures/Figure_14.png}
-\end{center}
-
-The posterior mean is smoother than the discrete observations and reflects the spatial prior.
-\end{frame}
+% \begin{frame}{Posterior Mean Reconstruction: Example II}
+% The posterior mean is smoother than the discrete observations and reflects the spatial prior.
+% \begin{center}
+% \includegraphics[width=0.72\textwidth]{figures/Figure_14.png}
+% \end{center}
+% \end{frame}
 
 \begin{frame}{Comparing the Two Synthetic Examples}
+Example I has moderate contrast $(4.5,5.5)$, whereas Example II has stronger contrast $(3.5,6.5)$. Both are reconstructed using the same latent Gaussian Poisson model.
 \begin{columns}[T]
-\begin{column}{0.49\textwidth}
+\begin{column}{0.52\textwidth}
 \begin{center}
-\includegraphics[width=\textwidth]{figures/Figure_7.png}
+\includegraphics[width=\textwidth]{figures/Figure_14.png}
 
 \scriptsize posterior mean, example I
 \end{center}
 \end{column}
-\begin{column}{0.49\textwidth}
+\begin{column}{0.52\textwidth}
 \begin{center}
-\includegraphics[width=\textwidth]{figures/Figure_14.png}
+\includegraphics[width=\textwidth]{figures/Figure_7.png}
 
 \scriptsize posterior mean, example II
 \end{center}
 \end{column}
 \end{columns}
 
-\medskip
-Both reconstructions illustrate the same principle: noisy event counts are regularized through the latent Gaussian spatial model.
 \end{frame}
 
 % -------------------------------------------------
@@ -537,9 +467,6 @@ Questions?
 \end{frame}
 
 \begin{frame}{Appendix: Real Earthquake Data}
-\begin{center}
-bild aus habana exp quadtree
-\end{center}
 
 Possible discussion points:
 \begin{itemize}
@@ -550,9 +477,6 @@ Possible discussion points:
 \end{frame}
 
 \begin{frame}{Appendix: Adaptive Grid / Quadtree}
-\begin{center}
-bild aus habana exp quadtree
-\end{center}
 
 Possible discussion points:
 \begin{itemize}
