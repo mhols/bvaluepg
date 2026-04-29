@@ -456,6 +456,7 @@ Both reconstructions illustrate the same principle: noisy event counts are regul
 \end{itemize}
 \end{frame}
 
+
 \begin{frame}{Outlook}
 Future directions:
 \begin{itemize}
@@ -465,6 +466,45 @@ Future directions:
 \item Real earthquake catalogs
 \item Spatio-temporal extensions
 \end{itemize}
+\end{frame}
+
+\begin{frame}{Limitations of the Sigmoid Link}
+The sigmoid link is useful because it guarantees positivity and gives a tractable P\'olya--Gamma Gibbs sampler.
+
+\medskip
+However, it also introduces limitations:
+\begin{itemize}
+\item the intensity is bounded by the fixed scale parameter $\lambda$,
+\[
+0<\lambda_i<\lambda,
+\]
+\item large positive values of $f_i$ are compressed due to saturation,
+\item the P\'olya--Gamma variables change in every iteration, so the Gaussian update requires repeated linear algebra,
+\item the upper bound may be restrictive for data sets with strongly varying event rates.
+\end{itemize}
+
+\medskip
+This motivates considering alternative positive link functions.
+\end{frame}
+
+\begin{frame}{Transition: Beyond the Sigmoid Link}
+A natural next question is:
+\[
+\text{Can we keep positivity while avoiding the fixed upper bound?}
+\]
+
+\medskip
+One possible alternative is the softplus / soft-ramp link:
+\[
+\lambda_i = \log(1+e^{f_i}).
+\]
+
+\medskip
+It remains positive, but grows approximately linearly for large $f_i$.
+
+\begin{block}{Next part}
+Cristina presents an alternative inference strategy based on this softer, unbounded link function.
+\end{block}
 \end{frame}
 
 \begin{frame}{Thank you}
