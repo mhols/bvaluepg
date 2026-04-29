@@ -1,9 +1,9 @@
 __doc__="A collection of simples synthetic data and some helper methods"
 
-import numpy as np
 import matplotlib.pyplot as plt
 import polyagammadensity as pgd
 import covariance_kernels as ck
+import numpy as np
 
 def image_to_scanorder(image):
     assert len(image.shape)==2, 'image must be 2 dimensional'
@@ -51,11 +51,9 @@ def checkerboard(nn, ncheck, a, b):
     return (a+b)/2 + 0.5 * (a-b) * mask
     
 
-
-
 def experiment_1(
     EstimatorClass=pgd.PolyaGammaDensity2D, 
-    n=50, nn=20, a=4.5, b=5.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
+    n=50, nn=20, a=4.5, b=5.5, rho=16, v2=0.3, lam=10, nmax_mix=60):
 
 
     # preparing data
@@ -72,10 +70,10 @@ def experiment_1(
 
     data = estim.random_events_from_field(estim.field_from_f(estim.prior_mean))
     estim.set_data(data)
-    
+
+   
     print('artificial data')
     plt.figure()
-    plt.title('artificial Poisson rate')
     estim.imshow(estim.field_from_f(estim.prior_mean))
     print('...done')
 
@@ -122,8 +120,14 @@ def experiment_1(
     plt.xticks([])
     plt.yticks([])
     estim.imshow(estim.field_from_f(fge))
-    print()
+    print('...done')
 
+    print('prior Poissonian rate')
+    plt.figure()
+    lams = np.linspace(0, 2*estim.field_from_f(estim.prior_mean.max()), 10000)[1:-1]
+    plt.plot(lams, estim.density_under_gaussian(lams,estim.prior_mean.mean(), v2))
+    print('...done')
+ 
     """
     print('Maximum Posterior Estimator')
     plt.figure()
@@ -172,8 +176,8 @@ def experiment_2(nn=5, ncheck=5, a=1, b=2):
 
 if __name__ == "__main__":
 
-    #experiment_1(EstimatorClass=pgd.RampDensity2D, nmax_mix=60 )
-    experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D)
+    experiment_1(EstimatorClass=pgd.RampDensity2D, nmax_mix=60 )
+    #experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D)
     #experiment_2()
 
 
