@@ -21,7 +21,7 @@
 \title[Spatial Poisson Fields]{From Point Events to Posterior Fields}
 \author[T. Luhdo]{Toni Luhdo}
 \institute[UP]{University of Potsdam}
-\date[]{Research Group Seminar -- June 2026}
+\date[]{Research Group Seminar -- April 2026}
 
 \AtBeginSection[]{
 \begin{frame}{Outline}
@@ -129,10 +129,13 @@ The prior is Gaussian in the latent variable $f_i$, but the link function transf
 
 The two curves correspond to two different local prior means in latent space,
 with the same one-dimensional variance:
+% \[
+% f_i \sim \mathcal N(\mu_{\mathrm{low}},v^2),
+% \qquad
+% f_i \sim \mathcal N(\mu_{\mathrm{high}},v^2).
+% \]
 \[
-f_i \sim \mathcal N(\mu_{\mathrm{low}},v^2),
-\qquad
-f_i \sim \mathcal N(\mu_{\mathrm{high}},v^2).
+f_i \sim \mathcal N(\mu,v^2),
 \]
 \end{frame}
 
