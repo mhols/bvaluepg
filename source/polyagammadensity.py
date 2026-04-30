@@ -419,10 +419,11 @@ class SigmoidMixin:
 
 class SmoothRampMixin:
 
-    def __init__(self, prior_mean, prior_covariance, nmax_mix:int=60, cache_dir:Path=Path('.mixture'), **kwargs) -> dict:
+    def __init__(self, prior_mean, prior_covariance, nmax_mix:int=60, cache_dir:Path=Path('.mixture'), softplus_k: float = 1.0, **kwargs) -> dict:
         self._mix = None
         self.nmax_mix = nmax_mix
         self.cache_dir = cache_dir 
+        self.softplus_k = float(softplus_k)
         super().__init__(prior_mean, prior_covariance, **kwargs)
 
     @property
@@ -431,24 +432,31 @@ class SmoothRampMixin:
         lazy computation of property
         """
         if self._mix is None:
-            self._mix = gsm.load_or_build_mix(self.nmax_mix, self.cache_dir)
+            self._mix = gsm.load_or_build_mix(self.nmax_mix, self.cache_dir, self.softplus_k)
         return self._mix
 
     def field_from_f(self, f):
-        return softplus(f)
+        k = self.softplus_k
+        return softplus(k * f) / k
     
     def f_from_field(self, field):
-        return np.log(np.exp(field) - 1) 
+        k = self.softplus_k
+        return np.log(np.expm1(k * field)) / k 
                     
     def derivative_field_from_f(self, f):
-        return sigmoid(f) 
+        k = self.softplus_k
+        return sigmoid(k * f)
     
     def derivative_log_field_from_f(self, f):
-        return sigmoid(f) / self.field_from_f(f) 
+        return self.derivative_field_from_f(f) / self.field_from_f(f)
        
     def first_guess_estimator(self):
-        f = np.clip(self.nobs+1, 1, None)
-        s2 = f * (1-np.exp(-f))**2
+        field = np.clip(self.nobs + 1, 1e-8, None)
+
+        f = self.f_from_field(field)
+        v = self.derivative_field_from_f(f)
+
+        s2 = field / (v**2 + 1e-15)
         return super().first_guess_estimator(f, s2)
       
  
