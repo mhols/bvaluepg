@@ -1,5 +1,3 @@
-
-
 \documentclass[11pt]{beamer}
 
 \usetheme{Madrid}
@@ -16,12 +14,20 @@
 
 \newcommand{\E}{\mathbb E}
 \newcommand{\Var}{\operatorname{Var}}
-\newcommand{\sigmoid}{\sigma}
+\newcommand{\softplus}{\operatorname{softplus}}
+\newcommand{\N}{\mathcal N}
+\newcommand{\Poisson}{\operatorname{Poisson}}
 
-\title[Spatial Poisson Fields]{From Point Events to Posterior Fields}
-\author[T. Luhdo]{Toni Luhdo}
+\newcommand{\maybeincludegraphics}[2][]{%
+  \IfFileExists{#2}{\includegraphics[#1]{#2}}{%
+    \fbox{\parbox[c][0.42\textheight][c]{0.82\textwidth}{\centering Missing figure:\\[0.5em]\texttt{\detokenize{#2}}}}%
+  }%
+}
+
+\title[Soft-ramp Poisson Fields]{A Flexible Alternative to the Sigmoid Link}
+\author[C. Chavez]{Cristina O. Ch\'avez Chong}
 \institute[UP]{University of Potsdam}
-\date[]{Research Group Seminar -- June 2026}
+\date[WG Talk 2026]{ Working Group Talk}
 
 \AtBeginSection[]{
 \begin{frame}{Outline}
@@ -31,6 +37,7 @@
 
 \begin{document}
 
+% -------------------------------------------------
 \begin{frame}
 \titlepage
 \end{frame}
@@ -42,402 +49,466 @@
 % -------------------------------------------------
 \section{Motivation}
 
-\begin{frame}{Spatial Event Data}
-Typical examples:
-\begin{itemize}
-\item Earthquakes
-\item Photon arrivals in imaging
-\item Disease outbreaks
-\item Crime hotspots
-\end{itemize}
-
-Observed data are often \textbf{point events} in space.
-
-Goal: infer an underlying smooth intensity field.
-\end{frame}
-
-\begin{frame}{Synthetic Point Catalog}
+\begin{frame}{From Point Events to Counts}
 \begin{center}
-\includegraphics[width=0.72\textwidth]{figures/Figure_3.png}
+\maybeincludegraphics[width=0.72\textwidth]{figures/Figure_3.png}
 \end{center}
-
-We observe only events, not the true latent rate.
-\end{frame}
-
-% -------------------------------------------------
-\section{Generative Model}
-
-\begin{frame}{Latent Gaussian Field}
-We introduce a latent spatial field:
-\[
-f \sim \mathcal N(\mu,\Sigma).
-\]
-
-The covariance matrix is generated from a spatial kernel:
-\[
-\Sigma_{ij}=K(x_i,x_j).
-\]
-
-Example:
-\[
-K(x_i,x_j)=v^2\exp\!\left(-\frac{\|x_i-x_j\|^2}{2\rho^2}\right)
-\]
-
-where
-
-\begin{itemize}
-\item $v^2$ = marginal prior variance
-\item $\rho$ = correlation length
-\item nearby cells are more strongly correlated
-\end{itemize}
 
 \medskip
-Thus $\Sigma$ controls smoothness of the latent field.
+We observe point events, but the underlying spatial rate is unknown.
 \end{frame}
 
-\begin{frame}{From Latent Field to Poisson Rate}
-Rates must be positive. We use:
+\begin{frame}{Goal}
+We aggregate events into grid cells:
 \[
-\lambda_i = \lambda\,\sigmoid(f_i),
+n_i = \#\{\text{events in cell } i\}.
+\]
+
+\medskip
+We want to infer a spatially smooth intensity field
+\[
+\lambda_i > 0
+\]
+from noisy count observations.
+
+\medskip
+\begin{block}{Latent-field model}
+\[
+n_i \mid f_i \sim \Poisson(\lambda_i),
 \qquad
-\sigmoid(x)=\frac{1}{1+e^{-x}}
+\lambda_i = L(f_i),
+\qquad
+f\sim\N(\mu_0,\Sigma_0).
 \]
+\end{block}
 
-Then:
+The choice of link function \(L\) is central.
+\end{frame}
+
+\begin{frame}{Latent Gaussian Field}
+We model spatial dependence through a Gaussian prior:
 \[
-0 < \lambda_i < \lambda
+f \sim \N(\mu_0,\Sigma_0).
 \]
 
-Advantages:
+The covariance matrix is built from a spatial kernel:
+\[
+(\Sigma_0)_{ij}=K(x_i,x_j).
+\]
+
+\medskip
 \begin{itemize}
-\item positivity
-\item bounded intensity
-\item numerically stable inference
+\item \(f_i\): latent field value in cell \(i\)
+\item \(K\): spatial covariance kernel
+\item nearby cells have similar latent values
 \end{itemize}
 \end{frame}
 
-\begin{frame}{Induced Local Priors on Intensity}
-\begin{center}
-\includegraphics[width=0.42\textwidth]{figures/Figure_1.png}
-\includegraphics[width=0.42\textwidth]{figures/Figure_15.png}
-\end{center}
+% -------------------------------------------------
+\section{Why Replace the Sigmoid Link?}
 
-The prior is Gaussian in the latent variable $f_i$, but the link function transforms it to the intensity scale:
+\begin{frame}{Sigmoid Link}
+The previous model used
 \[
-\lambda_i = \lambda\,\sigmoid(f_i).
-\]
-
-The two curves correspond to two different local prior means in latent space,
-with the same one-dimensional variance:
-\[
-f_i \sim \mathcal N(\mu_{\mathrm{low}},v^2),
+\lambda_i = \lambda\,\sigma(f_i),
 \qquad
-f_i \sim \mathcal N(\mu_{\mathrm{high}},v^2).
+\sigma(f)=\frac{1}{1+e^{-f}}.
+\]
+
+\medskip
+This guarantees positivity:
+\[
+\lambda_i >0.
+\]
+
+\medskip
+But it also imposes a fixed upper bound:
+\[
+0<\lambda_i<\lambda.
 \]
 \end{frame}
 
-\begin{frame}{Synthetic Example: Structured Rate Field}
+\begin{frame}{Limitations of the Sigmoid Link}
+The sigmoid link has three important limitations.
+
+\medskip
+\begin{enumerate}
+\item \textbf{Extra scale parameter:}
+      the maximum rate is fixed by \(\lambda\).
+
+\medskip
+\item \textbf{Fast saturation:}
+      for moderately large \(f_i\),
+      \[
+      \sigma(f_i)\approx 1,
+      \]
+      so high and very high latent values become difficult to distinguish.
+
+\medskip
+\item \textbf{Slow posterior sampling:}
+      P\'olya--Gamma augmentation gives a valid Gibbs sampler,
+      but it becomes expensive on larger grids.
+\end{enumerate}
+\end{frame}
+
+\begin{frame}{Sigmoid Saturation}
 \begin{center}
-\includegraphics[width=0.61\textwidth]{figures/Figure_2.png}
+\maybeincludegraphics[width=0.80\textwidth]{figures/link_functions.png}
 \end{center}
 
-We use the same checkerboard structure with two different contrast settings:
-\[
-\begin{array}{c|ccc}
-& \lambda_{\mathrm{low}} & \lambda_{\mathrm{high}} & \lambda \\
-\hline
-\text{Example I} & 4.5 & 5.5 & 10 \\
-\text{Example II} & 3.5 & 6.5 & 10
-\end{array}
-\]
+\begin{alertblock}{Main issue}
+The sigmoid changes very little after moderate positive values of \(f\).
+The model can saturate even when the underlying rate should still increase.
+\end{alertblock}
 \end{frame}
 
 
-\begin{frame}{Discretization: From Point Events to Counts}
+\begin{frame}{A Sharper Soft-ramp Family}
+Instead of fixing one softplus link, we can introduce a sharpness parameter:
+\[
+L_\kappa(f)
+=
+\frac{1}{\kappa}\log(1+e^{\kappa f}),
+\qquad
+\kappa>0.
+\]
+
+\medskip
+This keeps the main properties of the softplus link:
+\[
+L_\kappa(f)>0,
+\qquad
+L_\kappa(f)\approx f
+\quad\text{for large positive }f.
+\]
+
+\medskip
+The derivative is
+\[
+L_\kappa'(f)=\sigma(\kappa f).
+\]
+
+
+\end{frame}
+
+\begin{frame}{Effect of the Sharpness Parameter}
+
+\begin{center}
+\maybeincludegraphics[width=0.76\textwidth]{figures/soft_ramp_family.png}
+\end{center}
+
+
+\end{frame}
+
+\begin{frame}{Observation Model}
 After discretization into grid cells:
 \[
-n_i = \#\{\text{events in cell } i\},
+n_i \mid f_i \sim \Poisson(\lambda_i),
 \qquad
-n_i \sim \operatorname{Poisson}(\lambda_i)
+\lambda_i=L_\kappa(f_i)
+=
+\frac{1}{\kappa}\softplus(\kappa f_i).
 \]
-\vspace*{-15mm}
-\begin{columns}[T]
-    \begin{column}{0.49\textwidth}
-    \begin{center}
-    \includegraphics[width=\textwidth]{figures/Figure_11.png}
-    \end{center}
-    \end{column}
-    \begin{column}{0.49\textwidth}
-    \begin{center}
-    \includegraphics[width=\textwidth]{figures/Figure_4.png}
-    \end{center}
-    \end{column}
-\end{columns}
-\vspace*{-1mm}
-The observations are discrete and noisy; the latent rate field is not observed.\\
-\vspace*{2mm}
-The generative model is now clear, but inference is not straightforward:\\
-the Poisson--sigmoid likelihood is not conjugate to the Gaussian prior.
+
+The likelihood contribution is
+\[
+p(n_i\mid f_i;\kappa)
+\propto
+L_\kappa(f_i)^{n_i}
+\exp\{-L_\kappa(f_i)\}.
+\]
+
+\medskip
+\begin{alertblock}{Downside}
+The likelihood is non-Gaussian in \(f_i\), so the posterior is not available in closed form.
+\end{alertblock}
 \end{frame}
 
-
 % -------------------------------------------------
-\section{Bayesian Inference}
+\section{Inference with the New Link}
 
-\begin{frame}{Posterior Target}
-We observe counts on grid cells and model
+\begin{frame}{Making the Soft-ramp Link Tractable}
+For each count value \(n\), approximate the one-dimensional likelihood by a Gaussian mixture in \(f\):
 \[
-n_i \mid f_i \sim \operatorname{Poisson}(\lambda\sigmoid(f_i)),
-\qquad
-f \sim \mathcal N(\mu,\Sigma).
+p(n\mid f;\kappa)
+\approx
+\sum_{r=1}^{R_n}
+w_{n,r}^{(\kappa)}
+\,
+\N\!\left(
+f\mid \mu_{n,r}^{(\kappa)},(\sigma_n^{(\kappa)})^2
+\right).
 \]
 
-The posterior target is
+
+
+\medskip
+\begin{block}{Key effect}
+The soft-ramp likelihood becomes conditionally Gaussian.
+\end{block}
+\end{frame}
+
+\begin{frame}{Example Likelihood Approximation}
+\begin{center}
+\maybeincludegraphics[width=\textwidth]{figures/likelihood_mixture_k1_k5.png}
+\end{center}
+
+
+\end{frame}
+
+\begin{frame}{Latent Mixture Variables}
+Introduce a latent indicator for every cell:
 \[
-p(f\mid n) \propto p(n\mid f)\,p(f).
+z_i \in \{1,\dots,R_{n_i}\}.
 \]
 
-The log-likelihood is, up to constants independent of $f$,
+Conditional on \(f_i\), \(n_i\), and \(\kappa\),
 \[
-\ell(f)=
-\sum_i \left(
- n_i\log\sigmoid(f_i)
- - \lambda\sigmoid(f_i)
+p(z_i=r\mid f_i,n_i;\kappa)
+\propto
+w_{n_i,r}^{(\kappa)}
+\,
+\N\!\left(
+f_i\mid
+\mu_{n_i,r}^{(\kappa)},
+(\sigma_{n_i}^{(\kappa)})^2
 \right).
 \]
 
 \medskip
-\textbf{Obstacle:} the Poisson--sigmoid likelihood is not conjugate to the Gaussian prior.
+This categorical update is computed independently for all cells.
 \end{frame}
 
-\begin{frame}{Poisson Splitting: From Poisson to Logistic Form}
-The exponential part can be rewritten as
-\[
-e^{-\lambda\sigmoid(f_i)}
-=
-e^{-\lambda}\,e^{\lambda\sigmoid(-f_i)}.
-\]
-
-Expanding the second exponential suggests latent counts
-\[
-k_i\mid f_i \sim \operatorname{Poisson}(\lambda\sigmoid(-f_i)).
-\]
-
-Together with the observed counts this gives the augmented likelihood
-\[
-p(n_i,k_i\mid f_i)
-\propto
-\left(\sigmoid(f_i)\right)^{n_i}
-\left(\sigmoid(-f_i)\right)^{k_i}
-=
-\frac{e^{n_i f_i}}{(1+e^{f_i})^{n_i+k_i}}.
-\]
+\begin{frame}{Gibbs Sampler}
+Repeat:
 
 \medskip
-So the Poisson model is transformed into a logistic form.
+\begin{enumerate}
+\item Sample mixture assignments:
+\[
+z_i \sim p(z_i\mid f_i,n_i;\kappa).
+\]
+
+\item Sample the full latent field:
+\[
+f\sim p(f\mid z,n;\kappa).
+\]
+\end{enumerate}
+
+\medskip
+\begin{block}{Advantage}
+Conditional on \(z\), the field update is Gaussian.
+\end{block}
 \end{frame}
 
-\begin{frame}{P\'olya--Gamma Augmentation}
-Define
+\begin{frame}{Gaussian Conditional Posterior}
+\small
+
+Given \(z\), the approximate likelihood is Gaussian in \(f\):
 \[
-b_i=n_i+k_i,
+p(n,z\mid f;\kappa)
+\propto
+\N(f\mid \mu_z,D),
+\]
+where
+\[
+\mu_z=
+(\mu_{n_1,z_1}^{(\kappa)},\dots,\mu_{n_N,z_N}^{(\kappa)})^\top,
 \qquad
-\kappa_i=\frac{n_i-k_i}{2}.
+D=
+\operatorname{diag}
+\left(
+(\sigma_{n_1}^{(\kappa)})^2,\dots,
+(\sigma_{n_N}^{(\kappa)})^2
+\right).
 \]
 
-The augmented likelihood has the standard P\'olya--Gamma form
+Combining this with
 \[
-\frac{e^{n_i f_i}}{(1+e^{f_i})^{b_i}}
-\propto
-\int_0^\infty
-\exp\left(
--\frac12\omega_i f_i^2 + \kappa_i f_i
-\right)
-p(\omega_i\mid b_i,0)\,d\omega_i.
+f\sim\N(\mu_0,\Sigma_0)
 \]
-
-Equivalently, in the Gibbs sampler we draw
+gives
 \[
-\omega_i\mid f_i,b_i \sim PG(b_i,f_i).
-\]
-
-\medskip
-\textbf{Key point:} conditional on $\omega$, the likelihood is quadratic in $f$.
-\end{frame}
-
-\begin{frame}{Gaussian Update and Cholesky Sampling}
-Combining the quadratic likelihood with the Gaussian prior gives
-\[
-\log p(f\mid n,k,\omega)
-=
--\frac12 f^\top Qf+f^\top h+c,
+f\mid z,n;\kappa \sim \N(m_{\mathrm{post}},\Sigma_{\mathrm{post}}),
 \]
 with
 \[
-Q=\Sigma^{-1}+\Omega,
+\Sigma_{\mathrm{post}}
+=
+(\Sigma_0^{-1}+D^{-1})^{-1},
 \qquad
-h=\Sigma^{-1}\mu+\kappa,
-\qquad
-\Omega=\operatorname{diag}(\omega_1,\dots,\omega_N).
+m_{\mathrm{post}}
+=
+\Sigma_{\mathrm{post}}
+(\Sigma_0^{-1}\mu_0+D^{-1}\mu_z).
+\]
+\end{frame}
+
+\begin{frame}{Why the Mixture Sampler is Fast}
+The posterior covariance conditional on \(z\) is
+\[
+\Sigma_{\mathrm{post}}
+=
+(\Sigma_0^{-1}+D^{-1})^{-1}.
 \]
 
-Thus
+Since \(D\) depends only on the observed counts \(n_i\) and on the chosen \(\kappa\),
 \[
-f\mid n,k,\omega \sim \mathcal N(m,Q^{-1}),
-\qquad
-m=Q^{-1}h.
+D \text{ is fixed during sampling.}
 \]
 
-In practice we do not compute $Q^{-1}$ explicitly. We use
-\[
-Q=LL^\top
-\]
-and solve triangular systems.
+\medskip
+\begin{alertblock}{}
+At each Gibbs step, only \(\mu_z\) and the posterior mean are updated.
+\end{alertblock}
 \end{frame}
 
 % -------------------------------------------------
 \section{Results}
 
-\begin{frame}{Gaussian First Guess}
-\begin{columns}[T]
-\begin{column}{0.45\textwidth}
-\begin{center}
-\includegraphics[width=\textwidth]{figures/Figure_5.png}
-\end{center}
-\end{column}
-\begin{column}{0.55\textwidth}
+
+\begin{frame}{Initial Gaussian Approximation}
+
+\begin{columns}
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/gaussian_est_field_k_1.png}\\
+  \kappa = 1
+
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/gaussian_est_field_k_5.png}\\
+   \kappa = 5
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Posterior Mean a 230 iter}
+\begin{columns}
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/posterior_mean_k_1.png}\\
+  \kappa = 1
+
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/posterior_mean_k_5.png}\\
+  \kappa = 5
+\end{columns}\end{frame}
+
+
+\begin{frame}{Effect of \(\kappa\) on the Prior Rate}
 \small
+
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+\(\kappa\) & Mean rate & Minimum rate & Fraction \(<0.1\) \\
+\midrule
+\(0.5\) & \(2.046\) & \(0.487\) & \(0.0\%\) \\
+\(1.0\) & \(2.033\) & \(0.152\) & \(0.0\%\) \\
+\(2.0\) & \(1.979\) & \(0.017\) & \(4.4\%\) \\
+\(5.0\) & \(1.938\) & \(0.000\) & \(10.1\%\) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+
+\begin{alertblock}{}
+Increasing \(\kappa\) keeps the average rate similar, but pushes more cells
+toward near-zero intensity.
+\end{alertblock}
+\end{frame}
+
+\begin{frame}{Sampling Cost: P\'olya--Gamma (PG) vs Mixture}
+\small
+
+We compare the time needed to obtain exactly \(100\) yielded posterior samples.
+
+\medskip
+\begin{center}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lccc}
+\toprule
+\textbf{Grid}
+& \textbf{Sigmoid + PG}
+& \textbf{Softplus + mixture}
+& \textbf{Mixture/PG} \\
+\midrule
+\(16\times16\)
+& \(0.232\,\mathrm{s}\) \; \((2.32\,\mathrm{ms/sample})\)
+& \(0.766\,\mathrm{s}\) \; \((7.66\,\mathrm{ms/sample})\)
+& \(3.30\) \\
+
+\(32\times32\)
+& \(4.889\,\mathrm{s}\) \; \((48.89\,\mathrm{ms/sample})\)
+& \(3.472\,\mathrm{s}\) \; \((34.72\,\mathrm{ms/sample})\)
+& \(0.71\) \\
+
+\(64\times64\)
+& \(119.271\,\mathrm{s}\) \; \((1192.72\,\mathrm{ms/sample})\)
+& \(23.663\,\mathrm{s}\) \; \((236.63\,\mathrm{ms/sample})\)
+& \(0.20\) \\
+\bottomrule
+\end{tabular}
+}
+\end{center}
+
+\medskip
+
+\begin{alertblock}{}
+For larger grids, the softplus mixture sampler is substantially faster.
+At \(64\times64\), it is about \(5\) times faster than the sigmoid P\'olya--Gamma sampler.
+\end{alertblock}
+
+
+\end{frame}
+
+
+
+% -------------------------------------------------
+\section{Summary}
+
+\begin{frame}{Summary}
 \begin{itemize}
-\item Construct a pixelwise rate proxy from the observed counts:
-\[
-\tilde\lambda_i=\operatorname{clip}(n_i+1).
-\]
-\item Map it back to the latent scale:
-\[
-\tilde f_i=\sigmoid^{-1}\!\left(\frac{\tilde\lambda_i}{\lambda}\right).
-\]
+\item The sigmoid link is bounded and can saturate.
+
+\medskip
+
+\item The soft-ramp link stays positive and avoids a fixed upper rate.
+
+\medskip
+
+\item The parameter \(\kappa\) controls how sharp the transition is.
+
+\medskip
+
+\item The mixture approximation gives an approximate Gibbs sampler.
+
+\medskip
+
+\item For larger grids, the softplus + mixture sampler is much faster.
 \end{itemize}
-\end{column}
-\end{columns}
+\end{frame}
+
+\begin{frame}{Next Steps}
 \begin{itemize}
-\item Approximate local uncertainty by error propagation:
-\[
-s_i^2\approx\frac{\tilde\lambda_i}{\left(\frac{d\lambda_i}{df_i}\right)^2}.
-\]
-\item Combine this noisy proxy with the Gaussian prior to obtain a smoothed initialization.
+\item Compare posterior fields for different values of \(\kappa\).
+
+\medskip
+
+\item Use a mixture approximation also for the sigmoid link.
+
+\medskip
+
+\item Extend to adaptive grids.
 \end{itemize}
-\end{frame}
-
-\begin{frame}{Posterior Samples}
-\begin{center}
-\includegraphics[width=0.82\textwidth]{figures/Figure_6.png}
-\end{center}
-\end{frame}
-
-\begin{frame}{Posterior Mean Reconstruction: Example I}
-Recovered spatial structure from event data.
-The posterior mean is smoother than the discrete observations and reflects the spatial prior.
-
-\begin{center}
-\includegraphics[width=0.72\textwidth]{figures/Figure_7.png}
-\end{center}
-
-\end{frame}
-
-% \begin{frame}{Posterior Mean Reconstruction: Example II}
-% The posterior mean is smoother than the discrete observations and reflects the spatial prior.
-% \begin{center}
-% \includegraphics[width=0.72\textwidth]{figures/Figure_14.png}
-% \end{center}
-% \end{frame}
-
-\begin{frame}{Comparing the Two Synthetic Examples}
-Example I has moderate contrast $(4.5,5.5)$, whereas Example II has stronger contrast $(3.5,6.5)$. Both are reconstructed using the same latent Gaussian Poisson model.
-\begin{columns}[T]
-\begin{column}{0.52\textwidth}
-\begin{center}
-\includegraphics[width=\textwidth]{figures/Figure_14.png}
-
-\scriptsize posterior mean, example I
-\end{center}
-\end{column}
-\begin{column}{0.52\textwidth}
-\begin{center}
-\includegraphics[width=\textwidth]{figures/Figure_7.png}
-
-\scriptsize posterior mean, example II
-\end{center}
-\end{column}
-\end{columns}
-
 \end{frame}
 
 % -------------------------------------------------
-\section{Takeaways}
-
-\begin{frame}{Takeaways}
-\begin{itemize}
-\item Point events can be modeled via latent spatial Poisson fields.
-\item A Gaussian prior on $f$ induces flexible rate priors.
-\item Poisson splitting converts the model into a logistic form.
-\item P\'olya--Gamma augmentation then restores conditional Gaussian structure.
-\item Gibbs sampling becomes efficient via Cholesky updates.
-% \item The framework extends naturally to real earthquake data and adaptive grids.
-\end{itemize}
-\end{frame}
-
-
-\begin{frame}{Outlook}
-Future directions:
-\begin{itemize}
-\item Quadtree / adaptive grids
-\item Sparse precision matrices
-\item Nonstationary covariance kernels
-\item Real earthquake catalogs
-\item Spatio-temporal extensions
-\end{itemize}
-\end{frame}
-
-\begin{frame}{Limitations of the Sigmoid Link}
-The sigmoid link is useful because it guarantees positivity and gives a tractable P\'olya--Gamma Gibbs sampler.
-
-\medskip
-However, it also introduces limitations:
-\begin{itemize}
-\item the intensity is bounded by the fixed scale parameter $\lambda$,
-\[
-0<\lambda_i<\lambda,
-\]
-\item large positive values of $f_i$ are compressed due to saturation,
-\item the P\'olya--Gamma variables change in every iteration, so the Gaussian update requires repeated linear algebra,
-\item the upper bound may be restrictive for data sets with strongly varying event rates.
-\end{itemize}
-
-\medskip
-This motivates considering alternative positive link functions.
-\end{frame}
-
-\begin{frame}{Beyond the Sigmoid Link}
-A natural next question is:
-\[
-\text{Can we keep positivity while avoiding the fixed upper bound?}
-\]
-
-\medskip
-One possible alternative is the softplus / soft-ramp link:
-\[
-\lambda_i = \log(1+e^{f_i}).
-\]
-
-\medskip
-It remains positive, but grows approximately linearly for large $f_i$.
-
-\begin{block}{Next part}
-Cristina presents an alternative inference strategy based on this softer, unbounded link function.
-\end{block}
-\end{frame}
-
-\begin{frame}{Thank you}
+\begin{frame}
 \begin{center}
 \Large Thank you for your attention!\\[1em]
 Questions?
@@ -446,44 +517,84 @@ Questions?
 
 % -------------------------------------------------
 \appendix
-\section{Appendix}
 
-\begin{frame}{Appendix: Synthetic Example II -- Event Catalog}
+
+\begin{frame}{Appendix: Likelihood mixture approximation residuals }
 \begin{center}
-\includegraphics[width=0.72\textwidth]{figures/Figure_10.png}
+\includegraphics[width=\textwidth]{figures/likelihood_mixture_compare_kappa_n3.png}
 \end{center}
 \end{frame}
 
-\begin{frame}{Appendix: Synthetic Example II -- Gaussian First Guess}
+
+\begin{frame}{Appendix: Gaussian First Guess}
+\begin{columns}[T]
+\begin{column}{0.45\textwidth}
 \begin{center}
-\includegraphics[width=0.72\textwidth]{figures/Figure_12.png}
+\includegraphics[width=\textwidth]{figures/gaussian_est_field_k_1.png}
 \end{center}
+\end{column}
+
+\begin{column}{0.55\textwidth}
+\small
+Use the counts as a rough rate proxy:
+\[
+\tilde\lambda_i=\operatorname{clip}(n_i+1).
+\]
+
+Map to the latent scale:
+\[
+\tilde f_i
+=
+L_\kappa^{-1}(\tilde\lambda_i)
+=
+\frac{1}{\kappa}
+\log\!\left(e^{\kappa\tilde\lambda_i}-1\right).
+\]
+
+Local variance by error propagation:
+\[
+s_i^2
+\approx
+\frac{\tilde\lambda_i}{\sigma(\kappa\tilde f_i)^2}.
+\]
+\end{column}
+\end{columns}
+
+\medskip
+Then combine \((\tilde f_i,s_i^2)\) with the Gaussian prior to obtain a smoothed initialization.
 \end{frame}
 
-\begin{frame}{Appendix: Synthetic Example II -- Posterior Samples}
-\begin{center}
-\includegraphics[width=0.82\textwidth]{figures/Figure_13.png}
-\end{center}
+
+
+\begin{frame}{Initial Gaussian Approximation}
+
+\begin{columns}
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/gaussian_est_field_k_1_ex2.png}\\
+  \kappa = 1
+
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/gaussian_est_field_k_5_ex2.png}\\
+   \kappa = 5
+\end{columns}
+
 \end{frame}
 
-\begin{frame}{Appendix: Real Earthquake Data}
+\begin{frame}{Posterior Mean a 230 iter}
+\begin{columns}
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/posterior_mean_k_1_ex2.png}\\
+  \kappa = 1
 
-Possible discussion points:
-\begin{itemize}
-\item real point process data
-\item spatially varying seismic activity
-\item comparison with synthetic experiments
-\end{itemize}
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/posterior_mean_k_5_ex2.png}\\
+  \kappa = 5
+\end{columns}
 \end{frame}
 
-\begin{frame}{Appendix: Adaptive Grid / Quadtree}
-
-Possible discussion points:
-\begin{itemize}
-\item more cells where the data are dense
-\item fewer cells where the data are sparse
-\item rates must be interpreted relative to cell area
-\end{itemize}
-\end{frame}
 
 \end{document}
