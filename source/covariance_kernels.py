@@ -33,7 +33,6 @@ def spatial_covariance_matern_1_2(n, m, rho, v2):
     return v2 * np.exp(-d/rho)
 
 
-
 def spatial_covariance_matern_2_3(n, m, rho, v2):
     d = _d2(n,m)**0.5
 

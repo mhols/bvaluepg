@@ -211,7 +211,112 @@ def run_one(
     }
 
 
-def main() -> Path:
+# --- Analysis and plotting ---
+
+def _output_path() -> Path:
+    return REPO_ROOT / OUTPUT_DIRNAME / OUTPUT_FILENAME
+
+
+def main_analyze(csv_path: Path | None = None) -> Path:
+    """
+    Load benchmark results, aggregate repetitions per configuration, and save summary plots.
+    This does not regenerate synthetic data.
+    """
+    if csv_path is None:
+        csv_path = _output_path()
+
+    if not csv_path.exists():
+        raise FileNotFoundError(f"Benchmark result file not found: {csv_path}")
+
+    df = pd.read_csv(csv_path)
+
+    group_cols = [
+        "estimator",
+        "nn",
+        "ncheck",
+        "n",
+        "lam",
+        "kernel",
+        "rho",
+        "v2",
+        "n_keep",
+        "burn_in",
+        "thin",
+    ]
+
+    summary = (
+        df.groupby(group_cols, as_index=False)
+        .agg(
+            reps=("rep", "count"),
+            n_events_mean=("n_events", "mean"),
+            n_events_std=("n_events", "std"),
+            runtime_s_mean=("runtime_s", "mean"),
+            runtime_s_std=("runtime_s", "std"),
+            sampling_s_mean=("runtime_sampling_s", "mean"),
+            sampling_s_std=("runtime_sampling_s", "std"),
+        )
+        .sort_values(["n", "ncheck", "lam"])
+    )
+
+    out_dir = REPO_ROOT / OUTPUT_DIRNAME
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    summary_path = out_dir / "benchmark_synthetic_checkerboards_summary.csv"
+    summary.to_csv(summary_path, index=False)
+
+    import matplotlib.pyplot as plt
+
+    plot_dir = out_dir / "plots"
+    plot_dir.mkdir(parents=True, exist_ok=True)
+
+    # Plot 1: mean runtime vs total grid size.
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for (ncheck, lam), part in summary.groupby(["ncheck", "lam"]):
+        part = part.sort_values("n")
+        ax.plot(part["n"], part["runtime_s_mean"], marker="o", label=f"ncheck={ncheck}, lam={lam}")
+    ax.set_xlabel("grid side length n = nn * ncheck")
+    ax.set_ylabel("mean runtime [s]")
+    ax.set_title("Polya-Gamma benchmark: runtime vs grid size")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(plot_dir / "runtime_vs_grid_size.png", dpi=200)
+    plt.show()
+    plt.close(fig)
+
+    # Plot 2: mean runtime vs mean number of generated events.
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for (ncheck, lam), part in summary.groupby(["ncheck", "lam"]):
+        part = part.sort_values("n_events_mean")
+        ax.plot(part["n_events_mean"], part["runtime_s_mean"], marker="o", label=f"ncheck={ncheck}, lam={lam}")
+    ax.set_xlabel("mean generated events")
+    ax.set_ylabel("mean runtime [s]")
+    ax.set_title("Polya-Gamma benchmark: runtime vs generated events")
+    ax.legend()
+    fig.tight_layout()
+    fig.savefig(plot_dir / "runtime_vs_n_events.png", dpi=200)
+    plt.show()
+    plt.close(fig)
+
+    # Plot 3: sampling time vs total runtime.
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.scatter(summary["sampling_s_mean"], summary["runtime_s_mean"])
+    ax.set_xlabel("mean sampling time [s]")
+    ax.set_ylabel("mean total runtime [s]")
+    ax.set_title("Sampling time vs total runtime")
+    fig.tight_layout()
+    fig.savefig(plot_dir / "sampling_vs_total_runtime.png", dpi=200)
+    plt.show()
+    plt.close(fig)
+
+    print(f"Loaded {len(df)} raw rows from {csv_path}")
+    print(f"Wrote {len(summary)} aggregated rows to {summary_path}")
+    print(f"Wrote plots to {plot_dir}")
+    print(summary[["estimator", "nn", "ncheck", "lam", "reps", "n_events_mean", "runtime_s_mean"]])
+
+    return summary_path
+
+
+def main_generate() -> Path:
     rows: list[dict] = []
 
     for nn in NN_LIST:
@@ -241,7 +346,7 @@ def main() -> Path:
 
     out_dir = REPO_ROOT / OUTPUT_DIRNAME
     out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / OUTPUT_FILENAME
+    out_path = _output_path()
     df.to_csv(out_path, index=False)
 
     print(f"Wrote {len(df)} rows to {out_path}")
@@ -250,6 +355,8 @@ def main() -> Path:
     return out_path
 
 
+
 if __name__ == "__main__":
-    main()
+    # main_generate()  # run the benchmark and overwrite the CSV output
+    main_analyze()     # load existing CSV output, aggregate repetitions, and create plots
 
