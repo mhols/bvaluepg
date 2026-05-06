@@ -192,12 +192,16 @@ def softplus(x: np.ndarray) -> np.ndarray:
     return np.log1p(np.exp(-np.abs(x))) + np.maximum(x, 0.0)
 
 
-def poisson_like_unnormalized(t: np.ndarray, n: int) -> np.ndarray:
+def poisson_like_unnormalized(t: np.ndarray, n: int, softplus_k: float = 1.0) -> np.ndarray:
     """
-    y(t) ∝ softplus(t)^n * exp(-softplus(t))
+    y(t) ∝ L_k(t)^n * exp(-L_k(t))
+    where L_k(t) = softplus(k t) / k.
     computed in log-space for numerical stability.
     """
-    lam = softplus(t)
+    k = float(softplus_k)
+
+
+    lam = softplus(k * t) / k
     lam = np.maximum(lam, 1e-300)
 
     logy = n * np.log(lam) - lam
@@ -260,10 +264,36 @@ def fit_weights_L1(Phi: np.ndarray, y: np.ndarray) -> np.ndarray:
         w = np.ones_like(w) / w.size
     return w
 
+def make_means_for_kappa(means_left, means_right, K_n, kappa):
+    """
+    Build Gaussian component centers.
+
+    For kappa=1, use a uniform grid.
+    For larger kappa, add more centers near f=0.
+    """
+    kappa = float(kappa)
+
+    if kappa <= 1.0:
+        return np.linspace(means_left, means_right, K_n)
+
+    K_local = int(0.6 * K_n)
+    K_global = K_n - K_local
+
+    local_width = max(2.0, 8.0 / kappa)
+
+    means_global = np.linspace(means_left, means_right, K_global)
+    means_local = np.linspace(-local_width, local_width, K_local)
+
+    means = np.unique(np.concatenate([means_global, means_local]))
+    means.sort()
+
+    return means
+
 
 def precompute_softplus_mixtures(
     nmax: int,
     *,
+    softplus_k: float = 1.0,
     t_N: int = 1200,
     K_of_n=None,
     sigma_of_n=None,
@@ -280,6 +310,10 @@ def precompute_softplus_mixtures(
     For n > tail_start:
         use a single Gaussian approximation N(mean=n, var=n).
     """
+    softplus_k = float(softplus_k)
+
+    
+
     if K_of_n is None:
         def K_of_n(n):
             return 60
@@ -295,6 +329,7 @@ def precompute_softplus_mixtures(
         "t_grid": {},
         "nmax": int(nmax),
         "tail_start": int(tail_start),
+        "softplus_k": softplus_k,
     }
 
     Phi_cache = {}
@@ -319,22 +354,30 @@ def precompute_softplus_mixtures(
 
             continue
 
-        sigma_n = float(sigma_of_n.get(n, sigma_of_n.get("default", 1.0)))
         K_n = int(K_of_n(n))
+        sigma_n = float(sigma_of_n.get(n, sigma_of_n.get("default", 1.0)))
 
         t_left = min(-10.0, float(n) - t_half_width)
         t_right = float(n) + t_half_width
         t = np.linspace(t_left, t_right, t_N)
 
-        means_left = min(-20.0, float(n) - means_half_width)
+        means_left = float(n) - means_half_width
         means_right = float(n) + means_half_width
-        means_n = np.linspace(means_left, means_right, K_n)
 
-        y = poisson_like_unnormalized(t, n)
+        means_n = make_means_for_kappa(
+            means_left,
+            means_right,
+            K_n,
+            softplus_k,
+        )
+        K_n = len(means_n)
+
+        y = poisson_like_unnormalized(t, n, softplus_k=softplus_k)
         if normalize_target:
             y = normalize_on_grid(y)
 
         cache_key = (
+            round(float(softplus_k), 8),
             round(t_left, 8),
             round(t_right, 8),
             int(t_N),
@@ -367,24 +410,45 @@ def precompute_softplus_mixtures(
 
     return mix
 
-def load_or_build_mix(nmax_mix: int, cache_dir: Path) -> dict:
+def load_or_build_mix(nmax_mix: int, cache_dir: Path, softplus_k: float = 1.0,) -> dict:
+    softplus_k = float(softplus_k)
     cache_dir.mkdir(parents=True, exist_ok=True)
-    cache_path = cache_dir / f"softplus_mix_L1_nmax{nmax_mix}_tail60.pkl"
+
+    k_tag = str(softplus_k).replace(".", "p")
+    cache_path = cache_dir / f"softplus_mix_k{k_tag}_L1_nmax{nmax_mix}_tail60.pkl"
 
     if cache_path.exists():
         print(f"[mix] loading cache: {cache_path}")
         with open(cache_path, "rb") as f:
-            return pickle.load(f)
+            mix = pickle.load(f)
 
-    print(f"[mix] building mix up to nmax_mix={nmax_mix}")
+        cached_k = float(mix.get("softplus_k", 1.0))
+        if not np.isclose(cached_k, softplus_k):
+            raise ValueError(
+                f"Loaded mixture has softplus_k={cached_k}, "
+                f"but requested softplus_k={softplus_k}."
+            )
+
+        return mix
+
+    print(f"[mix] building mix up to nmax_mix={nmax_mix}, softplus_k={softplus_k}")
 
     def K_of_n(n: int) -> int:
-        return 60
+        return int(60 * max(1.0, np.sqrt(softplus_k)))
 
-    sigma_of_n = {"default": 1.0, 0: 1.5}
+    sigma_base = max(0.25, 1.0 / np.sqrt(softplus_k))
+    sigma_zero = max(0.5, 1.5 / np.sqrt(softplus_k))
+
+    sigma_of_n = {
+      "default": sigma_base,
+       0: sigma_zero,
+    }
+
+    
 
     mix = precompute_softplus_mixtures(
         nmax_mix,
+        softplus_k=softplus_k,
         t_N=1500,
         K_of_n=K_of_n,
         sigma_of_n=sigma_of_n,

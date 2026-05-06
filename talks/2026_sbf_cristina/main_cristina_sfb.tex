@@ -27,7 +27,7 @@
 \title[Soft-ramp Poisson Fields]{A Flexible Alternative to the Sigmoid Link}
 \author[C. Chavez]{Cristina O. Ch\'avez Chong}
 \institute[UP]{University of Potsdam}
-\date[SFB Talk 2026]{SFB / Working Group Talk}
+\date[WG Talk 2026]{ Working Group Talk}
 
 \AtBeginSection[]{
 \begin{frame}{Outline}
@@ -250,11 +250,10 @@ The soft-ramp likelihood becomes conditionally Gaussian.
 
 \begin{frame}{Example Likelihood Approximation}
 \begin{center}
-\maybeincludegraphics[width=0.76\textwidth]{figures/likelihood_mixture_residuals_n3_L1_sigma1.0.png}
+\maybeincludegraphics[width=\textwidth]{figures/likelihood_mixture_k1_k5.png}
 \end{center}
 
-\medskip
-A precomputed Gaussian mixture approximates the Poisson--soft-ramp likelihood for each observed count.
+
 \end{frame}
 
 \begin{frame}{Latent Mixture Variables}
@@ -367,17 +366,37 @@ At each Gibbs step, only \(\mu_z\) and the posterior mean are updated.
 % -------------------------------------------------
 \section{Results}
 
+
 \begin{frame}{Initial Gaussian Approximation}
-\begin{center}
-\maybeincludegraphics[width=0.82\textwidth]{figures/gaussian_est_field.png}
-\end{center}
+
+\begin{columns}
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/gaussian_est_field_k_1.png}\\
+  \kappa = 1
+
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/gaussian_est_field_k_5.png}\\
+   \kappa = 5
+\end{columns}
+
 \end{frame}
 
-\begin{frame}{Posterior Mean}
-\begin{center}
-\maybeincludegraphics[width=0.72\textwidth]{figures/posterior_mean.png}
-\end{center}
+\begin{frame}{Posterior Mean after 230 iter}
+\begin{columns}
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/posterior_mean_k_1.png}\\
+  \kappa = 1
+
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/posterior_mean_k_5.png}\\
+  \kappa = 5
+\end{columns}
 \end{frame}
+
 
 \begin{frame}{Effect of \(\kappa\) on the Prior Rate}
 \small
@@ -496,5 +515,87 @@ At \(64\times64\), it is about \(5\) times faster than the sigmoid P\'olya--Gamm
 Questions?
 \end{center}
 \end{frame}
+
+% -------------------------------------------------
+\appendix
+
+
+\begin{frame}{Appendix: Likelihood mixture approximation residuals }
+\begin{center}
+\includegraphics[width=\textwidth]{figures/likelihood_mixture_compare_kappa_n3.png}
+\end{center}
+\end{frame}
+
+
+\begin{frame}{Appendix: Gaussian First Guess}
+\begin{columns}[T]
+\begin{column}{0.45\textwidth}
+\begin{center}
+\includegraphics[width=\textwidth]{figures/gaussian_est_field_k_1.png}
+\end{center}
+\end{column}
+
+\begin{column}{0.55\textwidth}
+\small
+Use the counts as a rough rate proxy:
+\[
+\tilde\lambda_i=\operatorname{clip}(n_i+1).
+\]
+
+Map to the latent scale:
+\[
+\tilde f_i
+=
+L_\kappa^{-1}(\tilde\lambda_i)
+=
+\frac{1}{\kappa}
+\log\!\left(e^{\kappa\tilde\lambda_i}-1\right).
+\]
+
+Local variance by error propagation:
+\[
+s_i^2
+\approx
+\frac{\tilde\lambda_i}{\sigma(\kappa\tilde f_i)^2}.
+\]
+\end{column}
+\end{columns}
+
+\medskip
+Then combine \((\tilde f_i,s_i^2)\) with the Gaussian prior to obtain a smoothed initialization.
+\end{frame}
+
+
+
+\begin{frame}{Initial Gaussian Approximation}
+
+\begin{columns}
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/gaussian_est_field_k_1_ex2.png}\\
+  \kappa = 1
+
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/gaussian_est_field_k_5_ex_2.png}\\
+   \kappa = 5
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Posterior Mean after 230 iter}
+\begin{columns}
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/posterior_mean_k_1_ex2.png}\\
+  \kappa = 1
+
+  \column{0.5\textwidth}
+  \centering
+  \includegraphics[width=\linewidth]{figures/posterior_mean_k_5_ex2.png}\\
+  \kappa = 5
+\end{columns}
+\end{frame}
+
 
 \end{document}
