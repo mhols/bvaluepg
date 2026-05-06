@@ -2,6 +2,7 @@ __doc__="a class to use the Polya-Gamma technique for density estimation"
 
 import numpy as np
 import scipy as sp
+from scipy.linalg import cho_solve
 import scipy.linalg.blas as blas
 import scipy.linalg as spla
 import matplotlib.pyplot as plt
@@ -78,6 +79,7 @@ class Density:
 
         self.prior_covariance = prior_covariance
         self._Lprior = None
+        self._precision = None
 
     def set_data(self, nobs):
         """
@@ -86,8 +88,9 @@ class Density:
         :param self: Description
         :param nobs: array like the observed number of events in the bins
         """
-        assert len(nobs) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
-        self.nobs = nobs
+        print(nobs.shape, self.nbins, len(nobs))
+        assert len(nobs.ravel()) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
+        self.nobs = nobs.ravel()
         self.ndata = sum(self.nobs)
     
     @property
@@ -98,6 +101,12 @@ class Density:
         if self._Lprior is None:
             self._Lprior = sp.linalg.cholesky(self.prior_covariance, lower=True)
         return self._Lprior
+
+    @property
+    def prior_precision(self):
+        if self._precision is None:
+            self._precision = cho_solve((self.Lprior, True), np.eye(self.nbins))
+        return self._precision
 
     @property
     def nbins(self):
@@ -136,6 +145,18 @@ class Density:
         :param f: Description
         """
         return field
+    
+    def derivative_log_field_from_f(self, f):
+        return 1
+    
+    def second_derivative_log_field_from_f(self, f):
+        return -1 / f
+    
+    def derivative_field_from_f(self, f):
+        return 1
+    
+    def second_derivate_field_from_f(self, f):
+        return 0
     
     def density_under_gaussian(self, field, mu, gamma2):
         tmp = np.exp( - (self.f_from_field(field) - mu)**2/(2*gamma2))
@@ -187,6 +208,28 @@ class Density:
         return -self.loglikelihood(f) + np.sum( 
             sp.linalg.solve_triangular(
                 self.Lprior, f-self.prior_mean, trans=False, lower=True)**2) / 2
+    
+    def apply_prior_choleski_covar_inverse(self, f):
+        return sp.linalg.solve_triangular(self.Lprior, f, trans=False, lower=True)
+    
+    def apply_prior_choleski_covar_inverse_T(self, f):
+        return sp.linalg.solve_triangular(self.Lprior, f, trans=True, lower=True)
+    
+    def apply_prior_choleski_covar(self, f):
+        return self.Lprior @ f
+    
+    def apply_prior_choleski_covar_T(self, f):
+        return self.Lprior.T @ f
+    
+    def apply_prior_inverse_covar(self, f):
+        #tmp = sp.linalg.solve_triangular(self.Lprior, f-self.prior_mean, trans=False, lower=True) ### besser die schon berechneten Choleski Faktoren benutzen
+        #tmp = sp.linalg.solve_triangular(self.Lprior, tmp, trans=True, lower=True)
+        tmp = self.apply_prior_choleski_covar_inverse(f)
+        tmp = self.apply_prior_choleski_covar_inverse_T(f)
+        return tmp
+    
+    def apply_prior_precision(self, f):
+        return self.apply_prior_inverse_covar(f)
  
     def neg_grad_logposterior(self, f):
         """
@@ -208,10 +251,34 @@ class Density:
         """
        
         res = self.nobs * self.derivative_log_field_from_f(f) - self.derivative_field_from_f(f)
-        tmp = sp.linalg.solve_triangular(self.Lprior, f-self.prior_mean, trans=False, lower=True) ### besser die schon berechneten Choleski Faktoren benutzen
-        tmp = sp.linalg.solve_triangular(self.Lprior, tmp, trans=True, lower=True)
-
+        tmp = self.apply_prior_inverse_covar(f)
+        
         return -res + tmp
+
+    def hessian_neg_log_posterior(self, f):
+        D = -np.diag( self.ndata * self.second_derivative_log_field_from_f(f) - self.second_derivate_field_from_f(f))
+        return D + self.prior_precision
+
+
+    def apply_hessian_neg_log_posterior_non_normalized(self, atf, tof):
+        """
+        applies the Hessian at atf to tof
+        TODO: make more efficient
+        """
+        print('in hess')
+        D = -np.diag( self.second_derivative_log_field_from_f(atf))
+        tmp = D * self.Lprior
+        LDL = self.Lprior.T @ tmp
+        LDL = LDL +  np.eye(self.nbins)
+        K = sp.linalg.cholesky(LDL, lower=True)
+        tmp = self.apply_prior_choleski_covar_T(tof)
+        tmp = sp.linalg.solve_triangular(K, tmp, trans=False, lower=True)
+        tmp = sp.linalg.solve_triangular(K, tmp, trans=True, lower=True)
+        tmp = self.apply_prior_choleski_covar(tmp)
+        print('done hess')
+        return tmp
+
+
     
     def first_guess_estimator(self, f=None, s2=None):
         """
@@ -227,14 +294,17 @@ class Density:
         """
         if Gaussian pixelwise proxy is given, use a baseline Poisson based proxy
         """
+        f = f.ravel()
 
         if f is None:
             f = self.f_from_field(self.nobs) #np.clip(self.nobs, 1, None))
 
         if s2 is None:
-            s2 = max(0.1, f) / self.derivative_field_from_f(f)**2
+            s2 = self.nobs / self.derivative_field_from_f(f)**2
 
         D = np.diag(s2)
+
+        print('oops', f.shape, self.prior_mean.shape)
 
         tmp = f - self.prior_mean
         tmp = np.linalg.solve(self.prior_covariance + D, tmp)
@@ -243,7 +313,7 @@ class Density:
 
     
     
-    def max_logposterior_estimator(self, f0=None, method='Powell', niter=10000, eps=1e-6):
+    def max_logposterior_estimator(self, f0=None, method='Newton-CG', niter=100, eps=1e-4, **kwargs):
         """
         Docstring for grad_scipy_logposterior
         
@@ -271,13 +341,17 @@ class Density:
         if f0 is None:
             f0 = self.first_guess_estimator()
 
+        bounds = [(m-4*s, m+4*s) for m, s in zip(self.prior_mean, np.sqrt(np.diag(self.prior_covariance)))]
+
         res = sp.optimize.minimize(
                 self.neg_logposterior, 
                 f0, 
                 jac=self.neg_grad_logposterior, 
                 method=method,
                 #bounds = [ (-5, 5) for i in range(self.nbins) ],
-                options={'maxiter':niter }) 
+                hess=self.hessian_neg_log_posterior,
+                bounds=bounds,
+                options={'maxiter':niter, 'maxfun': niter}) 
 
         print(res) 
         return res['x']
@@ -314,10 +388,16 @@ class SigmoidMixin:
     def derivative_field_from_f(self, f):
         return self.lam * sigmoid(f) * sigmoid(-f)
     
+    def second_derivate_field_from_f(self, f):
+        return self.lam * sigmoid(f) * sigmoid(-f) * (sigmoid(-f) - sigmoid(f))
+    
     def derivative_log_field_from_f(self, f):
         return sigmoid(-f)
  
-        
+    def second_derivative_log_field_from_f(self, f):
+        return -sigmoid(f)*sigmoid(-f)
+
+
     def first_guess_estimator(self):
 
         field = np.clip(self.nobs + 1, 0.5, 0.999 * self.lam)
@@ -443,9 +523,17 @@ class SmoothRampMixin:
     def derivative_field_from_f(self, f):
         return sigmoid(f) 
     
+    def second_derivate_field_from_f(self, f):
+        return sigmoid(f)*sigmoid(-f)
+    
     def derivative_log_field_from_f(self, f):
-        return sigmoid(f) / self.field_from_f(f) 
-       
+        return sigmoid(f) / softplus(f) 
+
+    def second_derivative_log_field_from_f(self, f):
+        tmp = softplus(f)
+        return sigmoid(f)*sigmoid(-f) / tmp - sigmoid(f)**2/tmp**2
+
+     
     def first_guess_estimator(self):
         f = np.clip(self.nobs+1, 1, None)
         s2 = f * (1-np.exp(-f))**2
@@ -526,13 +614,6 @@ class RampDensity(SmoothRampMixin, Density):
         super().__init__(prior_mean, prior_covariance, **kwargs)
 
 class Mixin2D:
-
-    #def __init__(self, **kwargs):
-    #    self.n = kwargs['n']
-    #    self.m = kwargs['m']
-    #
-    #    assert self.n * self.m == self.prior_mean.shape[0], "wrong dimension n, m"
-    #    return super().__init__(**kwargs)
     
     @property
     def n(self):

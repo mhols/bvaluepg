@@ -51,13 +51,13 @@ def checkerboard(nn, ncheck, a, b):
     """
     n = nn * ncheck
     mask = ((np.indices((n, n)) // nn).sum(axis=0) % 2)
-    return (a + b) / 2 + 0.5 * (a - b) * mask
+    return a*mask + b*(1-mask)
     
 
 def experiment_1(
     EstimatorClass=pgd.PolyaGammaDensity2D, 
     # n=64, nn=20, a=4.5, b=5.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
-    n=64, nn=20, a=3.5, b=6.5, rho=16, v2=0.1, lam=10, nmax_mix=60):
+    n=64, nn=8, a=0.1, b=5, rho=8, v2=0.05, lam=10, nmax_mix=60):
 
 
 
@@ -71,10 +71,14 @@ def experiment_1(
     # pm = single_square(n, nn, aa, bb)
     ncheck = 4
     assert n % ncheck == 0, 'n must be divisible by ncheck for checkerboard data'
-    pm = checkerboard(n // ncheck, ncheck, aa, bb)
+    tm = checkerboard(n // ncheck, ncheck, aa, bb)
+    pm = np.mean(tm) * np.ones(n*n)
+
     covar = ck.spatial_covariance_matern_2_3(n, n, rho, v2)
 
     estim.set_prior_Gaussian(pm, covar)
+
+    print(estim.prior_precision @ estim.prior_covariance)
 
     # Visualize the induced prior density on the Poisson intensity.
     # The Gaussian prior is placed on the latent field f, while the
@@ -89,13 +93,14 @@ def experiment_1(
     plt.legend()
     plt.grid(True)
 
-    data = estim.random_events_from_field(estim.field_from_f(estim.prior_mean))
-    estim.set_data(data)
+    data = estim.random_events_from_field(estim.field_from_f(tm))
+    print(data.shape, pm.shape)
+    estim.set_data(data.ravel())
 
    
     print('artificial data')
     plt.figure()
-    estim.imshow(estim.field_from_f(estim.prior_mean))
+    estim.imshow(estim.field_from_f(tm.ravel()))
     print('...done')
 
     print('artificial catalog')
@@ -133,7 +138,9 @@ def experiment_1(
     estim.set_data(data)
     estim.set_prior_Gaussian(estim.f_from_field(data.mean())*np.ones(estim.prior_mean.shape), ck.spatial_covariance_matern_2_3(n, n, rho, v2))
 
-    fge = estim.first_guess_estimator()
+    #fge = estim.first_guess_estimator()
+    fge = estim.max_logposterior_estimator(niter=1000, method='TNC')
+
     #estim.imshow(fge)
 
     plt.figure()
@@ -196,8 +203,8 @@ def experiment_2(nn=5, ncheck=5, a=1, b=2):
 
 if __name__ == "__main__":
 
-    #experiment_1(EstimatorClass=pgd.RampDensity2D, nmax_mix=60 )
-    experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D)
+    experiment_1(EstimatorClass=pgd.RampDensity2D, nmax_mix=60 )
+    #experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
     # experiment_2()
 
 
