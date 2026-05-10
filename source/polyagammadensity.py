@@ -107,12 +107,33 @@ class Density:
         if self._precision is None:
             self._precision = cho_solve((self.Lprior, True), np.eye(self.nbins))
         return self._precision
+    
+    def laplace_approximation_one_dimension(self, m, v2, n):
+        m = np.array([m])
+        v2 = np.array([[v2]])
+        calc = self.__class__(m, v2, **self.kwargs)
+        calc.set_data([n])
+        pm = calc.max_logposterior_estimator()
+        pv2 = 1./calc.hessian_neg_log_posterior(pm)
+
+        return pm, pv2
+    
+    def posterior_f_one_dimension(self, f, pm, pv2, n):
+        l = self.field_from_f(f)
+        pd = np.exp(-(f-pm)**2/(2*pv2)) * l**n * np.exp(-l)
+        return pd
+    
+    def posterior_field_one_dimension(self, field, pm, pv2, n):
+        pd = self.density_under_gaussian(field, pm, pv2)
+        pd = field**n * np.exp(-field) * pd
+        return pd
 
     @property
     def nbins(self):
         return self.prior_mean.shape[0]
     
-    def random_events_from_field(self, field):
+    @classmethod
+    def random_events_from_field(cls, field):
         """
         samples events from probability field
         
@@ -277,7 +298,7 @@ class Density:
         tmp = self.apply_prior_choleski_covar(tmp)
         print('done hess')
         return tmp
-
+    
 
     
     def first_guess_estimator(self, f=None, s2=None):
@@ -304,8 +325,6 @@ class Density:
 
         D = np.diag(s2)
 
-        print('oops', f.shape, self.prior_mean.shape)
-
         tmp = f - self.prior_mean
         tmp = np.linalg.solve(self.prior_covariance + D, tmp)
         tmp = np.dot(self.prior_covariance, tmp)
@@ -313,7 +332,7 @@ class Density:
 
     
     
-    def max_logposterior_estimator(self, f0=None, method='Newton-CG', niter=100, eps=1e-4, **kwargs):
+    def max_logposterior_estimator(self, f0=None, method='TNC', niter=1000, eps=1e-5, **kwargs):
         """
         Docstring for grad_scipy_logposterior
         
@@ -383,7 +402,9 @@ class SigmoidMixin:
     
     def f_from_field(self, field):
         s = field / self.lam
-        return np.log(s / (1-s))
+        s = np.clip(s, 0.01, None)
+        res = np.log(s / (1-s))
+        return res
     
     def derivative_field_from_f(self, f):
         return self.lam * sigmoid(f) * sigmoid(-f)
@@ -396,7 +417,6 @@ class SigmoidMixin:
  
     def second_derivative_log_field_from_f(self, f):
         return -sigmoid(f)*sigmoid(-f)
-
 
     def first_guess_estimator(self):
 
@@ -420,7 +440,7 @@ class SigmoidMixin:
             np.random.seed(random_seed)
 
         if initial_f is None and self.last_sample is None:
-            initial_f = 0
+            initial_f = np.zeros(self.nbins) 
         elif not self.last_sample is None:
             initial_f = self.last_sample
         else:
@@ -610,14 +630,65 @@ class SmoothRampMixin:
                 yield f
 
         return
+ 
+class ExponentialMixin:
+
+    ### TODO:
+
+    def __init__(self, prior_mean, prior_covariance, nmax_mix:int=60, cache_dir:Path=Path('.mixture'), softplus_k: float = 1.0, **kwargs) -> dict:
+        self._mix = None
+        self.nmax_mix = nmax_mix
+        self.cache_dir = cache_dir 
+        self.softplus_k = float(softplus_k)
+        super().__init__(prior_mean, prior_covariance, **kwargs)
+
+    @property
+    def mix(self):
+        """
+        lazy computation of property
+        """
+        if self._mix is None:
+            self._mix = gsm.load_or_build_mix(self.nmax_mix, self.cache_dir, self.softplus_k)
+        return self._mix
+
+    def field_from_f(self, f):
+        return np.exp(f)
+    
+    def f_from_field(self, field):
+        return np.log(field)
+                    
+    def derivative_field_from_f(self, f):
+        return np.exp(f)
+    
+    def second_derivate_field_from_f(self, f):
+        return np.exp(f)
+    
+    def derivative_log_field_from_f(self, f):
+        return 1
+
+    def second_derivative_log_field_from_f(self, f):
+        return 0
+
+     
+    def first_guess_estimator(self):
+        field = np.clip(self.nobs + 1, 1e-8, None)
+
+        f = self.f_from_field(field)
+        v = self.derivative_field_from_f(f)
+
+        s2 = field / (v**2 + 1e-15)
+        return super().first_guess_estimator(f, s2)
     
 class PolyaGammaDensity(SigmoidMixin, Density):
 
     def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
         super().__init__(prior_mean, prior_covariance, **kwargs)
 
-
 class RampDensity(SmoothRampMixin, Density):
+    def __init__(self,prior_mean=None, prior_covariance=None,  **kwargs):
+        super().__init__(prior_mean, prior_covariance, **kwargs)
+
+class ExponentialDensity(ExponentialMixin, Density):
     def __init__(self,prior_mean=None, prior_covariance=None,  **kwargs):
         super().__init__(prior_mean, prior_covariance, **kwargs)
 
@@ -644,6 +715,7 @@ class Mixin2D:
         assert len(linear_image) == n*m, 'number of elements do not correspond'
         return np.reshape(linear_image, (n, m))
     
+
     def random_catalog_from_nobs(self, nobs):
 
         nobs = self.scanorder_to_image(nobs.ravel())
@@ -664,9 +736,12 @@ class Mixin2D:
     def to_image(self, d):
         self.scanorder_to_image(d, self.n, self.m)
     
-    def imshow(self, d):
-        plt.imshow( self.scanorder_to_image(d, self.n, self.m))
+    def imshow(self, d, **kwargs):
+        plt.imshow( self.scanorder_to_image(d, self.n, self.m), **kwargs)
 
+
+class Density2D(Mixin2D, Density):
+    pass
 
 
 class PolyaGammaDensity2D(Mixin2D, PolyaGammaDensity):

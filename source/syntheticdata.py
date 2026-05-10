@@ -5,32 +5,32 @@ import polyagammadensity as pgd
 import covariance_kernels as ck
 import numpy as np
 
-def image_to_scanorder(image):
-    assert len(image.shape)==2, 'image must be 2 dimensional'
-    return image.ravel()
+#def image_to_scanorder(image):
+#    assert len(image.shape)==2, 'image must be 2 dimensional'
+#    return image.ravel()
 
-def scanorder_to_image(linear_image, n, m):
-    assert len(linear_image) == n*m, 'number of elements do not correspond'
-    return np.reshape(linear_image, (n, m))
+#def scanorder_to_image(linear_image, n, m):
+#    assert len(linear_image) == n*m, 'number of elements do not correspond'
+#    return np.reshape(linear_image, (n, m))
 
 
-def spatial_covariance_gaussian(n, m, rho, v2):
-    """
-    Docstring for spatial_covariance_gaussian
+# def spatial_covariance_gaussian(n, m, rho, v2):
+#     """
+#     Docstring for spatial_covariance_gaussian
     
-    :param n: number of gridpoints along "x-axis"
-    :param m: number of gridpoints along "y-axis"
-    :param rho: the spatial covariance (in units of integer grid)
-    :param v: autocorrelation at origin (i.e. the "amplitude")
-    """
+#     :param n: number of gridpoints along "x-axis"
+#     :param m: number of gridpoints along "y-axis"
+#     :param rho: the spatial covariance (in units of integer grid)
+#     :param v: autocorrelation at origin (i.e. the "amplitude")
+#     """
 
-    x, y = np.meshgrid( np.arange(m), np.arange(n))
-    x = image_to_scanorder(x)
-    y = image_to_scanorder(y)
+#     x, y = np.meshgrid( np.arange(m), np.arange(n))
+#     x = image_to_scanorder(x)
+#     y = image_to_scanorder(y)
 
-    d2 = ( (y[:, None] - y[None, :])**2  + (x[:,None] - x[None, :])**2)
+#     d2 = ( (y[:, None] - y[None, :])**2  + (x[:,None] - x[None, :])**2)
 
-    return v2 * np.exp(-d2/(2 * rho**2))  + 0.000001 * v2 * np.identity(n*m)
+#     return v2 * np.exp(-d2/(2 * rho**2))  + 0.000001 * v2 * np.identity(n*m)
 
 
 # here we define some mean value functions for synthetic data
@@ -53,6 +53,7 @@ def checkerboard(nn, ncheck, a, b):
     mask = ((np.indices((n, n)) // nn).sum(axis=0) % 2)
     return a*mask + b*(1-mask)
     
+## --> TODO: move out of this module into research experiments module
 
 def experiment_1(
     EstimatorClass=pgd.PolyaGammaDensity2D, 
@@ -196,9 +197,6 @@ def experiment_2(nn=5, ncheck=5, a=1, b=2):
     tmp = checkerboard(nn, ncheck, a, b)
     plt.figure()
     plt.imshow(tmp)
-
-
-
 
 
 if __name__ == "__main__":
