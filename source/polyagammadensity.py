@@ -7,9 +7,11 @@ import scipy.linalg.blas as blas
 import scipy.linalg as spla
 import matplotlib.pyplot as plt
 import gibbs_softplus_mixture as gsm
+import exp_mix_explink as eme
 from pathlib import Path
 from matplotlib.colors import LogNorm
 from matplotlib.colors import PowerNorm
+
 
 
 from polyagamma import random_polyagamma
@@ -246,7 +248,7 @@ class Density:
         #tmp = sp.linalg.solve_triangular(self.Lprior, f-self.prior_mean, trans=False, lower=True) ### besser die schon berechneten Choleski Faktoren benutzen
         #tmp = sp.linalg.solve_triangular(self.Lprior, tmp, trans=True, lower=True)
         tmp = self.apply_prior_choleski_covar_inverse(f)
-        tmp = self.apply_prior_choleski_covar_inverse_T(f)
+        tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
         return tmp
     
     def apply_prior_precision(self, f):
@@ -257,7 +259,7 @@ class Density:
         """
        
         res = self.nobs * self.derivative_log_field_from_f(f) - self.derivative_field_from_f(f)
-        tmp = self.apply_prior_inverse_covar(f)
+        tmp = self.apply_prior_inverse_covar(f-self.prior_mean)
         
         return -res + tmp
 
@@ -603,49 +605,87 @@ class ExponentialMixin:
 
     ### TODO:
 
-    def __init__(self, prior_mean, prior_covariance, nmax_mix:int=60, cache_dir:Path=Path('.mixture'), softplus_k: float = 1.0, **kwargs) -> dict:
+    def __init__(
+        self,
+        prior_mean,
+        prior_covariance,
+        nmax_mix: int = 60,
+        cache_dir: Path = Path(".mixture"),
+        **kwargs,
+    ):
         self._mix = None
-        self.nmax_mix = nmax_mix
-        self.cache_dir = cache_dir 
-        self.softplus_k = float(softplus_k)
+        self.nmax_mix = int(nmax_mix)
+        self.cache_dir = Path(cache_dir)
         super().__init__(prior_mean, prior_covariance, **kwargs)
 
     @property
-    def mix(self):
-        """
-        lazy computation of property
-        """
+    def mix(self) -> dict:
+        """Lazy construction of the exp-link Gaussian mixture approximation."""
         if self._mix is None:
-            self._mix = gsm.load_or_build_mix(self.nmax_mix, self.cache_dir, self.softplus_k)
+            self._mix = eme.load_or_build_exp_mix(self.nmax_mix, self.cache_dir)
         return self._mix
 
     def field_from_f(self, f):
-        return np.exp(f)
-    
+        return eme.safe_exp(f)
+
     def f_from_field(self, field):
-        return np.log(field)
-                    
+        return np.log(np.clip(field, 1e-300, None))
+
     def derivative_field_from_f(self, f):
-        return np.exp(f)
-    
-    def second_derivate_field_from_f(self, f):
-        return np.exp(f)
-    
+        return eme.safe_exp(f)
+
     def derivative_log_field_from_f(self, f):
-        return 1
+        return np.ones_like(np.asarray(f, dtype=float))
 
-    def second_derivative_log_field_from_f(self, f):
-        return 0
-
-     
     def first_guess_estimator(self):
-        field = np.clip(self.nobs + 1, 1e-8, None)
-
+        field = np.clip(self.nobs + 0.5, 1e-8, None)
         f = self.f_from_field(field)
         v = self.derivative_field_from_f(f)
-
         s2 = field / (v**2 + 1e-15)
         return super().first_guess_estimator(f, s2)
+
+    def sample_posterior(
+        self,
+        n_iter: int,
+        burn_in: int = 0,
+        thin: int = 1,
+        initial_f: np.ndarray | None = None,
+        random_seed: int | None = None,
+    ):
+        
+        if random_seed is not None:
+            np.random.seed(random_seed)
+
+        if not hasattr(self, "nobs"):
+            raise ValueError("Call set_data(nobs) before sample_posterior().")
+
+        N = self.nbins
+
+        if initial_f is None:
+            try:
+                f = self.first_guess_estimator()
+            except Exception:
+                f = self.prior_mean.copy()
+        else:
+            f = np.asarray(initial_f, dtype=float).copy()
+            if f.shape != (N,):
+                raise ValueError("initial_f must have shape (nbins,)")
+
+        total_iter = burn_in + n_iter * thin
+
+        fz_cache = gsm.prepare_f_cond_z(
+            self.nobs,
+            self.prior_mean,
+            self.Lprior,
+            self.mix,
+        )
+
+        for it in range(total_iter):
+            z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
+            f = gsm.sample_f_cond_z_cache(z, fz_cache, self.mix)
+
+            if it >= burn_in and ((it - burn_in) % thin == 0):
+                yield f
     
 class PolyaGammaDensity(SigmoidMixin, Density):
 
@@ -726,7 +766,9 @@ class RampDensity2D(Mixin2D, RampDensity):
         super().__init__(prior_mean, prior_covariance, **kwargs)
     
 
-    
+class ExponentialDensity2D(Mixin2D, ExponentialDensity):
+    def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
+        super().__init__(prior_mean, prior_covariance, **kwargs)  
 
 
     
