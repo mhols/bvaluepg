@@ -254,21 +254,6 @@ class Density:
  
     def neg_grad_logposterior(self, f):
         """
-        Docstring for grad_logposterior
-        1. Feld berechnen
-        2. Gradient der Log-Likelihood berechnen
-        3. Gradient der Log-Prior berechnen
-        4. Beide Gradienten addieren und zurückgeben
-
-        Fuer die Berechnugn des Gradienten der Log-Likelihood wird die Kettenregel angewendet:
-        d/d f [ n * log(lam * sigmoid(f)) - lam * sigmoid(f) ]
-        = n * (1 / (lam * sigmoid(f))) * lam * sigmoid(f) * (1 - sigmoid(f)) - lam * sigmoid(f) * (1 - sigmoid(f))
-        = lam * (n / field - 1) * sigmoid(f) * (1 - sigmoid(f))
-
-        linalg.solve wird verwendet, um den Gradient der Log-Prior zu berechnen:
-        d/d f [ -1/2 * f^T * inv(Cov) * f ] = - inv(Cov) * f
-        langsam, besser mit Cholesky-Faktorisierung in der naechsten Variante
-        zum vergleichen
         """
        
         res = self.nobs * self.derivative_log_field_from_f(f) - self.derivative_field_from_f(f)
@@ -315,10 +300,12 @@ class Density:
         """
         if Gaussian pixelwise proxy is given, use a baseline Poisson based proxy
         """
-        f = f.ravel()
+        # compute with link function $|t|_+$ and map back to f via inverse $L$
+
 
         if f is None:
             f = self.f_from_field(self.nobs) #np.clip(self.nobs, 1, None))
+        f = f.ravel()
 
         if s2 is None:
             s2 = self.nobs / self.derivative_field_from_f(f)**2
@@ -339,40 +326,21 @@ class Density:
         :param self: Description
         :param f: Description
         """
-        #f = np.asarray(f, dtype=float)
-        #assert f.shape[0] == self.nbins, "falsche dimension for f"
-
-        # approx_fprime in scipy erwartet scalar function 
-
-        ### kann auch direkt self.logposterior sein denke ich
-        #def _fun(x):
-        #    x = np.asarray(x, dtype=float)
-        #    return float(self.neglogposterior(x))
-    
-        # Verwendet Schrittweiten pro Koordinate (Skalar eps, der an einen Vektor übertragen wird).
-        #epsilon = np.full_like(f, float(eps), dtype=float)
-
-        #### wieso nennst Du das Ergebnis grad ???
-
-        #grad = sp.optimize.approx_fprime(f, _fun, epsilon)
-
 
         if f0 is None:
             f0 = self.first_guess_estimator()
 
-        bounds = [(m-4*s, m+4*s) for m, s in zip(self.prior_mean, np.sqrt(np.diag(self.prior_covariance)))]
+        #bounds = [(m-4*s, m+4*s) for m, s in zip(self.prior_mean, np.sqrt(np.diag(self.prior_covariance)))]
 
         res = sp.optimize.minimize(
                 self.neg_logposterior, 
                 f0, 
                 jac=self.neg_grad_logposterior, 
                 method=method,
-                #bounds = [ (-5, 5) for i in range(self.nbins) ],
                 hess=self.hessian_neg_log_posterior,
-                bounds=bounds,
+                # bounds=bounds,
                 options={'maxiter':niter, 'maxfun': niter}) 
 
-        print(res) 
         return res['x']
 
 class SigmoidMixin:
