@@ -19,7 +19,6 @@ from polyagamma import random_polyagamma
 #import syntheticdata as sd
 import matplotlib.pyplot as plt
 
-#import polyagamma    ### TODO
 
 def sigmoid(f):
     return 1/(1+np.exp(-f))   #TODO what if f gets big ????
