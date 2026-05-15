@@ -25,10 +25,12 @@ class PicturesForPaper:
         self.prior_mean_PG_high_value = 0
         self.prior_mean_PG_low_value = -2
         self.prior_mean_EXP_low_value = 0.5
+        self.prior_mean_EXP_high_value = 2
         
-        self.v2_PG_low = 1
-        self.v2_PG_high = 2
-        self.v2_EXP_low = 2
+        self.v2_PG_low = 4
+        self.v2_PG_high = 9
+        self.v2_EXP_low = 4
+        self.v2_EXP_high = 9
 
         self.prior_mean_PG_low = self.prior_mean_PG_low_value * np.ones(self.n * self.m)
         self.prior_mean_PG_high = self.prior_mean_PG_high_value * np.ones(self.n * self.m)
@@ -44,7 +46,9 @@ class PicturesForPaper:
         self.PG_high = pg.PolyaGammaDensity2D(n=self.n, m=self.m, lam=self.lam)
         self.RD_low = pg.RampDensity2D(n=self.n, m=self.m)
         self.RD_high= pg.RampDensity2D(n=self.n, m=self.m)
-        self.EXP_low = pg.ExponentialDensity()  ## for the moment no sampling et
+        self.EXP_low = pg.ExponentialDensity(n=self.n, m=self.m)  ## for the moment no sampling et
+        self.EXP_high= pg.ExponentialDensity(n=self.n, m=self.m)  ## for the moment no sampling et
+
 
  
         covar_low = self.prior_covariance_class(self.n, self.m, self.r, self.v2_PG_low)
@@ -166,29 +170,98 @@ class PicturesForPaper:
         """
         
         """
-        f = np.linspace(-3, 2,  10000)
+        f = np.linspace(-3, 10,  10000)
 
         plt.figure()
         plt.title(title)
-        lam = self.RD_low.field_from_f(f)
-        pm = self.prior_mean_PG_low_value
-        pv2 = self.v2_PG_low
-        pm, v2 = self.RD_low.laplace_approximation_one_dimension()
-        plt.plot(f, np.exp(-(f-self.prior_mean_PG_low_value)**2/(2*self.v2_EXP_low**2))*lam*np.exp(-lam))
+        lam = self.EXP_low.field_from_f(f)
+        pm = self.prior_mean_EXP_low_value
+        n = int(self.EXP_low.field_from_f(pm)/2)
+        pv2 = self.v2_EXP_low
+        plm, vl2 = self.EXP_low.laplace_approximation_one_dimension(pm, pv2, n)
+
+        posterior = n*np.log(lam) - lam - (f-pm)**2/(2*pv2)
+        posterior -= posterior.max()
+        posterior = np.exp(posterior)
+        plt.plot(f, posterior)
+        plt.plot(f, np.exp(-(f-plm)**2/(2*vl2)))
+
+    def figure_14(self, title):
+        """
+        
+        """
+        f = np.linspace(-3, 10,  10000)
+
+        plt.figure()
+        plt.title(title)
+        lam = self.EXP_high.field_from_f(f)
+        pm = self.prior_mean_EXP_high_value
+        n = 0 #int(self.EXP_high.field_from_f(pm) / 2)
+        pv2 = self.v2_EXP_high*4
+        plm, vl2 = self.EXP_high.laplace_approximation_one_dimension(pm, pv2, n)
+
+        posterior = n*np.log(lam) - lam - (f-pm)**2/(2*pv2)
+        posterior -= posterior.max()
+        posterior = np.exp(posterior)
+        plt.plot(f, posterior)
+        plt.plot(f, np.exp(-(f-plm)**2/(2*vl2)))
+
+    def figure_15(self, title):
+        """
+        
+        """
+        f = np.linspace(-7, 10,  10000)
+
+        plt.figure()
+        plt.title(title)
+        lam = self.EXP_high.field_from_f(f)
+        pm = 0.5
+        n = 1 
+        pv2 = 4 
+        plm, vl2 = self.EXP_high.laplace_approximation_one_dimension(pm, pv2, n)
+
+        posterior = n*np.log(lam) - lam - (f-pm)**2/(2*pv2)
+        posterior -= posterior.max()
+        posterior = np.exp(posterior)
+        
+        plt.plot(f, posterior)
+        plt.plot(f, np.exp(-(f-plm)**2/(2*vl2)))
+
+        plt.figure()
+        llam = np.linspace(0, 15, 10000)
+        postlam = self.EXP_high.density_under_gaussian(llam, pm, pv2) \
+            * llam**n * np.exp(-llam)
+        postlam /= postlam.max()
+        print(np.sum(postlam*llam)/np.sum(postlam))
+        plt.plot(llam, postlam)
+        postlaplace = self.EXP_high.density_under_gaussian(llam, plm, vl2)
+        postlaplace /= postlaplace.max()
+
+        print(np.sum(postlaplace*llam)/np.sum(postlaplace))
+        plt.plot(llam, postlaplace)
+
+        plt.figure()
+        plt.plot(llam, self.EXP_high.density_under_gaussian(llam, pm, pv2))
+
+        plt.figure()
+        plt.plot(f, lam**n * np.exp(-lam))
+
 
 if __name__ == '__main__':
     P = PicturesForPaper()
-    P.figure_01()
-    P.figure_02()
-    P.figure_03()
-    P.figure_04()
-    P.figure_05()
-    P.figure_06()
-    P.figure_07()
-    P.figure_08()
-    P.figure_09()
-    P.figure_10()
-    P.figure_11()
-    P.figure_12('posterior density for 1-observation')
-    P.figure_13('posterior f for 1-observation')
+    #P.figure_01()
+    #P.figure_02()
+    #P.figure_03()
+    #P.figure_04()
+    #P.figure_05()
+    #P.figure_06()
+    #P.figure_07()
+    #P.figure_08()
+    #P.figure_09()
+    #P.figure_10()
+    #P.figure_11()
+    #P.figure_12('posterior density for 1-observation')
+    #P.figure_13('posterior f for 1-observation')
+    #P.figure_14('posterior f for 1-observation')
+    P.figure_15('posterior f for 1-observation')
     plt.show()

@@ -406,8 +406,8 @@ def plot_likelihood_mixture(
 
 def main():
 
-    n = 0
-    nmax_mix = 60
+    n = 4
+    nmax_mix = 10
     cache_dir = Path(".mixture")
     force_rebuild = True
 

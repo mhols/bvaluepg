@@ -111,14 +111,19 @@ class Density:
         return self._precision
     
     def laplace_approximation_one_dimension(self, m, v2, n):
-        m = np.array([m])
+        """
+        m: prior mean
+        v2: prior variance
+        n: observed outcome
+        """
+        m = np.array(np.array([m]))
         v2 = np.array([[v2]])
         calc = self.__class__(m, v2, **self.kwargs)
-        calc.set_data([n])
+        calc.set_data(np.array([n]))
         pm = calc.max_logposterior_estimator()
         pv2 = 1./calc.hessian_neg_log_posterior(pm)
 
-        return pm, pv2
+        return pm[0], pv2[0,0]
     
     def posterior_f_one_dimension(self, f, pm, pv2, n):
         l = self.field_from_f(f)
@@ -157,7 +162,7 @@ class Density:
         :param self: Description
         :param f: Description
         """
-        return f
+        raise Exception('please implement me befor using me')
 
     def f_from_field(self, field):
         """
@@ -167,25 +172,58 @@ class Density:
         :param self: Description
         :param f: Description
         """
-        return field
+        raise Exception('please implement me befor using me')
     
     def derivative_log_field_from_f(self, f):
-        return 1
+        raise Exception('please implement me befor using me')
     
     def second_derivative_log_field_from_f(self, f):
-        return -1 / f
+        raise Exception('please implement me befor using me')
     
     def derivative_field_from_f(self, f):
-        return 1
+        raise Exception('please implement me befor using me')
     
     def second_derivate_field_from_f(self, f):
-        return 0
+        raise Exception('please implement me befor using me')
     
     def density_under_gaussian(self, field, mu, gamma2):
+        print('WARNING: depricated, replace by prior field')
         tmp = np.exp( - (self.f_from_field(field) - mu)**2/(2*gamma2))
         tmp /= np.abs(self.derivative_field_from_f(self.f_from_field(field)))
 
         return tmp / np.sum(tmp)
+    
+    def prior_single_bin_f(self, f, mu, gamma2):
+        tmp = np.exp( - (f-mu)**2 / (2* gamma2))
+        tmp /= np.sum(tmp)
+        return tmp
+    
+    def prior_single_bin_field(self, field, mu, gamma2):
+        return self.density_under_gaussian(field, mu, gamma2)
+    
+    def log_likelihood_single_obeservation_f(self, f, n):
+        field = self.field_from_f(f)
+        return self.log_likelihood_single_observation_field(field, n)
+
+    def log_likelihood_single_observation_field(self, field, n):
+        return n*np.log(field) - field
+
+    def posterior_single_obeservation_field(self, field, mu, gamma2, n):
+        tmp = self.log_likelihood_single_obeservation_field(field, mu, gamma2, n)
+        tmp -= np.max(tmp)
+        tmp = np.exp(tmp)
+        tmp /= np.sum(tmp)
+
+        return tmp
+    
+    def posterior_single_obeservation_f(self, f, mu, gamma2, n):
+        tmp = self.log_likelihood_single_obeservation_f(f, mu, gamma2, n)
+        tmp -= (f-mu)**2/(2*gamma2)
+        tmp -= np.max(tmp)
+        tmp = np.exp(tmp)
+        tmp /= np.sum(tmp)
+
+        return tmp
 
     def random_events_from_f(self, f):
         return self.random_events_from_field(self.field_from_f(f))
@@ -302,8 +340,6 @@ class Density:
         """
         if Gaussian pixelwise proxy is given, use a baseline Poisson based proxy
         """
-        # compute with link function $|t|_+$ and map back to f via inverse $L$
-
 
         if f is None:
             f = self.f_from_field(self.nobs) #np.clip(self.nobs, 1, None))
@@ -343,6 +379,7 @@ class Density:
                 # bounds=bounds,
                 options={'maxiter':niter, 'maxfun': niter}) 
 
+        print(res)
         return res['x']
 
 class SigmoidMixin:
@@ -637,6 +674,12 @@ class ExponentialMixin:
     def derivative_log_field_from_f(self, f):
         return np.ones_like(np.asarray(f, dtype=float))
 
+    def second_derivative_log_field_from_f(self, f):
+        return np.zeros_like(np.asarray(f, dtype=float))
+
+    def second_derivate_field_from_f(self, f):
+        return eme.safe_exp(f)
+    
     def first_guess_estimator(self):
         field = np.clip(self.nobs + 0.5, 1e-8, None)
         f = self.f_from_field(field)
