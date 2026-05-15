@@ -8,6 +8,7 @@ blocks used in the project:
 - link functions f -> Poisson rate
 - induced rate distributions from Gaussian latent priors
 - Poisson likelihood shapes as functions of f
+- one-dimensional posterior densities p(f | n) for selected observations
 - Poisson count distributions as functions of the rate
 - spatial Gaussian prior covariance parameters
 
@@ -100,6 +101,21 @@ def poisson_likelihood_over_f(f: np.ndarray, n: int, rate: np.ndarray) -> np.nda
     logy = int(n) * np.log(rate) - rate
     logy -= np.nanmax(logy)
     return normalize_area(f, np.exp(logy))
+
+
+def posterior_density_over_f(
+    f: np.ndarray,
+    n: int,
+    rate: np.ndarray,
+    mu: float,
+    v2: float,
+) -> np.ndarray:
+    rate = np.maximum(rate, 1e-300)
+    log_prior = -0.5 * (f - mu) ** 2 / float(v2)
+    log_likelihood = int(n) * np.log(rate) - rate
+    log_posterior = log_prior + log_likelihood
+    log_posterior -= np.nanmax(log_posterior)
+    return normalize_area(f, np.exp(log_posterior))
 
 
 def density_rate_sigmoid(rate_grid: np.ndarray, mu: float, v2: float, lam: float) -> np.ndarray:
@@ -347,6 +363,86 @@ def plot_softplus_likelihood_kappa(outdir: Path) -> None:
     savefig(fig, outdir / "05_softplus_kappa_likelihood.png")
 
 
+def plot_posterior_densities(outdir: Path) -> None:
+    f = np.linspace(-8.0, 12.0, 2200)
+    observations = [0, 3, 10]
+    link_settings = [
+        ("sigmoid, lam=20", lambda x: sigmoid_rate(x, lam=20.0), 0.0, 1.0),
+        ("softplus, k=1", lambda x: softplus_rate(x, kappa=1.0), 0.0, 1.0),
+        ("exp", exp_link, 1.0, 0.75),
+    ]
+
+    fig, axes = plt.subplots(len(observations), len(link_settings), figsize=(14, 10), sharex=True)
+
+    for row, nobs in enumerate(observations):
+        for col, (title, rate_func, mu, v2) in enumerate(link_settings):
+            ax = axes[row, col]
+            rate = rate_func(f)
+            prior = normalize_area(f, normal_pdf(f, mu, math.sqrt(v2)))
+            likelihood = poisson_likelihood_over_f(f, nobs, rate)
+            posterior = posterior_density_over_f(f, nobs, rate, mu=mu, v2=v2)
+
+            ax.plot(f, prior, color="0.55", linewidth=1.5, label="prior")
+            ax.plot(f, likelihood, color="tab:orange", linewidth=1.5, label="likelihood")
+            ax.plot(f, posterior, color="tab:blue", linewidth=2.4, label="posterior")
+            ax.set_title(f"{title}, n={nobs}, mu={mu}, v2={v2}")
+            ax.grid(True, alpha=0.3)
+            if col == 0:
+                ax.set_ylabel("density")
+            if row == len(observations) - 1:
+                ax.set_xlabel("f")
+
+    axes[0, -1].legend(loc="upper right")
+    savefig(fig, outdir / "06_posterior_prior_likelihood.png")
+
+
+def plot_posterior_parameter_sensitivity(outdir: Path) -> None:
+    f = np.linspace(-8.0, 12.0, 2200)
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=True)
+
+    ax = axes[0, 0]
+    for lam in [8.0, 15.0, 30.0]:
+        rate = sigmoid_rate(f, lam=lam)
+        posterior = posterior_density_over_f(f, n=10, rate=rate, mu=0.0, v2=1.0)
+        ax.plot(f, posterior, label=f"lam={lam:g}")
+    ax.set_title("Sigmoid posterior, n=10: lam")
+    ax.set_ylabel("density")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    ax = axes[0, 1]
+    for v2 in [0.25, 1.0, 4.0]:
+        rate = sigmoid_rate(f, lam=20.0)
+        posterior = posterior_density_over_f(f, n=3, rate=rate, mu=0.0, v2=v2)
+        ax.plot(f, posterior, label=f"v2={v2:g}")
+    ax.set_title("Sigmoid posterior, n=3: prior variance")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    ax = axes[1, 0]
+    for kappa in [0.5, 1.0, 2.0, 5.0]:
+        rate = softplus_rate(f, kappa=kappa)
+        posterior = posterior_density_over_f(f, n=3, rate=rate, mu=0.0, v2=1.0)
+        ax.plot(f, posterior, label=f"k={kappa:g}")
+    ax.set_title("Softplus posterior, n=3: k")
+    ax.set_xlabel("f")
+    ax.set_ylabel("density")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    ax = axes[1, 1]
+    for v2 in [0.25, 0.75, 2.0]:
+        rate = exp_link(f)
+        posterior = posterior_density_over_f(f, n=10, rate=rate, mu=1.0, v2=v2)
+        ax.plot(f, posterior, label=f"v2={v2:g}")
+    ax.set_title("Exp posterior, n=10: prior variance")
+    ax.set_xlabel("f")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    savefig(fig, outdir / "07_posterior_parameter_sensitivity.png")
+
+
 def plot_poisson_count_distributions(outdir: Path) -> None:
     n = np.arange(0, 50)
     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
@@ -371,7 +467,7 @@ def plot_poisson_count_distributions(outdir: Path) -> None:
     ax.legend()
     ax.grid(True, alpha=0.3)
 
-    savefig(fig, outdir / "06_poisson_count_and_rate_likelihood.png")
+    savefig(fig, outdir / "08_poisson_count_and_rate_likelihood.png")
 
 
 def plot_covariance_parameters(outdir: Path) -> None:
@@ -405,7 +501,7 @@ def plot_covariance_parameters(outdir: Path) -> None:
     ax.legend()
     ax.grid(True, alpha=0.3)
 
-    savefig(fig, outdir / "07_covariance_correlation_curves.png")
+    savefig(fig, outdir / "09_covariance_correlation_curves.png")
 
 
 def plot_prior_samples(outdir: Path, seed: int) -> None:
@@ -438,7 +534,7 @@ def plot_prior_samples(outdir: Path, seed: int) -> None:
         ax.set_yticks([])
     fig.colorbar(im, ax=axes.ravel().tolist(), shrink=0.8)
 
-    savefig(fig, outdir / "08_spatial_prior_samples.png")
+    savefig(fig, outdir / "10_spatial_prior_samples.png")
 
 
 @dataclass(frozen=True)
@@ -454,6 +550,8 @@ def run(config: ExperimentConfig) -> None:
     plot_induced_rate_distributions(config.outdir)
     plot_poisson_likelihoods(config.outdir)
     plot_softplus_likelihood_kappa(config.outdir)
+    plot_posterior_densities(config.outdir)
+    plot_posterior_parameter_sensitivity(config.outdir)
     plot_poisson_count_distributions(config.outdir)
     plot_covariance_parameters(config.outdir)
     plot_prior_samples(config.outdir, seed=config.seed)
