@@ -15,13 +15,14 @@ os.chdir(SCRIPT_DIR)
 # -----------------------
 # 1) Datei wählen
 # -----------------------
-JSON_FILE = "earthquakes_3point5_cl_2010-2020.json"
-CSV_FILE = "earthquakes_3point5_cl_2010-2020.csv"
+JSON_FILE = "earthquakes_3point5_cl_2010-202.json"
+CSV_FILE = "earthquakes_3point5_cl_2010-202.csv"
+TXT_FILE = "earthquakes_california_m2p5_2010_2025.txt"
 
 print("Working directory (script dir):", os.getcwd())
-print("Data files here:", [f for f in os.listdir(".") if f.endswith((".json", ".csv"))])
+print("Data files here:", [f for f in os.listdir(".") if f.endswith((".json", ".csv", ".txt"))])
 
-# Erst JSON versuchen, sonst CSV
+# Erst JSON versuchen, dann CSV, dann SCEDC TXT
 if os.path.exists(JSON_FILE):
     print(f"Loading GeoJSON: {JSON_FILE}")
     gdf = gpd.read_file(JSON_FILE)
@@ -41,10 +42,55 @@ elif os.path.exists(CSV_FILE):
         geometry=gpd.points_from_xy(df[lon_col], df[lat_col]),
         crs="EPSG:4326",
     )
+
+elif os.path.exists(TXT_FILE):
+    print(f"Loading SCEDC TXT: {TXT_FILE}")
+
+    # Header-Zeile finden
+    header_line = None
+    with open(TXT_FILE, "r") as f:
+        lines = f.readlines()
+
+    for i, line in enumerate(lines):
+        if line.startswith("#YYY"):
+            header_line = i
+            break
+
+    if header_line is None:
+        raise ValueError("Keine Header-Zeile in SearchResults.txt gefunden.")
+
+    # Tabelle laden
+    df = pd.read_csv(
+        TXT_FILE,
+        delim_whitespace=True,
+        skiprows=header_line,
+    )
+
+    # Spaltennamen vereinheitlichen
+    df = df.rename(columns={
+        "LAT": "latitude",
+        "LON": "longitude",
+        "MAG": "mag",
+        "DEPTH": "depth",
+    })
+
+    # Nur numerische Werte behalten
+    df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
+    df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
+    df["mag"] = pd.to_numeric(df["mag"], errors="coerce")
+    df["depth"] = pd.to_numeric(df["depth"], errors="coerce")
+
+    df = df.dropna(subset=["latitude", "longitude"])
+
+    gdf = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.points_from_xy(df["longitude"], df["latitude"]),
+        crs="EPSG:4326",
+    )
 else:
     raise FileNotFoundError(
         f"Keine Daten gefunden in: {os.getcwd()}\n"
-        f"Erwartet: {JSON_FILE} oder {CSV_FILE} im gleichen Ordner wie das Skript."
+        f"Erwartet: {JSON_FILE}, {CSV_FILE} oder {TXT_FILE} im gleichen Ordner wie das Skript."
     )
 
 print("Rows:", len(gdf))
