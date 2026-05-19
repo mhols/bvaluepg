@@ -1,4 +1,6 @@
 import os
+import sys
+import json
 from pathlib import Path
 
 import numpy as np
@@ -13,85 +15,191 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 os.chdir(SCRIPT_DIR)
 
 # -----------------------
-# 1) Datei wählen
+# 1) Datei wählen und laden
 # -----------------------
-JSON_FILE = "earthquakes_3point5_cl_2010-202.json"
-CSV_FILE = "earthquakes_3point5_cl_2010-202.csv"
-TXT_FILE = "earthquakes_california_m2p5_2010_2025.txt"
+DEFAULT_FILES = [
+    "earthquakes_2point5_ingv_italy_2015-2026.json",
+    "earthquakes_mw2point5_bcsf_renass_france_1962-2021.json",
+    "earthquakes_3point5_cl_2010-2020.json",
+    "instrumental-seismicity-in-mainland-france_dataset_1962-2021.json",
+    "italy_ingv_m2point5_2015-2026.txt",
+    "earthquakes_california_m2p5_2010_2025.txt",
+    "earthquakes_3point5_cl_2010-2020.csv",
+]
 
 print("Working directory (script dir):", os.getcwd())
 print("Data files here:", [f for f in os.listdir(".") if f.endswith((".json", ".csv", ".txt"))])
 
-# Erst JSON versuchen, dann CSV, dann SCEDC TXT
-if os.path.exists(JSON_FILE):
-    print(f"Loading GeoJSON: {JSON_FILE}")
-    gdf = gpd.read_file(JSON_FILE)
-    if gdf.crs is None:
-        gdf = gdf.set_crs("EPSG:4326", allow_override=True)
+def choose_data_file() -> Path:
+    if len(sys.argv) > 1:
+        selected = Path(sys.argv[1])
+        if not selected.exists():
+            raise FileNotFoundError(f"Datei nicht gefunden: {selected}")
+        return selected
 
-elif os.path.exists(CSV_FILE):
-    print(f"Loading CSV: {CSV_FILE}")
-    df = pd.read_csv(CSV_FILE)
+    for filename in DEFAULT_FILES:
+        path = Path(filename)
+        if path.exists():
+            return path
 
-    # Standardspalten (falls sie anders heißen: hier anpassen)
-    lat_col = "latitude"
-    lon_col = "longitude"
-
-    gdf = gpd.GeoDataFrame(
-        df,
-        geometry=gpd.points_from_xy(df[lon_col], df[lat_col]),
-        crs="EPSG:4326",
+    raise FileNotFoundError(
+        f"Keine passende Daten-Datei gefunden in: {os.getcwd()}\n"
+        "Du kannst eine Datei explizit angeben, z.B.:\n"
+        "python explore_earthquake_data.py earthquakes_mw2point5_bcsf_renass_france_1962-2021.json"
     )
 
-elif os.path.exists(TXT_FILE):
-    print(f"Loading SCEDC TXT: {TXT_FILE}")
 
-    # Header-Zeile finden
-    header_line = None
-    with open(TXT_FILE, "r") as f:
-        lines = f.readlines()
-
-    for i, line in enumerate(lines):
-        if line.startswith("#YYY"):
-            header_line = i
-            break
-
-    if header_line is None:
-        raise ValueError("Keine Header-Zeile in SearchResults.txt gefunden.")
-
-    # Tabelle laden
-    df = pd.read_csv(
-        TXT_FILE,
-        delim_whitespace=True,
-        skiprows=header_line,
-    )
-
-    # Spaltennamen vereinheitlichen
-    df = df.rename(columns={
+def normalize_columns(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    rename_map = {
+        "Latitude": "latitude",
+        "Longitude": "longitude",
+        "Magnitude": "localMagnitude",
+        "Mw": "mw",
+        "Depth/km": "depth",
+        "Depth/Km": "depth",
+        "MAG": "mag",
         "LAT": "latitude",
         "LON": "longitude",
-        "MAG": "mag",
         "DEPTH": "depth",
-    })
+    }
+    gdf = gdf.rename(columns={k: v for k, v in rename_map.items() if k in gdf.columns})
 
-    # Nur numerische Werte behalten
-    df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
-    df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
-    df["mag"] = pd.to_numeric(df["mag"], errors="coerce")
-    df["depth"] = pd.to_numeric(df["depth"], errors="coerce")
+    if "mag" not in gdf.columns:
+        if "mw" in gdf.columns:
+            gdf["mag"] = pd.to_numeric(gdf["mw"], errors="coerce")
+        elif "localMagnitude" in gdf.columns:
+            gdf["mag"] = pd.to_numeric(gdf["localMagnitude"], errors="coerce")
 
-    df = df.dropna(subset=["latitude", "longitude"])
+    if "depth" not in gdf.columns and gdf.geometry.geom_type.eq("Point").all():
+        # Viele GeoJSONs speichern Tiefe als dritte Koordinate.
+        depths = []
+        for geom in gdf.geometry:
+            try:
+                depths.append(geom.z)
+            except Exception:
+                depths.append(np.nan)
+        gdf["depth"] = depths
+
+    for col in ["mag", "depth", "latitude", "longitude", "mw", "localMagnitude"]:
+        if col in gdf.columns:
+            gdf[col] = pd.to_numeric(gdf[col], errors="coerce")
+
+    return gdf
+
+
+def load_geojson(path: Path) -> gpd.GeoDataFrame:
+    print(f"Loading GeoJSON: {path}")
+    gdf = gpd.read_file(path)
+    if gdf.crs is None:
+        gdf = gdf.set_crs("EPSG:4326", allow_override=True)
+    return normalize_columns(gdf)
+
+
+def load_csv(path: Path) -> gpd.GeoDataFrame:
+    print(f"Loading CSV: {path}")
+    df = pd.read_csv(path)
+    df = df.rename(columns={"Latitude": "latitude", "Longitude": "longitude"})
+    if "latitude" not in df.columns or "longitude" not in df.columns:
+        raise ValueError(f"CSV braucht latitude/longitude-Spalten: {path}")
 
     gdf = gpd.GeoDataFrame(
         df,
         geometry=gpd.points_from_xy(df["longitude"], df["latitude"]),
         crs="EPSG:4326",
     )
-else:
-    raise FileNotFoundError(
-        f"Keine Daten gefunden in: {os.getcwd()}\n"
-        f"Erwartet: {JSON_FILE}, {CSV_FILE} oder {TXT_FILE} im gleichen Ordner wie das Skript."
+    return normalize_columns(gdf)
+
+
+def load_ingv_txt(path: Path) -> gpd.GeoDataFrame:
+    print(f"Loading INGV FDSN TXT: {path}")
+    with path.open("r", encoding="utf-8") as f:
+        header = f.readline().strip().lstrip("#").split("|")
+        df = pd.read_csv(f, sep="|", names=header)
+
+    df = df.rename(
+        columns={
+            "Latitude": "latitude",
+            "Longitude": "longitude",
+            "Magnitude": "mag",
+            "Depth/Km": "depth",
+            "Time": "time",
+            "EventID": "event_id",
+            "EventLocationName": "place",
+            "MagType": "magType",
+        }
     )
+    df["latitude"] = pd.to_numeric(df["latitude"], errors="coerce")
+    df["longitude"] = pd.to_numeric(df["longitude"], errors="coerce")
+    df["mag"] = pd.to_numeric(df["mag"], errors="coerce")
+    df["depth"] = pd.to_numeric(df["depth"], errors="coerce")
+    df = df.dropna(subset=["latitude", "longitude"])
+    gdf = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.points_from_xy(df["longitude"], df["latitude"], df["depth"]),
+        crs="EPSG:4326",
+    )
+    return normalize_columns(gdf)
+
+
+def load_scedc_txt(path: Path) -> gpd.GeoDataFrame:
+    print(f"Loading SCEDC TXT: {path}")
+    rows = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        parts = line.split()
+        if len(parts) < 13 or "/" not in parts[0]:
+            continue
+        date, time, event_type, geo_type, mag, mag_type, lat, lon, depth, quality, evid, nph, ngrm = parts[:13]
+        rows.append(
+            {
+                "date": date,
+                "time": time,
+                "event_type": event_type,
+                "geo_type": geo_type,
+                "mag": mag,
+                "magType": mag_type,
+                "latitude": lat,
+                "longitude": lon,
+                "depth": depth,
+                "quality": quality,
+                "event_id": evid,
+                "nph": nph,
+                "ngrm": ngrm,
+            }
+        )
+
+    if not rows:
+        raise ValueError(f"Keine SCEDC-Eventzeilen gefunden: {path}")
+
+    df = pd.DataFrame(rows)
+    for col in ["latitude", "longitude", "mag", "depth", "nph", "ngrm"]:
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+    df = df.dropna(subset=["latitude", "longitude"])
+    gdf = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.points_from_xy(df["longitude"], df["latitude"], df["depth"]),
+        crs="EPSG:4326",
+    )
+    return normalize_columns(gdf)
+
+
+def load_txt(path: Path) -> gpd.GeoDataFrame:
+    first_line = path.read_text(encoding="utf-8", errors="ignore").splitlines()[0]
+    if first_line.startswith("#EventID|"):
+        return load_ingv_txt(path)
+    return load_scedc_txt(path)
+
+
+data_file = choose_data_file()
+data_stem = data_file.stem
+
+if data_file.suffix.lower() in [".json", ".geojson"]:
+    gdf = load_geojson(data_file)
+elif data_file.suffix.lower() == ".csv":
+    gdf = load_csv(data_file)
+elif data_file.suffix.lower() == ".txt":
+    gdf = load_txt(data_file)
+else:
+    raise ValueError(f"Nicht unterstützter Dateityp: {data_file}")
 
 print("Rows:", len(gdf))
 print("Columns:", list(gdf.columns))
@@ -246,16 +354,21 @@ plt.tight_layout()
 plt.show()
 
 # --- Export für das Gibbs-Experiment ---
-np.save("eq_counts_30x30.npy", counts.astype(int))
-grid_df.to_csv("eq_grid_30x30.csv", index=False)
+counts_file = f"{data_stem}_counts_30x30.npy"
+grid_file = f"{data_stem}_grid_30x30.csv"
+meta_file = f"{data_stem}_grid_meta.json"
+
+np.save(counts_file, counts.astype(int))
+grid_df.to_csv(grid_file, index=False)
 
 meta = {
+    "source_file": str(data_file),
     "GRID_N": GRID_N,
     "minx": float(minx), "maxx": float(maxx),
     "miny": float(miny), "maxy": float(maxy),
+    "rows": int(len(gdf)),
 }
-import json
-with open("eq_grid_meta.json", "w") as f:
+with open(meta_file, "w") as f:
     json.dump(meta, f, indent=2)
 
-print("Saved: eq_counts_30x30.npy, eq_grid_30x30.csv, eq_grid_meta.json")
+print(f"Saved: {counts_file}, {grid_file}, {meta_file}")

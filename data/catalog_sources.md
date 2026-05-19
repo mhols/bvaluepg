@@ -52,3 +52,14 @@ Sources:
 - Dataset page: https://renass.unistra.fr/fr/produits/sismicite-instrumentale-de-la-france-hexagonale/
 - DOI: https://doi.org/10.25577/fv3f-sq09
 - Method note: https://renass.unistra.fr/products/instrumental-seismicity-in-mainland-france/instrumental-seismicity-in-mainland-france_note.pdf
+
+
+## California
+
+The SCEDC hosts files that document the curation status of individual days in the earthquake catalog. Historically, SCSN analysts attempted to review every event in the catalog. However, with the growth of both the seismic network and the catalog itself, complete manual review has become increasingly difficult with limited staff resources. This is particularly true for the 2019 Ridgecrest sequence, which remains largely unreviewed below M2.5. The corresponding catalog status files are updated daily.
+
+Source: Southern California Earthquake Data Center (SCEDC), "Earthquake Catalogs", section "Catalog Processing Status":
+
+```text
+https://scedc.caltech.edu/data/eq-catalogs.html
+```

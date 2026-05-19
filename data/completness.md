@@ -1,3 +1,0 @@
-The SCEDC hosts files that show the curation status of a given day in the earthquake catalog. Historically, SCSN analysts have made an effort to review every event in our catalog. With the growth of the network and catalog, however, complete review has become more difficult with our limited staff. This is particularly true of the 2019 Ridgecrest sequence, which remains largely unreviewed below M2.5. These files can be found at this location. They are updated daily.
-
-Source: Southern California Earthquake Data Center (SCEDC), "Earthquake Catalogs", section "Catalog Processing Status": https://scedc.caltech.edu/data/eq-catalogs.html
