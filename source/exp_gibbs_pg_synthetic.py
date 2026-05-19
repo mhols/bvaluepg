@@ -25,8 +25,8 @@ import scipy.linalg as spla
 import matplotlib.pyplot as plt
 
 from polyagamma import random_polyagamma
-from polyagammadensity import PolyaGammaDensity
-import syntheticdata as sd
+from polyagammadensity import PolyaGammaDensity, PolyaGammaDensity2D
+import covariance_kernels as ck
 
 
 def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
@@ -167,10 +167,12 @@ def main():
     # --- setup ---
     n, m = 20, 20
     lam = 10
-    pgd = PolyaGammaDensity(
+    pgd = PolyaGammaDensity2D(
         prior_mean=np.zeros(n * m),
-        prior_covariance=sd.spatial_covariance_gaussian(n, m, rho=3, v2=1),
+        prior_covariance=ck.spatial_covariance_gaussian(n, m, rho=3, v2=1),
         lam=lam,
+        n=n,
+        m=m,
     )
 
     # Generieren Sie eine zufällige Grundwahrheit und Beobachtungen.
@@ -199,15 +201,15 @@ def main():
     plt.figure(figsize=(12, 4))
     plt.subplot(1, 3, 1)
     plt.title("True field (λσ(f_true))")
-    plt.imshow(sd.scanorder_to_image(pgd.field_from_f(f_true), n, m).T)
+    plt.imshow(pgd.scanorder_to_image(pgd.field_from_f(f_true), n, m).T)
     plt.colorbar()
     plt.subplot(1, 3, 2)
     plt.title("Observed events")
-    plt.imshow(sd.scanorder_to_image(events, n, m).T)
+    plt.imshow(pgd.scanorder_to_image(events, n, m).T)
     plt.colorbar()
     plt.subplot(1, 3, 3)
     plt.title("Gibbs estimate of field")
-    plt.imshow(sd.scanorder_to_image(field_est, n, m).T)
+    plt.imshow(pgd.scanorder_to_image(field_est, n, m).T)
     plt.colorbar()
     plt.tight_layout()
     #plt.show()
@@ -216,7 +218,7 @@ def main():
 
     for sample in samples:
         plt.figure()
-        plt.imshow(sd.scanorder_to_image(pgd.field_from_f(sample), n, m).T)
+        plt.imshow(pgd.scanorder_to_image(pgd.field_from_f(sample), n, m).T)
     
     plt.show()
 

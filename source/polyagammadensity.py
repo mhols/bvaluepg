@@ -19,7 +19,6 @@ from polyagamma import random_polyagamma
 #import syntheticdata as sd
 import matplotlib.pyplot as plt
 
-#import polyagamma    ### TODO
 
 def to_numpy(x, dtype=float):
     if np.isscalar(x):
