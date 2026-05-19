@@ -5,6 +5,8 @@ import scipy as sp
 from scipy.linalg import cho_solve
 import scipy.linalg.blas as blas
 import scipy.linalg as spla
+import scipy.sparse as sps
+import scipy.sparse.linalg as sparse_linalg
 import matplotlib.pyplot as plt
 import gibbs_softplus_mixture as gsm
 import exp_mix_explink as eme
@@ -68,6 +70,125 @@ def sigma0_inv_dot(v, L):
     x = spla.solve_triangular(L, y, lower=True, trans=True)
     return x
 
+
+def _as_cholmod_lower_factor(factor):
+    """
+    Normalize scikit-sparse/CHOLMOD return variants to (L, permutation).
+
+    Newer local builds can return (L, p) directly. Older scikit-sparse builds
+    return a Factor object.
+    """
+    if isinstance(factor, tuple):
+        return factor[0].tocsc(), np.asarray(factor[1], dtype=int)
+
+    lower = factor.L().tocsc()
+    if hasattr(factor, "P"):
+        perm = np.asarray(factor.P(), dtype=int)
+    else:
+        perm = np.arange(lower.shape[0], dtype=int)
+    return lower, perm
+
+
+def _cholmod_solve_A(factor, b):
+    """
+    Solve A x = b from a CHOLMOD factorization.
+
+    For lower=True, CHOLMOD returns L L.T = P A P.T. Therefore solve in the
+    permuted system and map the result back with P.T.
+    """
+    if not isinstance(factor, tuple) and hasattr(factor, "solve_A"):
+        return np.asarray(factor.solve_A(b), dtype=float)
+
+    lower, perm = _as_cholmod_lower_factor(factor)
+    rhs = np.asarray(b, dtype=float)[perm]
+    y = sparse_linalg.spsolve_triangular(lower, rhs, lower=True)
+    z = sparse_linalg.spsolve_triangular(lower.T, y, lower=False)
+    x = np.empty_like(z)
+    x[perm] = z
+    return x
+
+
+def _cholmod_sample_noise(factor, size):
+    """
+    Draw eps ~ N(0, A^{-1}) from a CHOLMOD factorization of A.
+    """
+    lower, perm = _as_cholmod_lower_factor(factor)
+    z = np.random.normal(size=size)
+    eps_permuted = sparse_linalg.spsolve_triangular(lower.T, z, lower=False)
+    eps = np.empty_like(eps_permuted)
+    eps[perm] = eps_permuted
+    return eps
+
+
+def _sparse_cholesky(A):
+    """
+    Sparse Cholesky wrapper.
+
+    scipy.sparse provides sparse matrix formats and sparse LU, but no native
+    sparse Cholesky. We use CHOLMOD when available and keep the matrix itself
+    in scipy.sparse format.
+    """
+    try:
+        from sksparse.cholmod import cholesky
+    except Exception as exc:
+        raise ImportError(
+            "Sparse posterior sampling needs scikit-sparse/CHOLMOD. "
+            "SciPy has sparse LU but no native sparse Cholesky for drawing "
+            "N(m, A^{-1}) samples. Install scikit-sparse or use a dense prior."
+        ) from exc
+
+    return cholesky(A, lower=True)
+
+
+def _mixture_gaussian_params(z, nobs, mix):
+    """
+    Return diagonal Gaussian likelihood parameters for a fixed mixture state z.
+    """
+    z = np.asarray(z, dtype=int)
+    nobs = np.asarray(nobs, dtype=int)
+    N = int(nobs.shape[0])
+
+    mu = np.empty(N, dtype=float)
+    s2 = np.empty(N, dtype=float)
+    for i in range(N):
+        n_i = int(nobs[i])
+        mu[i] = float(mix["means"][n_i][int(z[i])])
+        sigma = float(mix["sigma"][n_i])
+        s2[i] = sigma * sigma
+
+    dinv = 1.0 / (s2 + 1e-15)
+    return mu, dinv
+
+
+def _sample_f_cond_z_precision(z, nobs, prior_mean, prior_precision, mix, sparse_prior):
+    """
+    Sample f | z, n for a Gaussian-mixture likelihood and precision prior.
+
+    The conditional posterior precision is:
+        A = Q + diag(dinv)
+    where Q is the prior precision and dinv is the diagonal likelihood
+    precision induced by the active mixture component.
+    """
+    mu, dinv = _mixture_gaussian_params(z, nobs, mix)
+    b = prior_precision @ prior_mean + dinv * mu
+    N = int(prior_mean.shape[0])
+
+    if sparse_prior:
+        A = (prior_precision + sps.diags(dinv, format="csc")).tocsc()
+        factor = _sparse_cholesky(A)
+        mean = _cholmod_solve_A(factor, b)
+        noise = _cholmod_sample_noise(factor, N)
+        return mean + noise
+
+    A = prior_precision + np.diag(dinv)
+    chol = np.linalg.cholesky(A)
+    y = spla.solve_triangular(chol, b, lower=True, trans=False)
+    mean = spla.solve_triangular(chol, y, lower=True, trans=True)
+
+    z_noise = np.random.normal(size=N)
+    noise = spla.solve_triangular(chol.T, z_noise, lower=False)
+    return mean + noise
+
 class Density:
     """
     Basis class for density computation
@@ -95,17 +216,25 @@ class Density:
             raise Exception("Not both, prior covariance or prior precision can be specified")
         
         if not prior_covariance is None:
-            self.prior_covariance = prior_covariance
+            self.prior_covariance = np.asarray(prior_covariance, dtype=float)
             n,m = prior_covariance.shape
+            self.sparse = False
             self._Lprior = None
+            self._Vprior = None
             self.mode = Density.COVARIANCE    ### covariance Mome
             if not n==m:
                 raise Exception("not a quadratic covariance / precision matrix")
         elif not prior_precision is None:
-            self.prior_precision = prior_precision
-            n,m = prior_covariance.shape
+            self.sparse = bool(sparse or sps.issparse(prior_precision))
+            if self.sparse:
+                self.prior_precision = sps.csc_matrix(prior_precision, dtype=float)
+            else:
+                self.prior_precision = np.asarray(prior_precision, dtype=float)
+            n,m = self.prior_precision.shape
+            self.prior_covariance = None
+            self._Lprior = None
             self._Vprior = None
-            self.mode = Density.PRECSION
+            self.mode = Density.PRECISION
             if not n==m:
                 raise Exception("not a quadratic covariance / precision matrix")
         else:
@@ -118,11 +247,10 @@ class Density:
         if not self.prior_mean.shape[0] == n:
             raise Exception("dimensions of prior mean and covariance / precision do not match")
         
-        if sparse:
-            self.cholesky = "sparse_cholesky_method"   ## TODO replace by method
-            self.apply_prior_choleski_covar = "TODO"
-        
-
+        if self.sparse and self.mode == Density.PRECISION:
+            self.cholesky = _sparse_cholesky
+            self.apply_prior_choleski_precision = lambda f: self.prior_precision @ f
+            self.apply_prior_choleski_precision_T = lambda f: self.prior_precision.T @ f
         else:
             self.cholesky = lambda M: sp.linalg.cholesky(M, lower=True)
             
@@ -139,6 +267,19 @@ class Density:
             self.apply_prior_choleski_precision_T = lambda f: self.Vprior.T @ f
             self.apply_prior_choleski_precision_inverse_T = lambda f: sp.linalg.solve_triangular(self.Vprior, f, trans=True, lower=True)
             #self.apply_prior_inverse_precision = self._apply_prior_inverse_precision
+
+    def set_prior_precision_sparse(self, prior_mean, prior_precision):
+        """
+        Set a Gaussian prior through a sparse precision matrix Q.
+
+        This represents f ~ N(prior_mean, Q^{-1}) and enables the sparse
+        posterior path in PolyaGammaDensity.sample_posterior().
+        """
+        self.set_prior_Gaussian(
+            prior_mean=prior_mean,
+            prior_precision=prior_precision,
+            sparse=True,
+        )
 
 
 
@@ -175,6 +316,9 @@ class Density:
         """
         lazy method that should be avoided all together if dimension is larg
         """
+        if self.mode == Density.PRECISION:
+            return self.prior_precision
+
         if not hasattr(self, 'prior_precision'):
             tmp = self.apply_prior_choleski_covar_inverse(np.identity(self.nbins))
             self.prior_precision = self.apply_prior_choleski_covar_inverse_T(tmp)
@@ -309,7 +453,16 @@ class Density:
         """
         generates a random sample
         """
-        f = np.dot(self.Lprior, np.random.normal(size=self.nbins))
+        if self.mode == Density.PRECISION:
+            if self.sparse:
+                factor = _sparse_cholesky(self.prior_precision)
+                f = _cholmod_sample_noise(factor, self.nbins)
+            else:
+                chol = np.linalg.cholesky(self.prior_precision)
+                z = np.random.normal(size=self.nbins)
+                f = spla.solve_triangular(chol.T, z, lower=False)
+        else:
+            f = np.dot(self.Lprior, np.random.normal(size=self.nbins))
 
         return self.prior_mean + f
     
@@ -343,9 +496,15 @@ class Density:
         :param self: Description
         :param f: Description
         """
-        return -self.loglikelihood(f) + np.sum( 
-            sp.linalg.solve_triangular(
-                self.Lprior, f-self.prior_mean, trans=False, lower=True)**2) / 2
+        centered = f - self.prior_mean
+        if self.mode == Density.PRECISION:
+            prior_quad = centered @ (self.prior_precision @ centered)
+        else:
+            prior_quad = np.sum(
+                sp.linalg.solve_triangular(
+                    self.Lprior, centered, trans=False, lower=True)**2)
+
+        return -self.loglikelihood(f) + prior_quad / 2
     
     #def apply_prior_choleski_covar_inverse(self, f):
     #
@@ -377,8 +536,7 @@ class Density:
             tmp = self.apply_prior_choleski_covar_inverse(f-self.prior_mean)
             tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
         else:
-            tmp = self.apply_prior_choleski_precision(f-self.prior_mean)
-            tmp = self.apply_prior_choleski_precision_T(tmp)
+            tmp = self.prior_precision @ (f-self.prior_mean)
         
         return -res + tmp
 
@@ -448,10 +606,12 @@ class Density:
         
         else:
             tmp = self.prior_precision @ tmp
+            dinv = 1.0 / np.asarray(s2, dtype=float)
             if self.sparse:
-                tmp = np.linalg.solve( self.prior_precision + 1/D , tmp)
+                system = self.prior_precision + sps.diags(dinv, format="csc")
+                tmp = sparse_linalg.spsolve(system, tmp)
             else:
-                tmp = np.linalg.solve( self.prior_precision + 1/D , tmp)
+                tmp = np.linalg.solve(self.prior_precision + np.diag(dinv), tmp)
             return f - tmp
 
     
@@ -555,25 +715,25 @@ class SigmoidMixin(Density):
         nbins = self.nbins
         # Precompute the prior precision matrix and its product with the prior mean
         mu0 = self.prior_mean
-        # Precompute the inverse once (symmetric, positive definite)
-        # Sigma0_inv = np.linalg.inv(Sigma0)
-        # L = pgd._Lprior
-        L = np.asarray(self.Lprior, dtype=float)
-        I = np.eye(self.nbins)
-
-        X = spla.solve_triangular(L, I, lower=True)         # X = L^{-1}
-        Sigma0_inv = spla.solve_triangular(L.T, X, lower=False)  # (L^T)^{-1} @ L^{-1}
-        ####
-        ###    Du hast immer noch die Inverse von Sigma, brauchst Du aber nicht.
-        ###    please eliminate as does Cristina
-        ####
 
         if self.mode == Density.COVARIANCE:
+            # Precompute the inverse once (symmetric, positive definite)
+            # Sigma0_inv = np.linalg.inv(Sigma0)
+            # L = pgd._Lprior
+            L = np.asarray(self.Lprior, dtype=float)
+            I = np.eye(self.nbins)
+
+            X = spla.solve_triangular(L, I, lower=True)         # X = L^{-1}
+            Sigma0_inv = spla.solve_triangular(L.T, X, lower=False)  # (L^T)^{-1} @ L^{-1}
+            ####
+            ###    Du hast immer noch die Inverse von Sigma, brauchst Du aber nicht.
+            ###    please eliminate as does Cristina
+            ####
             tmp = self.apply_prior_choleski_covar_inverse(mu0)
             tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
         else:
-            tmp = self.apply_prior_choleski_precision_T(mu0)
-            tmp = self.apply_prior_choleski_precision(tmp) 
+            Sigma0_inv = None
+            tmp = self.prior_precision @ mu0
             
         Sigma0_inv_mu0 = tmp
 
@@ -626,8 +786,23 @@ class SigmoidMixin(Density):
                 f = m + eps
             
             else:
-                pass
-                ### TODO
+                if self.sparse:
+                    A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
+                    bvec = Sigma0_inv_mu0 + kappa
+                    factor = _sparse_cholesky(A)
+                    m = _cholmod_solve_A(factor, bvec)
+                    eps = _cholmod_sample_noise(factor, nbins)
+                    f = m + eps
+                else:
+                    A = self.prior_precision + np.diag(w)
+                    bvec = Sigma0_inv_mu0 + kappa
+                    chol = np.linalg.cholesky(A)
+                    y = spla.solve_triangular(chol, bvec, lower=True, trans=False)
+                    m = spla.solve_triangular(chol, y, lower=True, trans=True)
+
+                    z = np.random.normal(size=nbins)
+                    eps = spla.solve_triangular(chol.T, z, lower=False)
+                    f = m + eps
 
             # Speichern, wenn burn_in abgeschlossen ist und bei Ausdünnungsintervall
             if it >= burn_in and ((it - burn_in) % thin == 0):
@@ -640,12 +815,28 @@ class SigmoidMixin(Density):
 
 class SmoothRampMixin:
 
-    def __init__(self, prior_mean, prior_covariance, nmax_mix:int=60, cache_dir:Path=Path('.mixture'), softplus_k: float = 1.0, **kwargs) -> dict:
+    def __init__(
+        self,
+        prior_mean=None,
+        prior_covariance=None,
+        prior_precision=None,
+        sparse=False,
+        nmax_mix:int=60,
+        cache_dir:Path=Path('.mixture'),
+        softplus_k: float = 1.0,
+        **kwargs,
+    ) -> dict:
         self._mix = None
         self.nmax_mix = nmax_mix
         self.cache_dir = cache_dir 
         self.softplus_k = float(softplus_k)
-        super().__init__(prior_mean, prior_covariance, **kwargs)
+        super().__init__(
+            prior_mean,
+            prior_covariance,
+            prior_precision=prior_precision,
+            sparse=sparse,
+            **kwargs,
+        )
 
     @property
     def mix(self):
@@ -730,20 +921,33 @@ class SmoothRampMixin:
 
         total_iter = burn_in + n_iter * thin
 
-        # prepare fixed linear algebra once
-        fz_cache = gsm.prepare_f_cond_z(
-            self.nobs,
-            self.prior_mean,
-            self.Lprior,
-            self.mix,
-        )
+        if self.mode == Density.COVARIANCE:
+            # prepare fixed linear algebra once
+            fz_cache = gsm.prepare_f_cond_z(
+                self.nobs,
+                self.prior_mean,
+                self.Lprior,
+                self.mix,
+            )
+        else:
+            fz_cache = None
 
 
         idx = 0
         for it in range(total_iter):
             z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
             #f = gsm.sample_f_cond_z(z, self.nobs, self.prior_mean, self.Lprior, self.mix)
-            f = gsm.sample_f_cond_z_cache(z, fz_cache, self.mix)
+            if self.mode == Density.COVARIANCE:
+                f = gsm.sample_f_cond_z_cache(z, fz_cache, self.mix)
+            else:
+                f = _sample_f_cond_z_precision(
+                    z,
+                    self.nobs,
+                    self.prior_mean,
+                    self.prior_precision,
+                    self.mix,
+                    self.sparse,
+                )
 
             if it >= burn_in and ((it - burn_in) % thin == 0):
                 #f_samples[idx] = f
@@ -758,8 +962,10 @@ class ExponentialMixin:
 
     def __init__(
         self,
-        prior_mean,
-        prior_covariance,
+        prior_mean=None,
+        prior_covariance=None,
+        prior_precision=None,
+        sparse=False,
         nmax_mix: int = 60,
         cache_dir: Path = Path(".mixture"),
         **kwargs,
@@ -767,7 +973,13 @@ class ExponentialMixin:
         self._mix = None
         self.nmax_mix = int(nmax_mix)
         self.cache_dir = Path(cache_dir)
-        super().__init__(prior_mean, prior_covariance, **kwargs)
+        super().__init__(
+            prior_mean,
+            prior_covariance,
+            prior_precision=prior_precision,
+            sparse=sparse,
+            **kwargs,
+        )
 
     @property
     def mix(self) -> dict:
@@ -830,32 +1042,63 @@ class ExponentialMixin:
 
         total_iter = burn_in + n_iter * thin
 
-        fz_cache = gsm.prepare_f_cond_z(
-            self.nobs,
-            self.prior_mean,
-            self.Lprior,
-            self.mix,
-        )
+        if self.mode == Density.COVARIANCE:
+            fz_cache = gsm.prepare_f_cond_z(
+                self.nobs,
+                self.prior_mean,
+                self.Lprior,
+                self.mix,
+            )
+        else:
+            fz_cache = None
 
         for it in range(total_iter):
             z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
-            f = gsm.sample_f_cond_z_cache(z, fz_cache, self.mix)
+            if self.mode == Density.COVARIANCE:
+                f = gsm.sample_f_cond_z_cache(z, fz_cache, self.mix)
+            else:
+                f = _sample_f_cond_z_precision(
+                    z,
+                    self.nobs,
+                    self.prior_mean,
+                    self.prior_precision,
+                    self.mix,
+                    self.sparse,
+                )
 
             if it >= burn_in and ((it - burn_in) % thin == 0):
                 yield f
     
 class PolyaGammaDensity(SigmoidMixin, Density):
 
-    def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
-        super().__init__(prior_mean, prior_covariance, **kwargs)
+    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+        super().__init__(
+            prior_mean,
+            prior_covariance,
+            prior_precision=prior_precision,
+            sparse=sparse,
+            **kwargs,
+        )
 
 class RampDensity(SmoothRampMixin, Density):
-    def __init__(self,prior_mean=None, prior_covariance=None,  **kwargs):
-        super().__init__(prior_mean, prior_covariance, **kwargs)
+    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+        super().__init__(
+            prior_mean,
+            prior_covariance,
+            prior_precision=prior_precision,
+            sparse=sparse,
+            **kwargs,
+        )
 
 class ExponentialDensity(ExponentialMixin, Density):
-    def __init__(self,prior_mean=None, prior_covariance=None,  **kwargs):
-        super().__init__(prior_mean, prior_covariance, **kwargs)
+    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+        super().__init__(
+            prior_mean,
+            prior_covariance,
+            prior_precision=prior_precision,
+            sparse=sparse,
+            **kwargs,
+        )
 
 class Mixin2D:
     
@@ -914,18 +1157,36 @@ class PolyaGammaDensity2D(Mixin2D, PolyaGammaDensity):
     Docstring for PolyGammaDensity2D
     specialized in 2Dimensional data
     """
-    def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
-        super().__init__(prior_mean, prior_covariance, **kwargs)
+    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+        super().__init__(
+            prior_mean,
+            prior_covariance,
+            prior_precision=prior_precision,
+            sparse=sparse,
+            **kwargs,
+        )
 
    
 class RampDensity2D(Mixin2D, RampDensity):
-    def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
-        super().__init__(prior_mean, prior_covariance, **kwargs)
+    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+        super().__init__(
+            prior_mean,
+            prior_covariance,
+            prior_precision=prior_precision,
+            sparse=sparse,
+            **kwargs,
+        )
     
 
 class ExponentialDensity2D(Mixin2D, ExponentialDensity):
-    def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
-        super().__init__(prior_mean, prior_covariance, **kwargs)  
+    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+        super().__init__(
+            prior_mean,
+            prior_covariance,
+            prior_precision=prior_precision,
+            sparse=sparse,
+            **kwargs,
+        )
 
 
     

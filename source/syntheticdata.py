@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import polyagammadensity as pgd
 import covariance_kernels as ck
 import numpy as np
+import scipy.sparse as sps
 
 #def image_to_scanorder(image):
 #    assert len(image.shape)==2, 'image must be 2 dimensional'
@@ -52,6 +53,23 @@ def checkerboard(nn, ncheck, a, b):
     n = nn * ncheck
     mask = ((np.indices((n, n)) // nn).sum(axis=0) % 2)
     return a*mask + b*(1-mask)
+
+
+def grid_precision_laplacian(n, tau=1.0, alpha=0.2):
+    """
+    Sparse precision Q = tau I + alpha L for an n x n grid.
+    """
+    one_dim = sps.diags(
+        [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
+        offsets=[-1, 0, 1],
+        format="csr",
+    )
+    identity = sps.eye(n, format="csr")
+    laplacian = (
+        sps.kron(identity, one_dim, format="csr")
+        + sps.kron(one_dim, identity, format="csr")
+    )
+    return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
     
 ## --> TODO: move out of this module into research experiments module
 
@@ -193,6 +211,116 @@ def experiment_1(
     print('...done')
 
 
+def experiment_1_sparse_precision(
+    EstimatorClass=pgd.PolyaGammaDensity2D,
+    n=64,
+    nn=20,
+    a=3.5,
+    b=6.5,
+    tau=1.0,
+    alpha=0.2,
+    lam=10,
+    nmax_mix=60,
+):
+    """
+    Sparse-precision variant of experiment_1.
+
+    The synthetic data generation stays checkerboard-based, but the Gaussian
+    prior is set as f ~ N(mu, Q^{-1}) with sparse grid precision Q.
+    """
+    sparse_precision_estimators = (
+        pgd.PolyaGammaDensity,
+        pgd.RampDensity,
+        pgd.ExponentialDensity,
+    )
+    if not issubclass(EstimatorClass, sparse_precision_estimators):
+        raise ValueError(
+            "experiment_1_sparse_precision currently requires "
+            "PolyaGammaDensity, RampDensity, ExponentialDensity, or their 2D "
+            "variants."
+        )
+
+    estim = EstimatorClass(n=n, m=n, lam=lam, nmax_mix=nmax_mix)
+
+    aa = estim.f_from_field(a)
+    bb = estim.f_from_field(b)
+
+    ncheck = 4
+    assert n % ncheck == 0, 'n must be divisible by ncheck for checkerboard data'
+    tm = checkerboard(n // ncheck, ncheck, aa, bb)
+    pm = np.mean(tm) * np.ones(n * n)
+
+    precision = grid_precision_laplacian(n, tau=tau, alpha=alpha)
+    estim.set_prior_precision_sparse(pm, precision)
+
+    data = estim.random_events_from_field(estim.field_from_f(tm))
+    estim.set_data(data.ravel())
+
+    print('sparse precision prior')
+    print(f'grid: {n} x {n}; N={n*n}; nnz={precision.nnz}; density={precision.nnz / (n*n)**2:.6g}')
+
+    print('artificial data')
+    plt.figure()
+    estim.imshow(estim.field_from_f(tm.ravel()))
+    print('...done')
+
+    print('artificial catalog')
+    plt.figure()
+    plt.title('artificial Catalog observations')
+    plt.gca().set_aspect('equal')
+    plt.xticks([])
+    plt.yticks([])
+    plt.gca().margins(0)
+    x, y = estim.random_catalog_from_nobs(estim.nobs)
+    plt.plot(x, y, '.', markersize=1)
+    print('...done')
+
+    print('binned observations')
+    plt.figure()
+    plt.title('Binned observations')
+    plt.xticks([])
+    plt.yticks([])
+    estim.imshow(estim.nobs)
+    print('...done')
+
+    print('first guess gaussian aproximation')
+    estim.set_data(data)
+    estim.set_prior_precision_sparse(
+        estim.f_from_field(data.mean()) * np.ones(estim.prior_mean.shape),
+        precision,
+    )
+    fge = estim.max_logposterior_estimator(niter=1000, method='TNC')
+
+    plt.figure()
+    plt.title('Gaussian estimation of field')
+    plt.xticks([])
+    plt.yticks([])
+    estim.imshow(estim.field_from_f(fge))
+    print('...done')
+
+    plt.figure()
+
+    print('sampling 130 posterior with sparse precision')
+    sres = 0
+    count = 0
+    for i, res in enumerate(estim.sample_posterior(initial_f=fge, n_iter=130)):
+        field = estim.field_from_f(res)
+        sres += field
+        if i % 10 == 1 and count < 12:
+            plt.subplot(3, 4, count + 1)
+            plt.xticks([])
+            plt.yticks([])
+            estim.imshow(field)
+            count += 1
+
+    plt.figure()
+    plt.title('posterior mean')
+    plt.xticks([])
+    plt.yticks([])
+    estim.imshow(sres / 130)
+    print('...done')
+
+
 def experiment_2(nn=5, ncheck=5, a=1, b=2):
     tmp = checkerboard(nn, ncheck, a, b)
     plt.figure()
@@ -201,7 +329,10 @@ def experiment_2(nn=5, ncheck=5, a=1, b=2):
 
 if __name__ == "__main__":
 
-    experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
+    # experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
+    # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
+    experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
+    
     #experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
     # experiment_2()
 
