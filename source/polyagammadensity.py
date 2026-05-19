@@ -11,7 +11,7 @@ import exp_mix_explink as eme
 from pathlib import Path
 from matplotlib.colors import LogNorm
 from matplotlib.colors import PowerNorm
-
+from collections.abc import Iterable
 
 
 from polyagamma import random_polyagamma
@@ -20,6 +20,15 @@ from polyagamma import random_polyagamma
 import matplotlib.pyplot as plt
 
 #import polyagamma    ### TODO
+
+def to_numpy(x, dtype=float):
+    if np.isscalar(x):
+        return np.array([x], dtype=dtype)
+    if isinstance(x, np.ndarray):
+        return x.ravel()
+    if isinstance(x, Iterable):
+        return np.fromiter(x, dtype=float)
+    return np.array([x], dtype=dtype)
 
 def sigmoid(f):
     return 1/(1+np.exp(-f))   #TODO what if f gets big ????
@@ -65,23 +74,74 @@ class Density:
     Basis class for density computation
     """
 
-    def __init__(self, prior_mean=None, prior_covariance=None, **kwargs):
+    COVARIANCE=1
+    PRECISION=0
+
+    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+        """
+        
+        """
 
         self.kwargs = kwargs
-        self.set_prior_Gaussian(prior_mean, prior_covariance)
+        self.sparse = sparse
+
+        if (prior_covariance is None) and (prior_precision is None):
+            return
+        
+        self.set_prior_Gaussian(prior_mean, prior_covariance, prior_precision, sparse)
+
+    def set_prior_Gaussian(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+
+        if (not prior_covariance is None) and (not prior_precision is None):
+            raise Exception("Not both, prior covariance or prior precision can be specified")
+        
+        if not prior_covariance is None:
+            self.prior_covariance = prior_covariance
+            n,m = prior_covariance.shape
+            self._Lprior = None
+            self.mode = Density.COVARIANCE    ### covariance Mome
+            if not n==m:
+                raise Exception("not a quadratic covariance / precision matrix")
+        elif not prior_precision is None:
+            self.prior_precision = prior_precision
+            n,m = prior_covariance.shape
+            self._Vprior = None
+            self.mode = Density.PRECSION
+            if not n==m:
+                raise Exception("not a quadratic covariance / precision matrix")
+        else:
+            pass
+
+        
+       
+        self.prior_mean = to_numpy(prior_mean)
+
+        if not self.prior_mean.shape[0] == n:
+            raise Exception("dimensions of prior mean and covariance / precision do not match")
+        
+        if sparse:
+            self.cholesky = "sparse_cholesky_method"   ## TODO replace by method
+            self.apply_prior_choleski_covar = "TODO"
+        
+
+        else:
+            self.cholesky = lambda M: sp.linalg.cholesky(M, lower=True)
+            
+            ### Covar mathods
+            self.apply_prior_choleski_covar = lambda f: self.Lprior @ f
+            self.apply_prior_choleski_covar_inverse = lambda f: sp.linalg.solve_triangular(self.Lprior, f, trans=False, lower=True)
+            self.apply_prior_choleski_covar_T = lambda f: self.Lprior.T @ f
+            self.apply_prior_choleski_covar_inverse_T = lambda f: sp.linalg.solve_triangular(self.Lprior, f, trans=True, lower=True)
+            #self.apply_prior_inverse_covar = self._apply_prior_inverse_covar
+
+            ### Precision methods
+            self.apply_prior_choleski_precision = lambda f: self.Vprior @ f
+            self.apply_prior_choleski_precision_inverse = lambda f: sp.linalg.solve_triangular(self.Vprior, f, trans=False, lower=True)
+            self.apply_prior_choleski_precision_T = lambda f: self.Vprior.T @ f
+            self.apply_prior_choleski_precision_inverse_T = lambda f: sp.linalg.solve_triangular(self.Vprior, f, trans=True, lower=True)
+            #self.apply_prior_inverse_precision = self._apply_prior_inverse_precision
 
 
-    def set_prior_Gaussian(self, prior_mean, prior_covariance):
-        """
-        """
-        try:
-            self.prior_mean = prior_mean.ravel()  ## make it one dimensional
-        except:
-            self.prior_mean = prior_mean
-
-        self.prior_covariance = prior_covariance
-        self._Lprior = None
-        self._precision = None
 
     def set_data(self, nobs):
         """
@@ -90,7 +150,6 @@ class Density:
         :param self: Description
         :param nobs: array like the observed number of events in the bins
         """
-        print(nobs.shape, self.nbins, len(nobs))
         assert len(nobs.ravel()) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
         self.nobs = nobs.ravel()
         self.ndata = sum(self.nobs)
@@ -101,14 +160,27 @@ class Density:
         Lazy evaluation of Chlesky factor of prior covariance
         """
         if self._Lprior is None:
-            self._Lprior = sp.linalg.cholesky(self.prior_covariance, lower=True)
+            self._Lprior = self.cholesky(self.prior_covariance)
         return self._Lprior
-
+    
     @property
-    def prior_precision(self):
-        if self._precision is None:
-            self._precision = cho_solve((self.Lprior, True), np.eye(self.nbins))
-        return self._precision
+    def Vprior(self):
+        """
+        Lazy evaluation of Chlesky factor of prior covariance
+        """
+        if self._Vprior is None:
+            self._Vprior = self.cholesky(self.prior_precision)
+        return self._Vprior
+
+    def get_prior_precision(self):
+        """
+        lazy method that should be avoided all together if dimension is larg
+        """
+        if not hasattr(self, 'prior_precision'):
+            tmp = self.apply_prior_choleski_covar_inverse(np.identity(self.nbins))
+            self.prior_precision = self.apply_prior_choleski_covar_inverse_T(tmp)
+        
+        return self.prior_precision
     
     def laplace_approximation_one_dimension(self, m, v2, n):
         """
@@ -118,7 +190,7 @@ class Density:
         """
         m = np.array(np.array([m]))
         v2 = np.array([[v2]])
-        calc = self.__class__(m, v2, **self.kwargs)
+        calc = self.__class__(m, v2, prior_precision=None, sparse=False,  **self.kwargs)
         calc.set_data(np.array([n]))
         pm = calc.max_logposterior_estimator()
         pv2 = 1./calc.hessian_neg_log_posterior(pm)
@@ -138,6 +210,12 @@ class Density:
     @property
     def nbins(self):
         return self.prior_mean.shape[0]
+    
+    def get_prior_mean(self):
+        """
+        shall be redefined in inheriting class for 2D data
+        """
+        return self.prior_mean
     
     @classmethod
     def random_events_from_field(cls, field):
@@ -270,40 +348,48 @@ class Density:
             sp.linalg.solve_triangular(
                 self.Lprior, f-self.prior_mean, trans=False, lower=True)**2) / 2
     
-    def apply_prior_choleski_covar_inverse(self, f):
-        return sp.linalg.solve_triangular(self.Lprior, f, trans=False, lower=True)
+    #def apply_prior_choleski_covar_inverse(self, f):
+    #
+    #    return sp.linalg.solve_triangular(self.Lprior, f, trans=False, lower=True)
     
-    def apply_prior_choleski_covar_inverse_T(self, f):
-        return sp.linalg.solve_triangular(self.Lprior, f, trans=True, lower=True)
-    
-    def apply_prior_choleski_covar(self, f):
-        return self.Lprior @ f
-    
-    def apply_prior_choleski_covar_T(self, f):
-        return self.Lprior.T @ f
-    
-    def apply_prior_inverse_covar(self, f):
-        #tmp = sp.linalg.solve_triangular(self.Lprior, f-self.prior_mean, trans=False, lower=True) ### besser die schon berechneten Choleski Faktoren benutzen
-        #tmp = sp.linalg.solve_triangular(self.Lprior, tmp, trans=True, lower=True)
+    #def apply_prior_choleski_covar_inverse_T(self, f):
+    #    return sp.linalg.solve_triangular(self.Lprior, f, trans=True, lower=True)
+    #
+    #def apply_prior_choleski_covar(self, f):
+    #    return self.Lprior @ f
+    # 
+    #def apply_prior_choleski_covar_T(self, f):
+    #    return self.Lprior.T @ f
+    # 
+    def _apply_prior_inverse_covar(self, f):
         tmp = self.apply_prior_choleski_covar_inverse(f)
         tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
         return tmp
     
-    def apply_prior_precision(self, f):
+    def _apply_prior_precision(self, f):
         return self.apply_prior_inverse_covar(f)
  
     def neg_grad_logposterior(self, f):
         """
         """
-       
         res = self.nobs * self.derivative_log_field_from_f(f) - self.derivative_field_from_f(f)
-        tmp = self.apply_prior_inverse_covar(f-self.prior_mean)
+
+        if self.mode == Density.COVARIANCE:
+            tmp = self.apply_prior_choleski_covar_inverse(f-self.prior_mean)
+            tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
+        else:
+            tmp = self.apply_prior_choleski_precision(f-self.prior_mean)
+            tmp = self.apply_prior_choleski_precision_T(tmp)
         
         return -res + tmp
 
     def hessian_neg_log_posterior(self, f):
         D = -np.diag( self.ndata * self.second_derivative_log_field_from_f(f) - self.second_derivate_field_from_f(f))
-        return D + self.prior_precision
+
+        if self.mode == Density.PRECISION:
+            return D + self.prior_precision
+        else:
+            return D + self.get_prior_precision()
 
 
     def apply_hessian_neg_log_posterior_non_normalized(self, atf, tof):
@@ -351,9 +437,23 @@ class Density:
         D = np.diag(s2)
 
         tmp = f - self.prior_mean
-        tmp = np.linalg.solve(self.prior_covariance + D, tmp)
-        tmp = np.dot(self.prior_covariance, tmp)
-        return self.prior_mean + tmp
+
+        if self.mode == Density.COVARIANCE:
+            if self.sparse:
+                print('WARNING not implemented yet')
+                tmp = np.linalg.solve(self.prior_covariance + D, tmp)
+            else:
+                tmp = np.linalg.solve(self.prior_covariance + D, tmp)
+            tmp = self.prior_covariance @ tmp
+            return self.prior_mean + tmp
+        
+        else:
+            tmp = self.prior_precision @ tmp
+            if self.sparse:
+                tmp = np.linalg.solve( self.prior_precision + 1/D , tmp)
+            else:
+                tmp = np.linalg.solve( self.prior_precision + 1/D , tmp)
+            return f - tmp
 
     
     
@@ -382,7 +482,7 @@ class Density:
         print(res)
         return res['x']
 
-class SigmoidMixin:
+class SigmoidMixin(Density):
 
     def __init__(self, prior_mean, prior_covariance, **kwargs):
         self.last_sample = None
@@ -464,9 +564,19 @@ class SigmoidMixin:
 
         X = spla.solve_triangular(L, I, lower=True)         # X = L^{-1}
         Sigma0_inv = spla.solve_triangular(L.T, X, lower=False)  # (L^T)^{-1} @ L^{-1}
+        ####
+        ###    Du hast immer noch die Inverse von Sigma, brauchst Du aber nicht.
+        ###    please eliminate as does Cristina
+        ####
 
-
-        Sigma0_inv_mu0 = Sigma0_inv @ mu0
+        if self.mode == Density.COVARIANCE:
+            tmp = self.apply_prior_choleski_covar_inverse(mu0)
+            tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
+        else:
+            tmp = self.apply_prior_choleski_precision_T(mu0)
+            tmp = self.apply_prior_choleski_precision(tmp) 
+            
+        Sigma0_inv_mu0 = tmp
 
         # Initialiesieren
         if initial_f is None:
@@ -496,24 +606,29 @@ class SigmoidMixin:
             # Kappa berechnen
             kappa = 0.5 * (self.nobs - k)
             # Posterior-Präzision und Mittelwert
-            A = Sigma0_inv + np.diag(w)
-            # Rechte Seite: Sigma0_inv * mu0 + kappa
-            bvec = Sigma0_inv_mu0 + kappa
-            # Löse A m = bvec für m (posteriorer Mittelwert)
-            # Cholesky-Faktorisierung für numerische Stabilität.
-            chol = np.linalg.cholesky(A)
-            # Löse den Mittelwert unter Verwendung der Cholesky-Faktoren.
-            # Löse zunächst L y = bvec.
-            y = spla.solve_triangular(chol, bvec, lower=True, trans=False)
-            # Löse L^T m = y
-            # m = spla.solve_triangular(chol.T, y, lower=False)
-            m = spla.solve_triangular(chol, y, lower=True, trans=True)
+            if self.mode==Density.COVARIANCE:
+                A = Sigma0_inv + np.diag(w)
+                # Rechte Seite: Sigma0_inv * mu0 + kappa
+                bvec = Sigma0_inv_mu0 + kappa
+                # Löse A m = bvec für m (posteriorer Mittelwert)
+                # Cholesky-Faktorisierung für numerische Stabilität.
+                chol = np.linalg.cholesky(A)
+                # Löse den Mittelwert unter Verwendung der Cholesky-Faktoren.
+                # Löse zunächst L y = bvec.
+                y = spla.solve_triangular(chol, bvec, lower=True, trans=False)
+                # Löse L^T m = y
+                # m = spla.solve_triangular(chol.T, y, lower=False)
+                m = spla.solve_triangular(chol, y, lower=True, trans=True)
 
-            # Ziehe eine zufällig aus N(0, A^{-1})
-            z = np.random.normal(size=nbins)
-            # Löse L^T x = z für x, sodass x ~ N(0, A^{-1})
-            eps = spla.solve_triangular(chol.T, z, lower=False)
-            f = m + eps
+                # Ziehe eine zufällig aus N(0, A^{-1})
+                z = np.random.normal(size=nbins)
+                # Löse L^T x = z für x, sodass x ~ N(0, A^{-1})
+                eps = spla.solve_triangular(chol.T, z, lower=False)
+                f = m + eps
+            
+            else:
+                pass
+                ### TODO
 
             # Speichern, wenn burn_in abgeschlossen ist und bei Ausdünnungsintervall
             if it >= burn_in and ((it - burn_in) % thin == 0):

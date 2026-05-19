@@ -206,20 +206,27 @@ class PicturesForPaper:
         plt.plot(f, posterior)
         plt.plot(f, np.exp(-(f-plm)**2/(2*vl2)))
 
-    def figure_15(self, title):
+    def figure_15(self, title, pm, n, pv2, CALC):
         """
         
         """
-        f = np.linspace(-7, 10,  10000)
+        CALC = self.EXP_high
 
-        plt.figure()
-        plt.title(title)
-        lam = self.EXP_high.field_from_f(f)
+        f = np.linspace(-7, 10,  10000)
+        lam = np.linspace(0, 15, 10000)[1:]
+
+        ## toy parameters
         pm = 0.5
         n = 1 
         pv2 = 4 
-        plm, vl2 = self.EXP_high.laplace_approximation_one_dimension(pm, pv2, n)
 
+        
+        plm, vl2 = CALC.laplace_approximation_one_dimension(pm, pv2, n)
+
+        plt.figure()
+        plt.title(title)
+        plt.plot()
+        lam = self.EXP_high.field_from_f(f)
         posterior = n*np.log(lam) - lam - (f-pm)**2/(2*pv2)
         posterior -= posterior.max()
         posterior = np.exp(posterior)
@@ -249,19 +256,19 @@ class PicturesForPaper:
 
 if __name__ == '__main__':
     P = PicturesForPaper()
-    #P.figure_01()
-    #P.figure_02()
-    #P.figure_03()
-    #P.figure_04()
-    #P.figure_05()
-    #P.figure_06()
-    #P.figure_07()
-    #P.figure_08()
-    #P.figure_09()
-    #P.figure_10()
-    #P.figure_11()
-    #P.figure_12('posterior density for 1-observation')
-    #P.figure_13('posterior f for 1-observation')
-    #P.figure_14('posterior f for 1-observation')
-    P.figure_15('posterior f for 1-observation')
+    P.figure_01()
+    P.figure_02()
+    P.figure_03()
+    P.figure_04()
+    P.figure_05()
+    P.figure_06()
+    P.figure_07()
+    P.figure_08()
+    P.figure_09()
+    P.figure_10()
+    P.figure_11()
+    P.figure_12('posterior density for 1-observation')
+    P.figure_13('posterior f for 1-observation')
+    P.figure_14('posterior f for 1-observation')
+    P.figure_15('posterior f for 1-observation', pm=1, n=1, pv2=1, CALC=pg.ExponentialDensity)
     plt.show()
