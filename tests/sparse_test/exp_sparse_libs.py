@@ -5,11 +5,17 @@ Benchmark dense and sparse Cholesky-like factorizations for PG-Gibbs matrices.
 The benchmark is intentionally self-contained and does not import project code.
 It builds two matrix families on an n x n grid:
 
-1. A dense covariance-like SPD matrix.
+1. A dense PG precision matrix built from a Matern-3/2 covariance matrix
+   like source/syntheticdata.py uses:
+
+       Sigma0 = spatial_covariance_matern_2_3(n, n, rho, v2)
+       A = Sigma0^{-1} + diag(w)
+
 2. A sparse precision-like SPD matrix based on a 2D grid Laplacian.
 
-Optional backends (scikit-sparse/CHOLMOD, PyTorch, TensorFlow) are skipped when
-they are not installed.
+Backends can be selected with --backends. PyTorch and TensorFlow are not part
+of the default backend set because they can conflict with SciPy/CHOLMOD OpenMP
+runtimes in the same Python process on macOS.
 """
 
 from __future__ import annotations
@@ -38,6 +44,8 @@ else:
 DEFAULT_GRID_SIZES = (32, 64)
 DEFAULT_REPETITIONS = 3
 DEFAULT_WARMUPS = 1
+DEFAULT_BACKENDS = ("scipy-sparse", "cholmod", "numpy", "scipy-dense")
+VALID_BACKENDS = ("scipy-sparse", "cholmod", "numpy", "scipy-dense", "torch", "tensorflow")
 BYTES_PER_MB = 1024.0 * 1024.0
 
 
@@ -57,6 +65,8 @@ class BenchmarkResult:
     nnz: int
     density: float
     memory_mb: float
+    factor_nnz: int | None
+    factor_memory_mb: float | None
     mean_time_s: float | None
     std_time_s: float | None
     status: str
@@ -79,6 +89,30 @@ def matern32_covariance(
     cov = variance * (1.0 + scaled) * np.exp(-scaled)
     cov.flat[:: cov.shape[0] + 1] += jitter
     return np.ascontiguousarray(cov)
+
+
+def dense_precision_from_matern32_covariance(
+    grid_n: int,
+    rho: float = 16.0,
+    variance: float = 0.1,
+    jitter: float = 1e-6,
+) -> np.ndarray:
+    """
+    Build Sigma0^{-1} from the dense Matern-3/2 covariance used by syntheticdata.
+
+    This mirrors the expensive setup in polyagammadensity.py:
+
+        L = cholesky(Sigma0)
+        X = solve_triangular(L, I)
+        Sigma0_inv = solve_triangular(L.T, X)
+    """
+    cov = matern32_covariance(grid_n, rho=rho, variance=variance, jitter=jitter)
+    identity = np.eye(cov.shape[0], dtype=cov.dtype)
+    chol = sla.cholesky(cov, lower=True, check_finite=False)
+    x = sla.solve_triangular(chol, identity, lower=True, check_finite=False)
+    precision = sla.solve_triangular(chol.T, x, lower=False, check_finite=False)
+    precision = 0.5 * (precision + precision.T)
+    return np.ascontiguousarray(precision)
 
 
 def sparse_precision_matrix(
@@ -124,6 +158,29 @@ def sparse_stats(matrix: sp.spmatrix) -> MatrixStats:
         matrix = matrix.tocsr()
         memory_bytes = matrix.data.nbytes + matrix.indices.nbytes + matrix.indptr.nbytes
     return MatrixStats(nnz=nnz, density=density, memory_mb=memory_bytes / BYTES_PER_MB)
+
+
+def sparse_factor_memory_mb(matrix: sp.spmatrix) -> float:
+    if hasattr(matrix, "data") and hasattr(matrix, "indices") and hasattr(matrix, "indptr"):
+        memory_bytes = matrix.data.nbytes + matrix.indices.nbytes + matrix.indptr.nbytes
+    else:
+        matrix = matrix.tocsc()
+        memory_bytes = matrix.data.nbytes + matrix.indices.nbytes + matrix.indptr.nbytes
+    return float(memory_bytes) / BYTES_PER_MB
+
+
+def cholmod_factor_stats(factor: object) -> tuple[int | None, float | None]:
+    """
+    Return storage stats for scikit-sparse/CHOLMOD factor variants.
+
+    Some installations return a Factor object with L(), others return
+    (L, permutation) directly.
+    """
+    if isinstance(factor, tuple):
+        lower = factor[0]
+    else:
+        lower = factor.L()
+    return int(lower.nnz), sparse_factor_memory_mb(lower)
 
 
 def torch_dense_memory_mb(tensor: object) -> float:
@@ -188,6 +245,30 @@ def time_repeated(
     return mean_time, std_time, "OK"
 
 
+def inspect_factor(
+    make_matrix: Callable[[np.random.Generator], object],
+    factorize: Callable[[object], object],
+    factor_stats: Callable[[object], tuple[int | None, float | None]],
+    seed: int,
+) -> tuple[int | None, float | None, str | None]:
+    """
+    Run one extra factorization to collect fill-in/storage statistics.
+
+    This keeps timing focused on the repeated benchmark while still reporting
+    roughly how large the factor object is.
+    """
+    rng = np.random.default_rng(seed)
+    try:
+        matrix = make_matrix(rng)
+        factor = factorize(matrix)
+        factor_nnz, factor_memory_mb = factor_stats(factor)
+        del factor, matrix
+        gc.collect()
+        return factor_nnz, factor_memory_mb, None
+    except Exception as exc:
+        return None, None, f"factor stats unavailable: {type(exc).__name__}: {exc}"
+
+
 def add_diagonal_dense(base: np.ndarray, w: np.ndarray) -> np.ndarray:
     matrix = base.copy(order="C")
     matrix.flat[:: matrix.shape[0] + 1] += w
@@ -200,66 +281,76 @@ def add_diagonal_sparse(base: sp.spmatrix, w: np.ndarray) -> sp.csc_matrix:
 
 def benchmark_numpy_scipy_dense(
     grid_n: int,
-    dense_base: np.ndarray,
+    dense_precision_base: np.ndarray,
     sparse_base: sp.spmatrix,
     repetitions: int,
     warmups: int,
     seed: int,
+    run_numpy: bool,
+    run_scipy_dense: bool,
 ) -> list[BenchmarkResult]:
     dim = grid_n * grid_n
     results: list[BenchmarkResult] = []
 
     for matrix_type, base, make_matrix in (
-        ("dense_covariance", dense_base, lambda rng: add_diagonal_dense(dense_base, positive_weights(dim, rng))),
+        ("dense_matern_precision", dense_precision_base, lambda rng: add_diagonal_dense(dense_precision_base, positive_weights(dim, rng))),
         ("sparse_precision_as_dense", sparse_base, lambda rng: add_diagonal_sparse(sparse_base, positive_weights(dim, rng)).toarray()),
     ):
         stats = dense_stats(np.asarray(base if isinstance(base, np.ndarray) else base.toarray()))
+        factor_nnz = dim * (dim + 1) // 2
+        factor_memory_mb = stats.memory_mb
 
-        mean_time, std_time, status = time_repeated(
-            "numpy.linalg.cholesky",
-            make_matrix,
-            np.linalg.cholesky,
-            repetitions,
-            warmups,
-            seed + 11,
-        )
-        results.append(
-            BenchmarkResult(
-                backend="NumPy dense Cholesky",
-                matrix_type=matrix_type,
-                grid_n=grid_n,
-                dim=dim,
-                nnz=stats.nnz,
-                density=stats.density,
-                memory_mb=stats.memory_mb,
-                mean_time_s=mean_time,
-                std_time_s=std_time,
-                status=status,
+        if run_numpy:
+            mean_time, std_time, status = time_repeated(
+                "numpy.linalg.cholesky",
+                make_matrix,
+                np.linalg.cholesky,
+                repetitions,
+                warmups,
+                seed + 11,
             )
-        )
+            results.append(
+                BenchmarkResult(
+                    backend="NumPy dense Cholesky",
+                    matrix_type=matrix_type,
+                    grid_n=grid_n,
+                    dim=dim,
+                    nnz=stats.nnz,
+                    density=stats.density,
+                    memory_mb=stats.memory_mb,
+                    factor_nnz=factor_nnz,
+                    factor_memory_mb=factor_memory_mb,
+                    mean_time_s=mean_time,
+                    std_time_s=std_time,
+                    status=status,
+                )
+            )
 
-        mean_time, std_time, status = time_repeated(
-            "scipy.linalg.cholesky",
-            make_matrix,
-            lambda matrix: sla.cholesky(matrix, lower=True, check_finite=False, overwrite_a=False),
-            repetitions,
-            warmups,
-            seed + 12,
-        )
-        results.append(
-            BenchmarkResult(
-                backend="SciPy dense Cholesky",
-                matrix_type=matrix_type,
-                grid_n=grid_n,
-                dim=dim,
-                nnz=stats.nnz,
-                density=stats.density,
-                memory_mb=stats.memory_mb,
-                mean_time_s=mean_time,
-                std_time_s=std_time,
-                status=status,
+        if run_scipy_dense:
+            mean_time, std_time, status = time_repeated(
+                "scipy.linalg.cholesky",
+                make_matrix,
+                lambda matrix: sla.cholesky(matrix, lower=True, check_finite=False, overwrite_a=False),
+                repetitions,
+                warmups,
+                seed + 12,
             )
-        )
+            results.append(
+                BenchmarkResult(
+                    backend="SciPy dense Cholesky",
+                    matrix_type=matrix_type,
+                    grid_n=grid_n,
+                    dim=dim,
+                    nnz=stats.nnz,
+                    density=stats.density,
+                    memory_mb=stats.memory_mb,
+                    factor_nnz=factor_nnz,
+                    factor_memory_mb=factor_memory_mb,
+                    mean_time_s=mean_time,
+                    std_time_s=std_time,
+                    status=status,
+                )
+            )
 
     return results
 
@@ -288,6 +379,8 @@ def benchmark_scipy_sparse_storage_and_lu(
                 nnz=stats.nnz,
                 density=stats.density,
                 memory_mb=stats.memory_mb,
+                factor_nnz=None,
+                factor_memory_mb=None,
                 mean_time_s=None,
                 std_time_s=None,
                 status="OK: storage only",
@@ -295,6 +388,15 @@ def benchmark_scipy_sparse_storage_and_lu(
         )
 
     stats = sparse_stats(csc)
+    factor_nnz, factor_memory_mb, factor_status = inspect_factor(
+        lambda rng: add_diagonal_sparse(sparse_base, positive_weights(dim, rng)),
+        lambda matrix: spla.splu(matrix),
+        lambda factor: (
+            int(factor.L.nnz + factor.U.nnz),
+            sparse_factor_memory_mb(factor.L) + sparse_factor_memory_mb(factor.U),
+        ),
+        seed + 22,
+    )
     mean_time, std_time, status = time_repeated(
         "scipy.sparse.linalg.splu",
         lambda rng: add_diagonal_sparse(sparse_base, positive_weights(dim, rng)),
@@ -303,6 +405,8 @@ def benchmark_scipy_sparse_storage_and_lu(
         warmups,
         seed + 21,
     )
+    if factor_status is not None and status == "OK":
+        status = f"OK; {factor_status}"
     results.append(
         BenchmarkResult(
             backend="SciPy sparse LU (splu)",
@@ -312,6 +416,8 @@ def benchmark_scipy_sparse_storage_and_lu(
             nnz=stats.nnz,
             density=stats.density,
             memory_mb=stats.memory_mb,
+            factor_nnz=factor_nnz,
+            factor_memory_mb=factor_memory_mb,
             mean_time_s=mean_time,
             std_time_s=std_time,
             status=status,
@@ -342,11 +448,19 @@ def benchmark_cholmod(
             nnz=stats.nnz,
             density=stats.density,
             memory_mb=stats.memory_mb,
+            factor_nnz=None,
+            factor_memory_mb=None,
             mean_time_s=None,
             std_time_s=None,
             status=f"SKIP: {type(exc).__name__}: {exc}",
         )
 
+    factor_nnz, factor_memory_mb, factor_status = inspect_factor(
+        lambda rng: add_diagonal_sparse(sparse_base, positive_weights(dim, rng)),
+        lambda matrix: cholesky(matrix),
+        cholmod_factor_stats,
+        seed + 32,
+    )
     mean_time, std_time, status = time_repeated(
         "sksparse.cholmod.cholesky",
         lambda rng: add_diagonal_sparse(sparse_base, positive_weights(dim, rng)),
@@ -355,6 +469,8 @@ def benchmark_cholmod(
         warmups,
         seed + 31,
     )
+    if factor_status is not None and status == "OK":
+        status = f"OK; {factor_status}"
     return BenchmarkResult(
         backend="scikit-sparse CHOLMOD",
         matrix_type="sparse_precision",
@@ -363,6 +479,8 @@ def benchmark_cholmod(
         nnz=stats.nnz,
         density=stats.density,
         memory_mb=stats.memory_mb,
+        factor_nnz=factor_nnz,
+        factor_memory_mb=factor_memory_mb,
         mean_time_s=mean_time,
         std_time_s=std_time,
         status=status,
@@ -371,14 +489,14 @@ def benchmark_cholmod(
 
 def benchmark_torch(
     grid_n: int,
-    dense_base: np.ndarray,
+    dense_precision_base: np.ndarray,
     sparse_base: sp.spmatrix,
     repetitions: int,
     warmups: int,
     seed: int,
 ) -> list[BenchmarkResult]:
     dim = grid_n * grid_n
-    stats = dense_stats(dense_base)
+    stats = dense_stats(dense_precision_base)
     sparse_stats_value = sparse_stats(sparse_base)
 
     try:
@@ -386,12 +504,12 @@ def benchmark_torch(
     except Exception as exc:
         skip = f"SKIP: {type(exc).__name__}: {exc}"
         return [
-            BenchmarkResult("PyTorch dense Cholesky", "dense_covariance", grid_n, dim, stats.nnz, stats.density, stats.memory_mb, None, None, skip),
-            BenchmarkResult("PyTorch sparse storage", "sparse_precision_coo", grid_n, dim, sparse_stats_value.nnz, sparse_stats_value.density, sparse_stats_value.memory_mb, None, None, skip),
+            BenchmarkResult("PyTorch dense Cholesky", "dense_matern_precision", grid_n, dim, stats.nnz, stats.density, stats.memory_mb, None, None, None, None, skip),
+            BenchmarkResult("PyTorch sparse storage", "sparse_precision_coo", grid_n, dim, sparse_stats_value.nnz, sparse_stats_value.density, sparse_stats_value.memory_mb, None, None, None, None, skip),
         ]
 
     def make_dense(rng: np.random.Generator) -> object:
-        return torch.from_numpy(add_diagonal_dense(dense_base, positive_weights(dim, rng)))
+        return torch.from_numpy(add_diagonal_dense(dense_precision_base, positive_weights(dim, rng)))
 
     def factorize(matrix: object) -> object:
         factor = torch.linalg.cholesky(matrix)
@@ -399,7 +517,7 @@ def benchmark_torch(
             torch.cuda.synchronize()
         return factor
 
-    sample_tensor = torch.from_numpy(dense_base)
+    sample_tensor = torch.from_numpy(dense_precision_base)
     memory_mb = torch_dense_memory_mb(sample_tensor)
     mean_time, std_time, status = time_repeated(
         "torch.linalg.cholesky",
@@ -419,12 +537,14 @@ def benchmark_torch(
     return [
         BenchmarkResult(
             backend="PyTorch dense Cholesky",
-            matrix_type="dense_covariance",
+            matrix_type="dense_matern_precision",
             grid_n=grid_n,
             dim=dim,
             nnz=stats.nnz,
             density=stats.density,
             memory_mb=memory_mb,
+            factor_nnz=dim * (dim + 1) // 2,
+            factor_memory_mb=memory_mb,
             mean_time_s=mean_time,
             std_time_s=std_time,
             status=status,
@@ -437,6 +557,8 @@ def benchmark_torch(
             nnz=sparse_stats_value.nnz,
             density=sparse_stats_value.density,
             memory_mb=sparse_memory_mb,
+            factor_nnz=None,
+            factor_memory_mb=None,
             mean_time_s=None,
             std_time_s=None,
             status="OK: storage only",
@@ -446,14 +568,14 @@ def benchmark_torch(
 
 def benchmark_tensorflow(
     grid_n: int,
-    dense_base: np.ndarray,
+    dense_precision_base: np.ndarray,
     sparse_base: sp.spmatrix,
     repetitions: int,
     warmups: int,
     seed: int,
 ) -> list[BenchmarkResult]:
     dim = grid_n * grid_n
-    stats = dense_stats(dense_base)
+    stats = dense_stats(dense_precision_base)
     sparse_stats_value = sparse_stats(sparse_base)
 
     try:
@@ -461,17 +583,17 @@ def benchmark_tensorflow(
     except Exception as exc:
         skip = f"SKIP: {type(exc).__name__}: {exc}"
         return [
-            BenchmarkResult("TensorFlow dense Cholesky", "dense_covariance", grid_n, dim, stats.nnz, stats.density, stats.memory_mb, None, None, skip),
-            BenchmarkResult("TensorFlow sparse storage", "sparse_precision_coo", grid_n, dim, sparse_stats_value.nnz, sparse_stats_value.density, sparse_stats_value.memory_mb, None, None, skip),
+            BenchmarkResult("TensorFlow dense Cholesky", "dense_matern_precision", grid_n, dim, stats.nnz, stats.density, stats.memory_mb, None, None, None, None, skip),
+            BenchmarkResult("TensorFlow sparse storage", "sparse_precision_coo", grid_n, dim, sparse_stats_value.nnz, sparse_stats_value.density, sparse_stats_value.memory_mb, None, None, None, None, skip),
         ]
 
     def make_dense(rng: np.random.Generator) -> object:
-        return tf.convert_to_tensor(add_diagonal_dense(dense_base, positive_weights(dim, rng)))
+        return tf.convert_to_tensor(add_diagonal_dense(dense_precision_base, positive_weights(dim, rng)))
 
     def factorize(matrix: object) -> object:
         return tf.linalg.cholesky(matrix).numpy()
 
-    sample_tensor = tf.convert_to_tensor(dense_base)
+    sample_tensor = tf.convert_to_tensor(dense_precision_base)
     memory_mb = tensorflow_dense_memory_mb(sample_tensor)
     mean_time, std_time, status = time_repeated(
         "tf.linalg.cholesky",
@@ -493,12 +615,14 @@ def benchmark_tensorflow(
     return [
         BenchmarkResult(
             backend="TensorFlow dense Cholesky",
-            matrix_type="dense_covariance",
+            matrix_type="dense_matern_precision",
             grid_n=grid_n,
             dim=dim,
             nnz=stats.nnz,
             density=stats.density,
             memory_mb=memory_mb,
+            factor_nnz=dim * (dim + 1) // 2,
+            factor_memory_mb=memory_mb,
             mean_time_s=mean_time,
             std_time_s=std_time,
             status=status,
@@ -511,6 +635,8 @@ def benchmark_tensorflow(
             nnz=sparse_stats_value.nnz,
             density=sparse_stats_value.density,
             memory_mb=sparse_memory_mb,
+            factor_nnz=None,
+            factor_memory_mb=None,
             mean_time_s=None,
             std_time_s=None,
             status="OK: storage only",
@@ -533,6 +659,8 @@ def print_results_table(results: list[BenchmarkResult]) -> None:
         "nnz",
         "density",
         "memory MB",
+        "factor nnz",
+        "factor MB",
         "mean chol/fact s",
         "std s",
         "status",
@@ -546,6 +674,8 @@ def print_results_table(results: list[BenchmarkResult]) -> None:
             str(row.nnz),
             format_float(row.density, 4),
             format_float(row.memory_mb, 4),
+            str(row.factor_nnz) if row.factor_nnz is not None else "-",
+            format_float(row.factor_memory_mb, 4),
             format_float(row.mean_time_s, 5),
             format_float(row.std_time_s, 4),
             row.status,
@@ -576,6 +706,33 @@ def parse_grid_sizes(value: str) -> tuple[int, ...]:
     return sizes
 
 
+def parse_backends(value: str) -> tuple[str, ...]:
+    requested = tuple(part.strip().lower() for part in value.split(",") if part.strip())
+    if not requested:
+        raise argparse.ArgumentTypeError("At least one backend is required.")
+
+    expanded: list[str] = []
+    for backend in requested:
+        if backend == "all":
+            expanded.extend(VALID_BACKENDS)
+        elif backend == "scipy":
+            expanded.extend(("scipy-sparse", "scipy-dense"))
+        elif backend == "dense":
+            expanded.extend(("numpy", "scipy-dense", "torch", "tensorflow"))
+        elif backend == "sparse":
+            expanded.extend(("scipy-sparse", "cholmod"))
+        elif backend in VALID_BACKENDS:
+            expanded.append(backend)
+        else:
+            valid = ", ".join((*VALID_BACKENDS, "all", "scipy", "dense", "sparse"))
+            raise argparse.ArgumentTypeError(f"Unknown backend {backend!r}. Valid values: {valid}.")
+
+    deduplicated = tuple(dict.fromkeys(expanded))
+    if not deduplicated:
+        raise argparse.ArgumentTypeError("At least one backend is required.")
+    return deduplicated
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -591,6 +748,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--variance", type=float, default=0.1)
     parser.add_argument("--tau", type=float, default=1.0)
     parser.add_argument("--alpha", type=float, default=0.2)
+    parser.add_argument(
+        "--backends",
+        type=parse_backends,
+        default=DEFAULT_BACKENDS,
+        help=(
+            "Comma-separated backend list. Valid values: "
+            "scipy-sparse, cholmod, numpy, scipy-dense, torch, tensorflow. "
+            "Aliases: sparse, dense, scipy, all. "
+            "Default: scipy-sparse,cholmod,numpy,scipy-dense."
+        ),
+    )
     parser.add_argument(
         "--max-dense-dim",
         type=int,
@@ -614,6 +782,14 @@ def parse_args() -> argparse.Namespace:
         parser.error("--warmups must be non-negative")
     if args.max_dense_dim < 1:
         parser.error("--max-dense-dim must be at least 1")
+    backends = set(args.backends)
+    if args.skip_torch:
+        backends.discard("torch")
+    if args.skip_tensorflow:
+        backends.discard("tensorflow")
+    if not backends:
+        parser.error("No backends left after applying --skip-torch/--skip-tensorflow")
+    args.backends = tuple(backend for backend in args.backends if backend in backends)
     return args
 
 
@@ -628,9 +804,11 @@ def main() -> None:
 
     args = parse_args()
     all_results: list[BenchmarkResult] = []
+    selected_backends = set(args.backends)
 
     print("Dense vs. sparse factorization benchmark")
     print(f"grid sizes: {args.sizes}; repetitions: {args.repetitions}; warmups: {args.warmups}")
+    print(f"backends: {', '.join(args.backends)}")
     print()
 
     for grid_n in args.sizes:
@@ -638,36 +816,42 @@ def main() -> None:
         print(f"Building matrices for grid n={grid_n} (N={dim}) ...")
 
         sparse_base = sparse_precision_matrix(grid_n, tau=args.tau, alpha=args.alpha, fmt="csc")
-        all_results.extend(
-            benchmark_scipy_sparse_storage_and_lu(
-                grid_n=grid_n,
-                sparse_base=sparse_base,
-                repetitions=args.repetitions,
-                warmups=args.warmups,
-                seed=args.seed + grid_n * 1000,
+        if "scipy-sparse" in selected_backends:
+            all_results.extend(
+                benchmark_scipy_sparse_storage_and_lu(
+                    grid_n=grid_n,
+                    sparse_base=sparse_base,
+                    repetitions=args.repetitions,
+                    warmups=args.warmups,
+                    seed=args.seed + grid_n * 1000,
+                )
             )
-        )
-        all_results.append(
-            benchmark_cholmod(
-                grid_n=grid_n,
-                sparse_base=sparse_base,
-                repetitions=args.repetitions,
-                warmups=args.warmups,
-                seed=args.seed + grid_n * 1000,
+        if "cholmod" in selected_backends:
+            all_results.append(
+                benchmark_cholmod(
+                    grid_n=grid_n,
+                    sparse_base=sparse_base,
+                    repetitions=args.repetitions,
+                    warmups=args.warmups,
+                    seed=args.seed + grid_n * 1000,
+                )
             )
-        )
 
-        if dim > args.max_dense_dim:
+        needs_dense_precision = bool({"numpy", "scipy-dense", "torch", "tensorflow"} & selected_backends)
+
+        if needs_dense_precision and dim > args.max_dense_dim:
             stats = sparse_stats(sparse_base)
             all_results.append(
                 BenchmarkResult(
                     backend="Dense backends",
-                    matrix_type="dense_covariance",
+                    matrix_type="dense_matern_precision",
                     grid_n=grid_n,
                     dim=dim,
                     nnz=dim * dim,
                     density=1.0,
                     memory_mb=(dim * dim * np.dtype(np.float64).itemsize) / BYTES_PER_MB,
+                    factor_nnz=dim * (dim + 1) // 2,
+                    factor_memory_mb=(dim * dim * np.dtype(np.float64).itemsize) / BYTES_PER_MB,
                     mean_time_s=None,
                     std_time_s=None,
                     status=f"SKIP: N={dim} exceeds --max-dense-dim={args.max_dense_dim}",
@@ -682,6 +866,8 @@ def main() -> None:
                     nnz=stats.nnz,
                     density=stats.density,
                     memory_mb=stats.memory_mb,
+                    factor_nnz=None,
+                    factor_memory_mb=None,
                     mean_time_s=None,
                     std_time_s=None,
                     status="OK: dense comparison skipped",
@@ -691,33 +877,52 @@ def main() -> None:
             gc.collect()
             continue
 
-        dense_base = matern32_covariance(grid_n, rho=args.rho, variance=args.variance)
-        all_results.extend(
-            benchmark_numpy_scipy_dense(
-                grid_n=grid_n,
-                dense_base=dense_base,
-                sparse_base=sparse_base,
-                repetitions=args.repetitions,
-                warmups=args.warmups,
-                seed=args.seed + grid_n * 1000,
+        dense_precision_base = None
+        if needs_dense_precision:
+            print("  building dense Matern covariance precision Sigma0_inv ...")
+            setup_t0 = time.perf_counter()
+            dense_precision_base = dense_precision_from_matern32_covariance(
+                grid_n,
+                rho=args.rho,
+                variance=args.variance,
             )
-        )
-        if not args.skip_torch:
+            print(f"  dense precision setup: {time.perf_counter() - setup_t0:.3f} s")
+
+        if {"numpy", "scipy-dense"} & selected_backends:
+            if dense_precision_base is None:
+                raise RuntimeError("dense_precision_base was not built")
+            all_results.extend(
+                benchmark_numpy_scipy_dense(
+                    grid_n=grid_n,
+                    dense_precision_base=dense_precision_base,
+                    sparse_base=sparse_base,
+                    repetitions=args.repetitions,
+                    warmups=args.warmups,
+                    seed=args.seed + grid_n * 1000,
+                    run_numpy="numpy" in selected_backends,
+                    run_scipy_dense="scipy-dense" in selected_backends,
+                )
+            )
+        if "torch" in selected_backends:
+            if dense_precision_base is None:
+                raise RuntimeError("dense_precision_base was not built")
             all_results.extend(
                 benchmark_torch(
                     grid_n=grid_n,
-                    dense_base=dense_base,
+                    dense_precision_base=dense_precision_base,
                     sparse_base=sparse_base,
                     repetitions=args.repetitions,
                     warmups=args.warmups,
                     seed=args.seed + grid_n * 1000,
                 )
             )
-        if not args.skip_tensorflow:
+        if "tensorflow" in selected_backends:
+            if dense_precision_base is None:
+                raise RuntimeError("dense_precision_base was not built")
             all_results.extend(
                 benchmark_tensorflow(
                     grid_n=grid_n,
-                    dense_base=dense_base,
+                    dense_precision_base=dense_precision_base,
                     sparse_base=sparse_base,
                     repetitions=args.repetitions,
                     warmups=args.warmups,
@@ -725,7 +930,7 @@ def main() -> None:
                 )
             )
 
-        del dense_base, sparse_base
+        del dense_precision_base, sparse_base
         gc.collect()
 
     print()
