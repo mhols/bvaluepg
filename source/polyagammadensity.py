@@ -557,34 +557,24 @@ class SigmoidMixin(Density):
             np.random.seed(random_seed)
 
         if initial_f is None and self.last_sample is None:
-            initial_f = np.zeros(self.nbins) 
+            initial_f = np.zeros(self.nbins)
         elif not self.last_sample is None:
             initial_f = self.last_sample
         else:
             pass
 
         nbins = self.nbins
-        # Precompute the prior precision matrix and its product with the prior mean
         mu0 = self.prior_mean
-        # Precompute the inverse once (symmetric, positive definite)
-        # Sigma0_inv = np.linalg.inv(Sigma0)
-        # L = pgd._Lprior
-        L = np.asarray(self.Lprior, dtype=float)
-        I = np.eye(self.nbins)
-
-        X = spla.solve_triangular(L, I, lower=True)         # X = L^{-1}
-        Sigma0_inv = spla.solve_triangular(L.T, X, lower=False)  # (L^T)^{-1} @ L^{-1}
-        ####
-        ###    Du hast immer noch die Inverse von Sigma, brauchst Du aber nicht.
-        ###    please eliminate as does Cristina
-        ####
-
         if self.mode == Density.COVARIANCE:
-            tmp = self.apply_prior_choleski_covar_inverse(mu0)
-            tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
+            # Avoid forming Sigma0^{-1} explicitly. We only need products
+            # Sigma0^{-1} @ v, which can be computed through the Cholesky
+            # factor L of Sigma0 by solving L y = v and L.T x = y.
+            L = np.asarray(self.Lprior, dtype=float)
+            apply_Sigma0_inv = lambda v: sigma0_inv_dot(v, L)
+            tmp = apply_Sigma0_inv(mu0)
         else:
-            tmp = self.apply_prior_choleski_precision_T(mu0)
-            tmp = self.apply_prior_choleski_precision(tmp) 
+            apply_Sigma0_inv = lambda v: self.prior_precision @ v
+            tmp = apply_Sigma0_inv(mu0)
             
         Sigma0_inv_mu0 = tmp
 
@@ -601,7 +591,6 @@ class SigmoidMixin(Density):
         f_samples = np.zeros((n_keep, nbins))
 
         # Gibbs loop
-        # sample_idx = 0
         for it in range(n_iter):
             # --- Step 1: sample k gegenben f ---
             # Die Rate für die latenten „negativen“ Zählungen ist lam * sigmoid(-f)
@@ -616,8 +605,14 @@ class SigmoidMixin(Density):
             # Kappa berechnen
             kappa = 0.5 * (self.nobs - k)
             # Posterior-Präzision und Mittelwert
-            if self.mode==Density.COVARIANCE:
-                A = Sigma0_inv + np.diag(w)
+            if self.mode == Density.COVARIANCE:
+                # Build posterior precision A = Sigma0^{-1} + diag(w)
+                # without ever materializing Sigma0^{-1}. Since this branch
+                # currently uses a dense Cholesky factorization of A, we build
+                # A column-wise by applying Sigma0^{-1} to the identity.
+                I = np.eye(nbins)
+                A = np.column_stack([apply_Sigma0_inv(I[:, j]) for j in range(nbins)])
+                A += np.diag(w)
                 # Rechte Seite: Sigma0_inv * mu0 + kappa
                 bvec = Sigma0_inv_mu0 + kappa
                 # Löse A m = bvec für m (posteriorer Mittelwert)
@@ -633,17 +628,15 @@ class SigmoidMixin(Density):
                 # Ziehe eine zufällig aus N(0, A^{-1})
                 z = np.random.normal(size=nbins)
                 # Löse L^T x = z für x, sodass x ~ N(0, A^{-1})
-                eps = spla.solve_triangular(chol.T, z, lower=False)
+                # eps = spla.solve_triangular(chol.T, z, lower=False)
+                eps = spla.solve_triangular(chol, z, lower=True, trans=True)
                 f = m + eps
-            
             else:
                 pass
                 ### TODO
 
             # Speichern, wenn burn_in abgeschlossen ist und bei Ausdünnungsintervall
             if it >= burn_in and ((it - burn_in) % thin == 0):
-                #f_samples[sample_idx] = f
-                # sample_idx += 1
                 self.last_sample = f
                 yield f
         return
