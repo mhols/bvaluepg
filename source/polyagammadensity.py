@@ -5,6 +5,8 @@ import scipy as sp
 from scipy.linalg import cho_solve
 import scipy.linalg.blas as blas
 import scipy.linalg as spla
+from scipy.stats import poisson 
+from scipy.special import roots_hermite
 import matplotlib.pyplot as plt
 import gibbs_softplus_mixture as gsm
 import exp_mix_explink as eme
@@ -205,6 +207,15 @@ class Density:
         pd = self.density_under_gaussian(field, pm, pv2)
         pd = field**n * np.exp(-field) * pd
         return pd
+    
+    def prior_n_under_gaussian(self, pm, pv2, n):
+        f, w = roots_hermite(20)
+        
+        Lf = self.field_from_f( pm + np.sqrt(2 * pv2) *f )
+        res = 0
+        for LLf, ww in zip(Lf, w):
+            res += ww * poisson.pmf(n, LLf)
+        return res
 
     @property
     def nbins(self):

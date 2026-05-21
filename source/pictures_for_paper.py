@@ -253,22 +253,31 @@ class PicturesForPaper:
         plt.figure()
         plt.plot(f, lam**n * np.exp(-lam))
 
+    def figure_16(self, title, pm, pv2, n):
+
+        plt.figure()
+        plt.title(title)
+
+        plt.plot( n, self.PG_high.prior_n_under_gaussian(pm, pv2, n), 'o')
+
 
 if __name__ == '__main__':
     P = PicturesForPaper()
-    P.figure_01()
-    P.figure_02()
-    P.figure_03()
-    P.figure_04()
-    P.figure_05()
-    P.figure_06()
-    P.figure_07()
-    P.figure_08()
-    P.figure_09()
-    P.figure_10()
-    P.figure_11()
-    P.figure_12('posterior density for 1-observation')
-    P.figure_13('posterior f for 1-observation')
-    P.figure_14('posterior f for 1-observation')
-    P.figure_15('posterior f for 1-observation', pm=1, n=1, pv2=1, CALC=pg.ExponentialDensity)
+    # P.figure_01()
+    # P.figure_02()
+    # P.figure_03()
+    # P.figure_04()
+    # P.figure_05()
+    # P.figure_06()
+    # P.figure_07()
+    # P.figure_08()
+    # P.figure_09()
+    # P.figure_10()
+    # P.figure_11()
+    # P.figure_12('posterior density for 1-observation')
+    # P.figure_13('posterior f for 1-observation')
+    # P.figure_14('posterior f for 1-observation')
+    # P.figure_15('posterior f for 1-observation', pm=1, n=1, pv2=1, CALC=pg.ExponentialDensity)
+    P.figure_16('prior distribtuion events sigmoid', pm=0, pv2=1, n=np.arange(20))
+
     plt.show()
