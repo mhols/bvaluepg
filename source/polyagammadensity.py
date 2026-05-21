@@ -566,17 +566,14 @@ class SigmoidMixin(Density):
         nbins = self.nbins
         mu0 = self.prior_mean
         if self.mode == Density.COVARIANCE:
-            # Avoid forming Sigma0^{-1} explicitly. We only need products
-            # Sigma0^{-1} @ v, which can be computed through the Cholesky
-            # factor L of Sigma0 by solving L y = v and L.T x = y.
+            # Work in the whitened coordinates induced by Sigma0 = L L.T.
+            # This avoids forming Sigma0^{-1} explicitly, even column-wise.
             L = np.asarray(self.Lprior, dtype=float)
-            apply_Sigma0_inv = lambda v: sigma0_inv_dot(v, L)
-            tmp = apply_Sigma0_inv(mu0)
+            prior_white_mean = spla.solve_triangular(
+                L, mu0, lower=True, trans=False
+            )
         else:
-            apply_Sigma0_inv = lambda v: self.prior_precision @ v
-            tmp = apply_Sigma0_inv(mu0)
-            
-        Sigma0_inv_mu0 = tmp
+            Sigma0_inv_mu0 = self.prior_precision @ mu0
 
         # Initialiesieren
         if initial_f is None:
@@ -606,30 +603,30 @@ class SigmoidMixin(Density):
             kappa = 0.5 * (self.nobs - k)
             # Posterior-Präzision und Mittelwert
             if self.mode == Density.COVARIANCE:
-                # Build posterior precision A = Sigma0^{-1} + diag(w)
-                # without ever materializing Sigma0^{-1}. Since this branch
-                # currently uses a dense Cholesky factorization of A, we build
-                # A column-wise by applying Sigma0^{-1} to the identity.
-                I = np.eye(nbins)
-                A = np.column_stack([apply_Sigma0_inv(I[:, j]) for j in range(nbins)])
-                A += np.diag(w)
-                # Rechte Seite: Sigma0_inv * mu0 + kappa
-                bvec = Sigma0_inv_mu0 + kappa
-                # Löse A m = bvec für m (posteriorer Mittelwert)
-                # Cholesky-Faktorisierung für numerische Stabilität.
-                chol = np.linalg.cholesky(A)
-                # Löse den Mittelwert unter Verwendung der Cholesky-Faktoren.
-                # Löse zunächst L y = bvec.
-                y = spla.solve_triangular(chol, bvec, lower=True, trans=False)
-                # Löse L^T m = y
-                # m = spla.solve_triangular(chol.T, y, lower=False)
-                m = spla.solve_triangular(chol, y, lower=True, trans=True)
+                # Posterior precision:
+                #   A = Sigma0^{-1} + diag(w)
+                # with Sigma0 = L L.T.
+                # Transform with f = L u. Then
+                #   A = L^{-T} (I + L.T diag(w) L) L^{-1}.
+                # Thus we only factor the whitened matrix M below.
+                weighted_L = w[:, None] * L
+                M = np.eye(nbins) + L.T @ weighted_L
+                chol = np.linalg.cholesky(M)
 
-                # Ziehe eine zufällig aus N(0, A^{-1})
+                # Right-hand side in whitened coordinates:
+                # L.T @ (Sigma0^{-1} mu0 + kappa)
+                # = L^{-1} mu0 + L.T @ kappa.
+                rhs = prior_white_mean + L.T @ kappa
+
+                # Solve M u_mean = rhs and transform back: m = L u_mean.
+                y = spla.solve_triangular(chol, rhs, lower=True, trans=False)
+                u_mean = spla.solve_triangular(chol, y, lower=True, trans=True)
+                m = L @ u_mean
+
+                # Draw eps ~ N(0, A^{-1}) using A^{-1} = L M^{-1} L.T.
                 z = np.random.normal(size=nbins)
-                # Löse L^T x = z für x, sodass x ~ N(0, A^{-1})
-                # eps = spla.solve_triangular(chol.T, z, lower=False)
-                eps = spla.solve_triangular(chol, z, lower=True, trans=True)
+                u_noise = spla.solve_triangular(chol, z, lower=True, trans=True)
+                eps = L @ u_noise
                 f = m + eps
             else:
                 pass
