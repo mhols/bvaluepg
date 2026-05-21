@@ -717,23 +717,15 @@ class SigmoidMixin(Density):
         mu0 = self.prior_mean
 
         if self.mode == Density.COVARIANCE:
-            # Precompute the inverse once (symmetric, positive definite)
-            # Sigma0_inv = np.linalg.inv(Sigma0)
-            # L = pgd._Lprior
+            # Avoid forming Sigma0^{-1} explicitly.  We only need products
+            # Sigma0^{-1} @ v, which can be computed through the Cholesky
+            # factor L of Sigma0 by solving L y = v and L.T x = y.
             L = np.asarray(self.Lprior, dtype=float)
-            I = np.eye(self.nbins)
-
-            X = spla.solve_triangular(L, I, lower=True)         # X = L^{-1}
-            Sigma0_inv = spla.solve_triangular(L.T, X, lower=False)  # (L^T)^{-1} @ L^{-1}
-            ####
-            ###    Du hast immer noch die Inverse von Sigma, brauchst Du aber nicht.
-            ###    please eliminate as does Cristina
-            ####
-            tmp = self.apply_prior_choleski_covar_inverse(mu0)
-            tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
+            apply_Sigma0_inv = lambda v: sigma0_inv_dot(v, L)
+            tmp = apply_Sigma0_inv(mu0)
         else:
-            Sigma0_inv = None
-            tmp = self.prior_precision @ mu0
+            apply_Sigma0_inv = lambda v: self.prior_precision @ v
+            tmp = apply_Sigma0_inv(mu0)
             
         Sigma0_inv_mu0 = tmp
 
@@ -766,7 +758,13 @@ class SigmoidMixin(Density):
             kappa = 0.5 * (self.nobs - k)
             # Posterior-Präzision und Mittelwert
             if self.mode==Density.COVARIANCE:
-                A = Sigma0_inv + np.diag(w)
+                # Build posterior precision A = Sigma0^{-1} + diag(w)
+                # without ever materializing Sigma0^{-1}.  Since this branch
+                # currently uses a dense Cholesky factorization of A, we build
+                # A column-wise by applying Sigma0^{-1} to the identity.
+                I = np.eye(nbins)
+                A = np.column_stack([apply_Sigma0_inv(I[:, j]) for j in range(nbins)])
+                A += np.diag(w)
                 # Rechte Seite: Sigma0_inv * mu0 + kappa
                 bvec = Sigma0_inv_mu0 + kappa
                 # Löse A m = bvec für m (posteriorer Mittelwert)
@@ -782,7 +780,8 @@ class SigmoidMixin(Density):
                 # Ziehe eine zufällig aus N(0, A^{-1})
                 z = np.random.normal(size=nbins)
                 # Löse L^T x = z für x, sodass x ~ N(0, A^{-1})
-                eps = spla.solve_triangular(chol.T, z, lower=False)
+                eps = spla.solve_triangular(chol, z, lower=True, trans=True)
+                # eps = spla.solve_triangular(chol.T, z, lower=False)
                 f = m + eps
             
             else:

@@ -341,3 +341,408 @@ Die Ergebnisse sind nicht bitweise identisch, weil die sparse Cholesky mit
 Permutation arbeitet und Zufallszahlen in anderer Reihenfolge in den Faktor
 eingehen koennen. Die Zielverteilung ist dieselbe fuer denselben Precision-
 Prior `Q`.
+
+---
+## 1. Erste Sparse-Matrix
+
+  Die erste echte Sparse-Matrix erzeugen ich in:
+
+  source/syntheticdata.py:58
+
+  def grid_precision_laplacian(n, tau=1.0, alpha=0.2):
+
+  Dort wird gebaut:
+
+  one_dim = sps.diags(...)
+  identity = sps.eye(...)
+  laplacian = sps.kron(identity, one_dim) + sps.kron(one_dim, identity)
+  return (tau * sps.eye(n * n) + alpha * laplacian).tocsc()
+
+  Das Ergebnis ist:
+
+  Q
+
+  also die Prior-Precision:
+
+  Q = tau * I + alpha * L_grid
+
+  Typ:
+
+  scipy.sparse.csc_matrix
+
+  Also sparse gespeichert.
+
+  Bei n=64:
+
+  Q.shape = (4096, 4096)
+  Q.nnz   = 20224
+
+  Nicht 4096 * 4096, sondern nur ca. 20k gespeicherte Werte.
+
+  ———
+
+  ## 2. Sparse-Matrix in Estimator setzen
+
+  In:
+
+  source/syntheticdata.py:253
+
+  precision = grid_precision_laplacian(n, tau=tau, alpha=alpha)
+  estim.set_prior_precision_sparse(pm, precision)
+
+  precision ist hier Q.
+
+  Dann geht's weiter in:
+
+  source/polyagammadensity.py:271
+
+  def set_prior_precision_sparse(self, prior_mean, prior_precision):
+      self.set_prior_Gaussian(
+          prior_mean=prior_mean,
+          prior_precision=prior_precision,
+          sparse=True,
+      )
+
+  Das geht zu:
+
+  source/polyagammadensity.py:213
+
+  def set_prior_Gaussian(..., prior_precision=None, sparse=False, ...)
+
+  Dort passiert:
+
+  self.sparse = bool(sparse or sps.issparse(prior_precision))
+
+  if self.sparse:
+      self.prior_precision = sps.csc_matrix(prior_precision, dtype=float)
+  else:
+      self.prior_precision = np.asarray(prior_precision, dtype=float)
+
+  self.mode = Density.PRECISION
+
+  Danach gilt:
+
+  self.prior_precision
+
+  ist weiterhin sparse gespeichert:
+
+  scipy.sparse.csc_matrix
+
+  und:
+
+  self.mode == Density.PRECISION
+  self.sparse == True
+
+  ———
+
+  ## 3. In den Polya-Gamma-Sampler
+
+  Der Polya-Gamma-Sampler ist:
+
+  source/polyagammadensity.py:685
+
+  def sample_posterior(...)
+
+  Am Anfang wird geprüft:
+
+  if self.mode == Density.COVARIANCE:
+      ...
+  else:
+      Sigma0_inv = None
+      tmp = self.prior_precision @ mu0
+
+  Da wir sparse Precision nutzen, landen wir im else.
+
+  Hier ist:
+
+  self.prior_precision
+
+  sparse:
+
+  scipy.sparse.csc_matrix
+
+  Aber jetzt
+
+  mu0
+
+  ist normaler dense Vektor:
+
+  numpy.ndarray
+
+  Das Produkt:
+
+  tmp = self.prior_precision @ mu0
+
+  ergibt dense Vektor:
+
+  numpy.ndarray
+
+  Schade, aber normal. Sparse Matrix mal dense Vektor ergibt dense Vektor.
+
+  ———
+
+  ## 4. Pro Gibbs-Iteration
+
+  In jeder Iteration machen wir drei Schritte.
+
+  ### Schritt 1: k ziehen
+
+  rate_neg = self.field_from_f(-f)
+  k = np.random.poisson(rate_neg)
+
+  Typen:
+
+  f        -> numpy.ndarray
+  rate_neg -> numpy.ndarray
+  k        -> numpy.ndarray
+
+  Alles dense Vektoren.
+
+  ### Schritt 2: Polya-Gamma w ziehen
+
+  b_counts = (self.nobs + k).astype(int)
+  w = sample_polya_gamma(b_counts, f)
+
+  Typ:
+
+  w -> numpy.ndarray
+
+  Auch dense Vektor. Lass ich erstmal, weil w nur die Diagonale der Likelihood-Precision ist.
+
+  ### Schritt 3: Posterior-Precision bauen
+
+  Hier kommt der zentrale Sparse-Schritt:
+
+  source/polyagammadensity.py:789
+
+  if self.sparse:
+      A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
+
+  Hier ist:
+
+  self.prior_precision
+
+  sparse csc_matrix.
+
+  sps.diags(w, format="csc")
+
+  baut eine sparse Diagonalmatrix.
+
+  Dann:
+
+  A = Q + diag(w)
+
+  Typ von A:
+
+  scipy.sparse.csc_matrix
+
+  Also sparse gespeichert.
+
+  Mathematisch:
+
+  A = Q + diag(w)
+
+  Das ist die Posterior-Precision.
+
+  ———
+
+  ## 5. _sparse_cholesky(A)
+
+  Funktion:
+
+  source/polyagammadensity.py:123
+
+  def _sparse_cholesky(A):
+      from sksparse.cholmod import cholesky
+      return cholesky(A, lower=True)
+
+  Input:
+
+  A
+
+  Typ:
+
+  scipy.sparse.csc_matrix
+
+  Output:
+
+  factor
+
+  Je nach scikit-sparse Version entweder:
+
+  CHOLMOD Factor object (sagt Doko)
+
+  aber bei meiner Installation offenbar:
+
+  tuple(L, permutation)
+
+  Dabei ist L sparse gespeichert, z.B.:
+
+  scipy.sparse.csc_array
+
+  Mathematisch:
+
+  L L.T = P A P.T
+
+  wegen Permutation P.
+
+  Wichtig: factor ist nicht die Matrix A, sondern die sparse Cholesky-Faktorisierung von A.
+
+  ———
+
+  ## 6. _cholmod_solve_A(factor, bvec)
+
+  Funktion:
+
+  source/polyagammadensity.py:92
+
+  Im Sampler:
+
+  m = _cholmod_solve_A(factor, bvec)
+
+  Input:
+
+  factor -> CHOLMOD-Faktor, intern sparse L
+  bvec   -> numpy.ndarray
+
+  bvec ist:
+
+  bvec = Sigma0_inv_mu0 + kappa
+
+  Im Precision-Fall eigentlich:
+
+  bvec = Q @ mu0 + kappa
+
+  Typ:
+
+  numpy.ndarray
+
+  _cholmod_solve_A  löst also
+
+  A m = bvec
+
+  also:
+
+  m = A^{-1} bvec
+
+  Das ist mein posterior mean.
+
+  Intern, factor liegt als (L, perm) vor:
+
+  rhs = b[perm]
+  y = spsolve_triangular(L, rhs, lower=True)
+  z = spsolve_triangular(L.T, y, lower=False)
+  x[perm] = z
+
+  Output:
+
+  m
+
+  Typ:
+
+  numpy.ndarray
+
+  Ergibt für mich erstmal Sinn. Der posterior mean hat für jede Gitterzelle einen Wert.
+
+  ———
+
+  ## 7. _cholmod_sample_noise(factor, nbins)
+
+  Funktion:
+
+  source/polyagammadensity.py:111
+
+  Im Sampler:
+
+  eps = _cholmod_sample_noise(factor, nbins)
+
+Zieht uns einen Zufallsanteil:
+
+  eps ~ N(0, A^{-1})
+
+  Dafür:
+
+  z = np.random.normal(size=size)
+  eps_permuted = spsolve_triangular(L.T, z, lower=False)
+  eps[perm] = eps_permuted
+
+  Sollte reichen da:
+
+  A = L L.T   bis auf Permutation
+
+  und wenn:
+
+  eps = L.T \ z
+  z ~ N(0, I)
+
+  dann gilt:
+
+  Cov(eps) = A^{-1}
+
+  Output:
+
+  eps
+
+  Typ:
+
+  numpy.ndarray
+
+  Auch dense Vektor, weil jede Zelle einen Zufallswert bekommt.
+
+  ———
+
+  ## 8. Neues Sample f
+
+  Dann:
+
+  f = m + eps
+
+  Typ:
+
+  f -> numpy.ndarray
+
+  Das Sample selbst ist immer dense. Sparse sind nur die großen Matrizen/Faktoren.
+
+  ———
+
+  ## 9. Gesamtübersicht: Was ist sparse, was dense?
+
+  -------------------------------------------------------------------------------------
+  │ Objekt              │ Bedeutung               │ Typ                               │
+  -------------------------------------------------------------------------------------
+  │ Q = prior_precision │ Prior-Precision         │ scipy.sparse.csc_matrix           │
+  │ diag(w)             │ PG-Likelihood-Diagonale │ scipy.sparse.csc_matrix           │
+  │ A = Q + diag(w)     │ Posterior-Precision     │ scipy.sparse.csc_matrix           │
+  │ factor              │ CHOLMOD-Faktor          │ sparse CHOLMOD / (sparse L, perm) │
+  │ L im Faktor         │ Cholesky-Faktor         │ sparse csc_array                  │
+  │ mu0                 │ Prior mean              │ numpy.ndarray                     │
+  │ f                   │ latentes Feld           │ numpy.ndarray                     │
+  │ w                   │ PG-Gewichte             │ numpy.ndarray                     │
+  │ kappa               │ rechter Likelihood-Term │ numpy.ndarray                     │
+  │ bvec                │ rechte Seite            │ numpy.ndarray                     │
+  │ m                  │ posterior mean           │ numpy.ndarray                     │
+  │ eps                 │ posterior noise         │ numpy.ndarray                     │
+
+  Kurz:
+
+  Große Matrizen: sparse
+  Vektoren/Felder/Samples: dense
+
+  ———
+
+  ## 10. Merke Code-Pfad
+
+  Der zentrale Pfad ist:
+
+  precision = grid_precision_laplacian(...)
+  estim.set_prior_precision_sparse(pm, precision)
+
+  Dann im Sampler:
+
+  A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
+  factor = _sparse_cholesky(A)
+  m = _cholmod_solve_A(factor, bvec)
+  eps = _cholmod_sample_noise(factor, nbins)
+  f = m + eps
+
+  Das sollte komplette sparse Polya-Gamma-Weg.
