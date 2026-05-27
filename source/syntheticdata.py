@@ -97,7 +97,7 @@ def experiment_1(
 
     estim.set_prior_Gaussian(pm, covar)
 
-    print(estim.prior_precision @ estim.prior_covariance)
+    print(estim.get_prior_precision() @ estim.prior_covariance)
 
     # Visualize the induced prior density on the Poisson intensity.
     # The Gaussian prior is placed on the latent field f, while the
@@ -250,14 +250,17 @@ def experiment_1_sparse_precision(
     tm = checkerboard(n // ncheck, ncheck, aa, bb)
     pm = np.mean(tm) * np.ones(n * n)
 
-    precision = grid_precision_laplacian(n, tau=tau, alpha=alpha)
-    estim.set_prior_precision_sparse(pm, precision)
+    #precision = grid_precision_laplacian(n, tau=tau, alpha=alpha)
+    print('first guess gaussian aproximation')
+    precision =  np.linalg.inv(ck.spatial_covariance_matern_2_3(n, n, 3, 1))
+    estim.set_prior_precision_sparse( pm, precision )
+
 
     data = estim.random_events_from_field(estim.field_from_f(tm))
     estim.set_data(data.ravel())
 
     print('sparse precision prior')
-    print(f'grid: {n} x {n}; N={n*n}; nnz={precision.nnz}; density={precision.nnz / (n*n)**2:.6g}')
+    #print(f'grid: {n} x {n}; N={n*n}; nnz={precision.nnz}; density={precision.nnz / (n*n)**2:.6g}')
 
     print('artificial data')
     plt.figure()
@@ -330,10 +333,10 @@ def experiment_2(nn=5, ncheck=5, a=1, b=2):
 if __name__ == "__main__":
 
     # experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
+    # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
     experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
-    # experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
     
-    # experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
+    #experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
     # experiment_2()
 
 

@@ -1,9 +1,10 @@
 # macOS / editor
 .DS_Store
-.vscode/settings.json
+.vscode/
 
 # Python
 __pycache__/
+*.pyc
 venv/
 
 # LaTeX (minimal essentials)
@@ -17,3 +18,4 @@ venv/
 *.fls
 *.fdb_latexmk
 _minted*/
+source/__pycache__/
