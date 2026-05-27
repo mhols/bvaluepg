@@ -574,6 +574,7 @@ class Density:
         centered = f - self.prior_mean
         if self.mode == Density.PRECISION:
             prior_quad = centered @ (self.prior_precision @ centered)
+        
         elif self.mode == Density.COVARIANCE:
             prior_quad = np.sum(
                 sp.linalg.solve_triangular(
@@ -652,6 +653,7 @@ class Density:
         guess for f
 
 
+
         :param self: Description
         :param fmean: Description
         :param fsigma: Description
@@ -669,38 +671,32 @@ class Density:
             s2 = self.nobs / self.derivative_field_from_f(f)**2
 
         D = np.diag(s2)
-
         tmp = f - self.prior_mean
-
+        
         if self.mode == Density.COVARIANCE and self.sparse:
             raise Exception('not implemented yet')
         
         elif self.mode == Density.COVARIANCE and not self.sparse:
             tmp = np.linalg.solve(self.prior_covariance + D, tmp)
+            tmp = self.prior_covariance @ tmp
+
             return self.prior_mean + tmp
         
         elif self.mode == Density.PRECISION and not self.sparse:
             dinv = 1.0 / np.asarray(s2, dtype=float)
             tmp = self.prior_precision @ tmp
-            return self.prior_mean + tmp
+            np.linalg.solve(self.prior_precision + dinv, tmp )
+            return f - tmp
         
         elif self.mode == Density.PRECISION and self.sparse:
-         
-            else:
-                tmp = np.linalg.solve(self.prior_covariance + D, tmp)
-            tmp = self.prior_covariance @ tmp
+            tmp = self.prior_precision @ tmp
+            system = self.prior_precision + sps.diags(dinv, format="csc")
+            tmp = sparse_linalg.spsolve(system, tmp)
+
             return self.prior_mean + tmp
         
         else:
-            tmp = self.prior_precision @ tmp
-            dinv = 1.0 / np.asarray(s2, dtype=float)
-            if self.sparse:
-                system = self.prior_precision + sps.diags(dinv, format="csc")
-                tmp = sparse_linalg.spsolve(system, tmp)
-            else:
-                tmp = np.linalg.solve(self.prior_precision + np.diag(dinv), tmp)
-            return f - tmp
-
+            raise Exception('not implemented yet')
     
     
     def max_logposterior_estimator(self, f0=None, method='TNC', niter=1000, eps=1e-5, **kwargs):
