@@ -278,6 +278,6 @@ if __name__ == '__main__':
     # P.figure_13('posterior f for 1-observation')
     # P.figure_14('posterior f for 1-observation')
     # P.figure_15('posterior f for 1-observation', pm=1, n=1, pv2=1, CALC=pg.ExponentialDensity)
-    P.figure_16('prior distribtuion events sigmoid', pm=0, pv2=1, n=np.arange(20))
+    P.figure_16('prior distribtuion events sigmoid', pm=-1, pv2=4, n=np.arange(20))
 
     plt.show()

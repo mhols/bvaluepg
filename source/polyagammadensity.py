@@ -215,7 +215,7 @@ class Density:
         res = 0
         for LLf, ww in zip(Lf, w):
             res += ww * poisson.pmf(n, LLf)
-        return res
+        return res / res.sum()
 
     @property
     def nbins(self):
