@@ -79,7 +79,7 @@ def experiment_1(
 
     estim.set_prior_Gaussian(pm, covar)
 
-    print(estim.prior_precision @ estim.prior_covariance)
+    print(estim.get_prior_precision() @ estim.prior_covariance)
 
     # Visualize the induced prior density on the Poisson intensity.
     # The Gaussian prior is placed on the latent field f, while the

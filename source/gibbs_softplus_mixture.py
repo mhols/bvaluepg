@@ -58,20 +58,13 @@ def sample_z_cond_f(f: np.ndarray, nobs: np.ndarray, mix: dict) -> np.ndarray:
 # =========================
 # Step 2: sample f | z, n
 # =========================
-def prepare_f_cond_z(
-    nobs: np.ndarray,
-    prior_mean: np.ndarray,
-    Lprior: np.ndarray,
-    mix: dict,
-) -> dict:
-    """
-    Precompute all quantities in p(f | z, n) that are fixed across Gibbs iterations.
+def prepare_f_cond_z(dens) -> dict:
+    if not hasattr(dens, "nobs"):
+        raise ValueError("Call dens.set_data(nobs) before prepare_f_cond_z().")
 
-    sigma[n_i] depends only on n_i, and nobs is fixed.
-    """
-    nobs = np.asarray(nobs, dtype=int)
-    prior_mean = np.asarray(prior_mean, dtype=float)
-    L = np.asarray(Lprior, dtype=float)
+    nobs = np.asarray(dens.nobs, dtype=int)
+    prior_mean = np.asarray(dens.prior_mean, dtype=float)
+    mix = dens.mix
 
     N = int(prior_mean.shape[0])
 
@@ -82,20 +75,34 @@ def prepare_f_cond_z(
     s2 = sigma * sigma
     dinv = 1.0 / (s2 + 1e-15)
 
-    T = np.eye(N) + L.T @ (dinv[:, None] * L)
-    cholT = spla.cholesky(T, lower=True)
+    Q_prior_mean = dens.apply_prior_precision(prior_mean)
 
-    # C^{-1} prior_mean
-    y = spla.solve_triangular(L, prior_mean, lower=True)
-    Cinv_prior_mean = spla.solve_triangular(L.T, y, lower=False)
-
-    return {
+    cache = {
+        "mode": dens.mode,
         "nobs": nobs,
-        "L": L,
         "dinv": dinv,
-        "cholT": cholT,
-        "Cinv_prior_mean": Cinv_prior_mean,
+        "Q_prior_mean": Q_prior_mean,
     }
+
+    if dens.mode == dens.COVARIANCE:
+        I = np.eye(N)
+
+        # This is L, but obtained through the prior interface.
+        L = dens.apply_prior_choleski_covar(I)
+
+        # T = I + L.T @ D^{-1} L
+        T = I + dens.apply_prior_choleski_covar_T(dinv[:, None] * L)
+
+        cache["cholT"] = spla.cholesky(T, lower=True)
+
+    elif dens.mode == dens.PRECISION:
+        A = np.asarray(dens.prior_precision, dtype=float) + np.diag(dinv)
+        cache["cholA"] = spla.cholesky(A, lower=True)
+
+    else:
+        raise ValueError(f"Unknown prior mode: {dens.mode}")
+
+    return cache
 
 def sample_f_cond_z(
     z: np.ndarray,
@@ -149,39 +156,89 @@ def sample_f_cond_z(
 
 def sample_f_cond_z_cache(
     z: np.ndarray,
+    dens,
     cache: dict,
-    mix: dict,
 ) -> np.ndarray:
     """
     Sample f | z, n using precomputed quantities from prepare_f_cond_z().
+
+    Posterior form:
+
+        A = Q + D^{-1}
+        b = Q mu0 + D^{-1} mu_z
+
+    where Q is the prior precision.
+
+    In covariance mode:
+        Q = C^{-1}, C = L L.T
+        use the T-Cholesky factor.
+
+    In precision mode:
+        Q is given directly
+        use the Cholesky factor of A.
     """
     z = np.asarray(z, dtype=int)
 
+    mode = cache["mode"]
     nobs = cache["nobs"]
-    L = cache["L"]
     dinv = cache["dinv"]
-    cholT = cache["cholT"]
-    Cinv_prior_mean = cache["Cinv_prior_mean"]
+    Q_prior_mean = cache["Q_prior_mean"]
+    mix = dens.mix
 
     N = int(nobs.shape[0])
 
+    # Build mu_z from the current mixture labels.
     mu = np.empty(N, dtype=float)
     for i in range(N):
         n_i = int(nobs[i])
         mu[i] = float(mix["means"][n_i][int(z[i])])
 
-    b = Cinv_prior_mean + dinv * mu
+    # Posterior right-hand side:
+    # b = Q mu0 + D^{-1} mu_z
+    b = Q_prior_mean + dinv * mu
 
-    Lt_b = L.T @ b
-    y = spla.solve_triangular(cholT, Lt_b, lower=True)
-    x = spla.solve_triangular(cholT.T, y, lower=False)
-    mean = L @ x
+    if mode == dens.COVARIANCE:
+        cholT = cache["cholT"]
 
-    u = np.random.normal(size=N)
-    v = spla.solve_triangular(cholT.T, u, lower=False)
-    noise = L @ v
+        # Solve posterior mean using covariance-Cholesky representation.
+        #
+        # mean = (Q + D^{-1})^{-1} b
+        #      = L T^{-1} L.T b
+        #
+        # where T = I + L.T D^{-1} L.
+        Lt_b = dens.apply_prior_choleski_covar_T(b)
 
-    return mean + noise
+        y = spla.solve_triangular(cholT, Lt_b, lower=True)
+        x = spla.solve_triangular(cholT.T, y, lower=False)
+
+        mean = dens.apply_prior_choleski_covar(x)
+
+        # Draw posterior noise:
+        #
+        # noise ~ N(0, (Q + D^{-1})^{-1})
+        #       = N(0, L T^{-1} L.T)
+        u = np.random.normal(size=N)
+        v = spla.solve_triangular(cholT.T, u, lower=False)
+        noise = dens.apply_prior_choleski_covar(v)
+
+        return mean + noise
+
+    elif mode == dens.PRECISION:
+        cholA = cache["cholA"]
+
+        # A = Q + D^{-1}
+        # mean = A^{-1} b
+        y = spla.solve_triangular(cholA, b, lower=True)
+        mean = spla.solve_triangular(cholA.T, y, lower=False)
+
+        # noise ~ N(0, A^{-1})
+        u = np.random.normal(size=N)
+        noise = spla.solve_triangular(cholA.T, u, lower=False)
+
+        return mean + noise
+
+    else:
+        raise ValueError(f"Unknown prior mode: {mode}")
 
 
 

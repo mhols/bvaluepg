@@ -1,9 +1,10 @@
 # macOS / editor
 .DS_Store
-.vscode/settings.json
+.vscode/
 
 # Python
 __pycache__/
+*.pyc
 venv/
 
 # LaTeX (minimal essentials)

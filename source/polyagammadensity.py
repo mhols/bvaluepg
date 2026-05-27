@@ -105,9 +105,9 @@ class Density:
                 raise Exception("not a quadratic covariance / precision matrix")
         elif not prior_precision is None:
             self.prior_precision = prior_precision
-            n,m = prior_covariance.shape
+            n,m = prior_precision.shape
             self._Vprior = None
-            self.mode = Density.PRECSION
+            self.mode = Density.PRECISION
             if not n==m:
                 raise Exception("not a quadratic covariance / precision matrix")
         else:
@@ -133,16 +133,57 @@ class Density:
             self.apply_prior_choleski_covar_inverse = lambda f: sp.linalg.solve_triangular(self.Lprior, f, trans=False, lower=True)
             self.apply_prior_choleski_covar_T = lambda f: self.Lprior.T @ f
             self.apply_prior_choleski_covar_inverse_T = lambda f: sp.linalg.solve_triangular(self.Lprior, f, trans=True, lower=True)
-            #self.apply_prior_inverse_covar = self._apply_prior_inverse_covar
+            self.apply_prior_inverse_covar = self._apply_prior_inverse_covar
 
             ### Precision methods
             self.apply_prior_choleski_precision = lambda f: self.Vprior @ f
             self.apply_prior_choleski_precision_inverse = lambda f: sp.linalg.solve_triangular(self.Vprior, f, trans=False, lower=True)
             self.apply_prior_choleski_precision_T = lambda f: self.Vprior.T @ f
             self.apply_prior_choleski_precision_inverse_T = lambda f: sp.linalg.solve_triangular(self.Vprior, f, trans=True, lower=True)
-            #self.apply_prior_inverse_precision = self._apply_prior_inverse_precision
+            self.apply_prior_inverse_precision = self._apply_prior_inverse_precision
+            #self.apply_prior_precision = self._apply_prior_precision
+
+            ### Generic method: always means Q @ f
+            if self.mode == Density.COVARIANCE:
+                self.apply_prior_precision = self._apply_prior_precision_from_covariance
+            elif self.mode == Density.PRECISION:
+                self.apply_prior_precision = self._apply_prior_direct_precision
+            else:
+                raise ValueError("Unknown prior mode.")
+        
+
+    def _apply_prior_inverse_covar(self, f):
+        """
+        Apply C^{-1} f when C = L L.T.
+        """
+        tmp = self.apply_prior_choleski_covar_inverse(f)
+        tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
+        return tmp
 
 
+    def _apply_prior_precision_from_covariance(self, f):
+        """
+        Apply Q f in covariance mode, where Q = C^{-1}.
+        """
+        return self._apply_prior_inverse_covar(f)
+
+
+    def _apply_prior_inverse_precision(self, f):
+        """
+        Apply Q^{-1} f when Q = V V.T.
+        """
+        tmp = self.apply_prior_choleski_precision_inverse(f)
+        tmp = self.apply_prior_choleski_precision_inverse_T(tmp)
+        return tmp
+
+
+    def _apply_prior_direct_precision(self, f):
+        """
+        Apply Q f when Q = V V.T.
+        """
+        tmp = self.apply_prior_choleski_precision_T(f)
+        tmp = self.apply_prior_choleski_precision(tmp)
+        return tmp
 
     def set_data(self, nobs):
         """
@@ -557,36 +598,23 @@ class SigmoidMixin(Density):
             np.random.seed(random_seed)
 
         if initial_f is None and self.last_sample is None:
-            initial_f = np.zeros(self.nbins) 
+            initial_f = np.zeros(self.nbins)
         elif not self.last_sample is None:
             initial_f = self.last_sample
         else:
             pass
 
         nbins = self.nbins
-        # Precompute the prior precision matrix and its product with the prior mean
         mu0 = self.prior_mean
-        # Precompute the inverse once (symmetric, positive definite)
-        # Sigma0_inv = np.linalg.inv(Sigma0)
-        # L = pgd._Lprior
-        L = np.asarray(self.Lprior, dtype=float)
-        I = np.eye(self.nbins)
-
-        X = spla.solve_triangular(L, I, lower=True)         # X = L^{-1}
-        Sigma0_inv = spla.solve_triangular(L.T, X, lower=False)  # (L^T)^{-1} @ L^{-1}
-        ####
-        ###    Du hast immer noch die Inverse von Sigma, brauchst Du aber nicht.
-        ###    please eliminate as does Cristina
-        ####
-
         if self.mode == Density.COVARIANCE:
-            tmp = self.apply_prior_choleski_covar_inverse(mu0)
-            tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
+            # Work in the whitened coordinates induced by Sigma0 = L L.T.
+            # This avoids forming Sigma0^{-1} explicitly, even column-wise.
+            L = np.asarray(self.Lprior, dtype=float)
+            prior_white_mean = spla.solve_triangular(
+                L, mu0, lower=True, trans=False
+            )
         else:
-            tmp = self.apply_prior_choleski_precision_T(mu0)
-            tmp = self.apply_prior_choleski_precision(tmp) 
-            
-        Sigma0_inv_mu0 = tmp
+            Sigma0_inv_mu0 = self.prior_precision @ mu0
 
         # Initialiesieren
         if initial_f is None:
@@ -601,7 +629,6 @@ class SigmoidMixin(Density):
         f_samples = np.zeros((n_keep, nbins))
 
         # Gibbs loop
-        # sample_idx = 0
         for it in range(n_iter):
             # --- Step 1: sample k gegenben f ---
             # Die Rate für die latenten „negativen“ Zählungen ist lam * sigmoid(-f)
@@ -616,34 +643,38 @@ class SigmoidMixin(Density):
             # Kappa berechnen
             kappa = 0.5 * (self.nobs - k)
             # Posterior-Präzision und Mittelwert
-            if self.mode==Density.COVARIANCE:
-                A = Sigma0_inv + np.diag(w)
-                # Rechte Seite: Sigma0_inv * mu0 + kappa
-                bvec = Sigma0_inv_mu0 + kappa
-                # Löse A m = bvec für m (posteriorer Mittelwert)
-                # Cholesky-Faktorisierung für numerische Stabilität.
-                chol = np.linalg.cholesky(A)
-                # Löse den Mittelwert unter Verwendung der Cholesky-Faktoren.
-                # Löse zunächst L y = bvec.
-                y = spla.solve_triangular(chol, bvec, lower=True, trans=False)
-                # Löse L^T m = y
-                # m = spla.solve_triangular(chol.T, y, lower=False)
-                m = spla.solve_triangular(chol, y, lower=True, trans=True)
+            if self.mode == Density.COVARIANCE:
+                # Posterior precision:
+                #   A = Sigma0^{-1} + diag(w)
+                # with Sigma0 = L L.T.
+                # Transform with f = L u. Then
+                #   A = L^{-T} (I + L.T diag(w) L) L^{-1}.
+                # Thus we only factor the whitened matrix M below.
+                weighted_L = w[:, None] * L
+                M = np.eye(nbins) + L.T @ weighted_L
+                chol = np.linalg.cholesky(M)
 
-                # Ziehe eine zufällig aus N(0, A^{-1})
+                # Right-hand side in whitened coordinates:
+                # L.T @ (Sigma0^{-1} mu0 + kappa)
+                # = L^{-1} mu0 + L.T @ kappa.
+                rhs = prior_white_mean + L.T @ kappa
+
+                # Solve M u_mean = rhs and transform back: m = L u_mean.
+                y = spla.solve_triangular(chol, rhs, lower=True, trans=False)
+                u_mean = spla.solve_triangular(chol, y, lower=True, trans=True)
+                m = L @ u_mean
+
+                # Draw eps ~ N(0, A^{-1}) using A^{-1} = L M^{-1} L.T.
                 z = np.random.normal(size=nbins)
-                # Löse L^T x = z für x, sodass x ~ N(0, A^{-1})
-                eps = spla.solve_triangular(chol.T, z, lower=False)
+                u_noise = spla.solve_triangular(chol, z, lower=True, trans=True)
+                eps = L @ u_noise
                 f = m + eps
-            
             else:
                 pass
                 ### TODO
 
             # Speichern, wenn burn_in abgeschlossen ist und bei Ausdünnungsintervall
             if it >= burn_in and ((it - burn_in) % thin == 0):
-                #f_samples[sample_idx] = f
-                # sample_idx += 1
                 self.last_sample = f
                 yield f
         return
@@ -742,19 +773,15 @@ class SmoothRampMixin:
         total_iter = burn_in + n_iter * thin
 
         # prepare fixed linear algebra once
-        fz_cache = gsm.prepare_f_cond_z(
-            self.nobs,
-            self.prior_mean,
-            self.Lprior,
-            self.mix,
-        )
+        fz_cache = gsm.prepare_f_cond_z(self)
+        
 
 
         idx = 0
         for it in range(total_iter):
             z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
             #f = gsm.sample_f_cond_z(z, self.nobs, self.prior_mean, self.Lprior, self.mix)
-            f = gsm.sample_f_cond_z_cache(z, fz_cache, self.mix)
+            f = gsm.sample_f_cond_z_cache(z, self, fz_cache)
 
             if it >= burn_in and ((it - burn_in) % thin == 0):
                 #f_samples[idx] = f
@@ -841,16 +868,11 @@ class ExponentialMixin:
 
         total_iter = burn_in + n_iter * thin
 
-        fz_cache = gsm.prepare_f_cond_z(
-            self.nobs,
-            self.prior_mean,
-            self.Lprior,
-            self.mix,
-        )
+        fz_cache = gsm.prepare_f_cond_z(self)
 
         for it in range(total_iter):
             z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
-            f = gsm.sample_f_cond_z_cache(z, fz_cache, self.mix)
+            f = gsm.sample_f_cond_z_cache(z, self, fz_cache)
 
             if it >= burn_in and ((it - burn_in) % thin == 0):
                 yield f
