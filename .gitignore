@@ -18,3 +18,4 @@ venv/
 *.fls
 *.fdb_latexmk
 _minted*/
+source/__pycache__/
