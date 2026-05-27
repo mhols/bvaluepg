@@ -105,9 +105,9 @@ class Density:
                 raise Exception("not a quadratic covariance / precision matrix")
         elif not prior_precision is None:
             self.prior_precision = prior_precision
-            n,m = prior_covariance.shape
+            n,m = prior_precision.shape
             self._Vprior = None
-            self.mode = Density.PRECSION
+            self.mode = Density.PRECISION
             if not n==m:
                 raise Exception("not a quadratic covariance / precision matrix")
         else:
@@ -133,16 +133,57 @@ class Density:
             self.apply_prior_choleski_covar_inverse = lambda f: sp.linalg.solve_triangular(self.Lprior, f, trans=False, lower=True)
             self.apply_prior_choleski_covar_T = lambda f: self.Lprior.T @ f
             self.apply_prior_choleski_covar_inverse_T = lambda f: sp.linalg.solve_triangular(self.Lprior, f, trans=True, lower=True)
-            #self.apply_prior_inverse_covar = self._apply_prior_inverse_covar
+            self.apply_prior_inverse_covar = self._apply_prior_inverse_covar
 
             ### Precision methods
             self.apply_prior_choleski_precision = lambda f: self.Vprior @ f
             self.apply_prior_choleski_precision_inverse = lambda f: sp.linalg.solve_triangular(self.Vprior, f, trans=False, lower=True)
             self.apply_prior_choleski_precision_T = lambda f: self.Vprior.T @ f
             self.apply_prior_choleski_precision_inverse_T = lambda f: sp.linalg.solve_triangular(self.Vprior, f, trans=True, lower=True)
-            #self.apply_prior_inverse_precision = self._apply_prior_inverse_precision
+            self.apply_prior_inverse_precision = self._apply_prior_inverse_precision
+            #self.apply_prior_precision = self._apply_prior_precision
+
+            ### Generic method: always means Q @ f
+            if self.mode == Density.COVARIANCE:
+                self.apply_prior_precision = self._apply_prior_precision_from_covariance
+            elif self.mode == Density.PRECISION:
+                self.apply_prior_precision = self._apply_prior_direct_precision
+            else:
+                raise ValueError("Unknown prior mode.")
+        
+
+    def _apply_prior_inverse_covar(self, f):
+        """
+        Apply C^{-1} f when C = L L.T.
+        """
+        tmp = self.apply_prior_choleski_covar_inverse(f)
+        tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
+        return tmp
 
 
+    def _apply_prior_precision_from_covariance(self, f):
+        """
+        Apply Q f in covariance mode, where Q = C^{-1}.
+        """
+        return self._apply_prior_inverse_covar(f)
+
+
+    def _apply_prior_inverse_precision(self, f):
+        """
+        Apply Q^{-1} f when Q = V V.T.
+        """
+        tmp = self.apply_prior_choleski_precision_inverse(f)
+        tmp = self.apply_prior_choleski_precision_inverse_T(tmp)
+        return tmp
+
+
+    def _apply_prior_direct_precision(self, f):
+        """
+        Apply Q f when Q = V V.T.
+        """
+        tmp = self.apply_prior_choleski_precision_T(f)
+        tmp = self.apply_prior_choleski_precision(tmp)
+        return tmp
 
     def set_data(self, nobs):
         """
@@ -732,19 +773,15 @@ class SmoothRampMixin:
         total_iter = burn_in + n_iter * thin
 
         # prepare fixed linear algebra once
-        fz_cache = gsm.prepare_f_cond_z(
-            self.nobs,
-            self.prior_mean,
-            self.Lprior,
-            self.mix,
-        )
+        fz_cache = gsm.prepare_f_cond_z(self)
+        
 
 
         idx = 0
         for it in range(total_iter):
             z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
             #f = gsm.sample_f_cond_z(z, self.nobs, self.prior_mean, self.Lprior, self.mix)
-            f = gsm.sample_f_cond_z_cache(z, fz_cache, self.mix)
+            f = gsm.sample_f_cond_z_cache(z, self, fz_cache)
 
             if it >= burn_in and ((it - burn_in) % thin == 0):
                 #f_samples[idx] = f
@@ -831,16 +868,11 @@ class ExponentialMixin:
 
         total_iter = burn_in + n_iter * thin
 
-        fz_cache = gsm.prepare_f_cond_z(
-            self.nobs,
-            self.prior_mean,
-            self.Lprior,
-            self.mix,
-        )
+        fz_cache = gsm.prepare_f_cond_z(self)
 
         for it in range(total_iter):
             z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
-            f = gsm.sample_f_cond_z_cache(z, fz_cache, self.mix)
+            f = gsm.sample_f_cond_z_cache(z, self, fz_cache)
 
             if it >= burn_in and ((it - burn_in) % thin == 0):
                 yield f
