@@ -203,7 +203,6 @@ class Density:
                     prior_mean=None, 
                     prior_covariance=None, 
                     prior_precision=None, 
-                    prior_sparse_precision=None, 
                     sparse=False, 
                     **kwargs):
         """
@@ -213,6 +212,11 @@ class Density:
         self.kwargs = kwargs
         self.sparse = sparse
 
+        self.prior_mean=prior_mean
+        self.prior_covariance=prior_covariance
+        self.prior_precision=prior_precision
+
+
         if (prior_covariance is None) and (prior_precision is None):
             return
         
@@ -221,11 +225,6 @@ class Density:
 
     def set_prior_Gaussian(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
 
-        self.prior_mean = prior_mean
-
-        # if (not prior_covariance is None) and (not prior_precision is None):
-        #     raise Exception("Not both, prior covariance or prior precision can be specified")
-        
         if not prior_covariance is None:
             self.prior_covariance = np.asarray(prior_covariance, dtype=float)
             n,m = prior_covariance.shape
@@ -237,6 +236,7 @@ class Density:
             self.mode = Density.COVARIANCE    ### covariance Mome
             if not n==m:
                 raise Exception("not a quadratic covariance / precision matrix")
+
         elif not prior_precision is None:
             self.sparse = bool(sparse or sps.issparse(prior_precision))
             if self.sparse:
@@ -253,13 +253,12 @@ class Density:
         else:
             raise Exception('at least one vovariance or precision must be speicified')
 
-        
-       
-        self.prior_mean = to_numpy(prior_mean)
+        self.prior_mean = to_numpy(prior_mean) if not prior_mean is None else np.zeros(n)
 
         if not self.prior_mean.shape[0] == n:
             raise Exception("dimensions of prior mean and covariance / precision do not match")
         
+        """         
         if self.sparse and self.mode == Density.PRECISION:
             #self.cholesky = _sparse_cholesky
             self.apply_prior_choleski_precision = lambda f: self.Vprior @ f
@@ -290,7 +289,7 @@ class Density:
                 self.apply_prior_precision = self._apply_prior_direct_precision
             else:
                 raise ValueError("Unknown prior mode.")
-        
+        """       
 
     def _apply_prior_inverse_covar(self, f):
         """
@@ -300,18 +299,18 @@ class Density:
         tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
         return tmp
 
-    def set_prior_precision_sparse(self, prior_mean, prior_precision):
-        """
-        Set a Gaussian prior through a sparse precision matrix Q.
+    # def set_prior_precision_sparse(self, prior_mean, prior_precision):
+    #     """
+    #     Set a Gaussian prior through a sparse precision matrix Q.
 
-        This represents f ~ N(prior_mean, Q^{-1}) and enables the sparse
-        posterior path in PolyaGammaDensity.sample_posterior().
-        """
-        self.set_prior_Gaussian(
-            prior_mean=prior_mean,
-            prior_precision=prior_precision,
-            sparse=True,
-        )
+    #     This represents f ~ N(prior_mean, Q^{-1}) and enables the sparse
+    #     posterior path in PolyaGammaDensity.sample_posterior().
+    #     """
+    #     self.set_prior_Gaussian(
+    #         prior_mean=prior_mean,
+    #         prior_precision=prior_precision,
+    #         sparse=True,
+    #     )
 
 
     def _apply_prior_precision_from_covariance(self, f):
@@ -348,7 +347,8 @@ class Density:
         :param self: Description
         :param nobs: array like the observed number of events in the bins
         """
-        assert len(nobs.ravel()) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
+        if not self.prior_mean is None:
+            assert len(nobs.ravel()) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
         self.nobs = nobs.ravel()
         self.ndata = sum(self.nobs)
     
@@ -573,7 +573,7 @@ class Density:
         """
         centered = f - self.prior_mean
         if self.mode == Density.PRECISION:
-            prior_quad = centered @ (self.prior_precision @ centered)
+            prior_quad = sum(centered * (self.prior_precision @ centered))
         
         elif self.mode == Density.COVARIANCE:
             prior_quad = np.sum(
@@ -611,8 +611,10 @@ class Density:
         res = self.nobs * self.derivative_log_field_from_f(f) - self.derivative_field_from_f(f)
 
         if self.mode == Density.COVARIANCE:
-            tmp = self.apply_prior_choleski_covar_inverse(f-self.prior_mean)
-            tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
+
+            tmp = sp.linalg.solve_triangular(self.Lprior, f-self.prior_mean, trans=False, lower=True)
+            tmp = sp.linalg.solve_triangular(self.Lprior, tmp, trans=True, lower=True)
+            
         elif self.mode == Density.PRECISION:
             tmp = self.prior_precision @ (f-self.prior_mean)
         
@@ -650,9 +652,14 @@ class Density:
     def first_guess_estimator(self, f=None, s2=None):
         """
         Uses a Gaussian approximation of the pixelwise f to obtain a first  
-        guess for f
+        guess for f. Take this as a noise measurement of f and then do the Bayesian
+        inversion using the prior mean and covariance for f.
 
+        $f^ = \mu + \Sigma( \Sigma + D)^{-1} (f -\mu)$
 
+        or with Q = \Sigma^{-1} ( use the Woodbury identity...)
+
+        f^ = f - (Q + D^{-1})^{-1} Q (f - \mu)
 
         :param self: Description
         :param fmean: Description
@@ -677,23 +684,29 @@ class Density:
             raise Exception('not implemented yet')
         
         elif self.mode == Density.COVARIANCE and not self.sparse:
-            tmp = np.linalg.solve(self.prior_covariance + D, tmp)
-            tmp = self.prior_covariance @ tmp
+            dinv = 1.0 / np.asarray(s2, dtype=float)
+            tmp = self.Lprior.T @ (dinv * f) + self.Lprior @ self.prior_mean
 
-            return self.prior_mean + tmp
+            DiL = dinv[:,None] * self.Lprior
+
+            tmp = np.linalg.solve(np.eye(self.nbins) + self.Lprior.T @ DiL, tmp)
+            tmp = self.Lprior @ tmp
+
+            return tmp
         
         elif self.mode == Density.PRECISION and not self.sparse:
             dinv = 1.0 / np.asarray(s2, dtype=float)
-            tmp = self.prior_precision @ tmp
-            np.linalg.solve(self.prior_precision + dinv, tmp )
-            return f - tmp
+            tmp = self.prior_precision @ self.prior_mean + dinv * f
+            tmp = np.linalg.solve(self.prior_precision + np.diag(dinv), tmp )
+            return tmp
         
         elif self.mode == Density.PRECISION and self.sparse:
-            tmp = self.prior_precision @ tmp
+            dinv = 1.0 / np.asarray(s2, dtype=float)
+            tmp = self.prior_precision @ self.prior_mean + dinv * f
             system = self.prior_precision + sps.diags(dinv, format="csc")
             tmp = sparse_linalg.spsolve(system, tmp)
 
-            return self.prior_mean + tmp
+            return tmp
         
         else:
             raise Exception('not implemented yet')
@@ -829,6 +842,7 @@ class SigmoidMixin(Density):
 
         # Gibbs loop
         for it in range(n_iter):
+            print('iteration ', it)
             # --- Step 1: sample k gegenben f ---
             # Die Rate für die latenten „negativen“ Zählungen ist lam * sigmoid(-f)
             rate_neg = self.field_from_f(-f)
@@ -856,13 +870,16 @@ class SigmoidMixin(Density):
                 chol = np.linalg.cholesky(M)
 
                 # Right-hand side in whitened coordinates:
+                # compute A^{-1} (Sigma0^{-1} mu + kappa )
                 # L.T @ (Sigma0^{-1} mu0 + kappa)
                 # = L^{-1} mu0 + L.T @ kappa.
-                rhs = self.apply_prior_choleski_covar_inverse(mu0) + self.L.T @ kappa
+                rhs = spla.solve_triangular(self.Lprior, mu0, lower=True, trans=False)
+                rhs += self.Lprior.T @ kappa
+                #rhs = self.apply_prior_choleski_covar_inverse(mu0) + self.L.T @ kappa
 
                 # Solve M u_mean = rhs and transform back: m = L u_mean.
                 rhs = spla.solve_triangular(chol, rhs, lower=True, trans=False)
-                rhs = spla.solve_triangular(chol, y, lower=True, trans=True)
+                rhs = spla.solve_triangular(chol, rhs, lower=True, trans=True)
                 m = self.Lprior @ rhs
 
                 # Draw eps ~ N(0, A^{-1}) using A^{-1} = L M^{-1} L.T.
@@ -875,7 +892,7 @@ class SigmoidMixin(Density):
                 f = m + eps
             elif self.mode == Density.PRECISION and self.sparse:
                 A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
-                Sigma0_inv_mu0 = self.apply_prior_precision(mu0)
+                Sigma0_inv_mu0 = self.prior_precision @ mu0
                 bvec = Sigma0_inv_mu0 + kappa
                 factor = _sparse_cholesky(A)
                 m = _cholmod_solve_A(factor, bvec)
@@ -883,14 +900,14 @@ class SigmoidMixin(Density):
                 f = m + eps
             elif self.mode == Density.PRECISION and not self.sparse:   
                 A = self.prior_precision + np.diag(w)
-                Sigma0_inv_mu0 = self.apply_prior_precision(mu0)
+                Sigma0_inv_mu0 = self.prior_precision @ mu0
                 bvec = Sigma0_inv_mu0 + kappa
                 chol = np.linalg.cholesky(A)
                 y = spla.solve_triangular(chol, bvec, lower=True, trans=False)
                 m = spla.solve_triangular(chol, y, lower=True, trans=True)
 
                 z = np.random.normal(size=nbins)
-                eps = spla.solve_triangular(chol.T, z, lower=False)
+                eps = spla.solve_triangular(chol, z, trans=True, lower=True)
                 f = m + eps
             else:
                 raise Exception('not implemented yet')

@@ -79,6 +79,7 @@ def experiment_1(
     # n=64, nn=20, a=3.5, b=6.5, rho=16, v2=0.95, lam=10, nmax_mix=60):
 
 
+    np.random.seed(0)
 
     # preparing data
     estim = EstimatorClass(n=n, m=n, lam=lam, nmax_mix=nmax_mix)
@@ -91,13 +92,14 @@ def experiment_1(
     ncheck = 4
     assert n % ncheck == 0, 'n must be divisible by ncheck for checkerboard data'
     tm = checkerboard(n // ncheck, ncheck, aa, bb)
+
     pm = np.mean(tm) * np.ones(n*n)
 
     covar = ck.spatial_covariance_matern_2_3(n, n, rho, v2)
 
-    estim.set_prior_Gaussian(pm, covar)
+    estim.set_prior_Gaussian(prior_mean=pm, prior_covariance=covar, sparse=False)
 
-    print(estim.get_prior_precision() @ estim.prior_covariance)
+    #print(estim.get_prior_precision() @ estim.prior_covariance)
 
     # Visualize the induced prior density on the Poisson intensity.
     # The Gaussian prior is placed on the latent field f, while the
@@ -151,26 +153,27 @@ def experiment_1(
 
     ## inversion
 
-    #plt.figure()
+    plt.figure()
 
     print('first guess gaussian aproximation')
-    estim.set_data(data)
-    estim.set_prior_Gaussian(estim.f_from_field(data.mean())*np.ones(estim.prior_mean.shape), ck.spatial_covariance_matern_2_3(n, n, rho, v2))
 
-    #fge = estim.first_guess_estimator()
-    fge = estim.max_logposterior_estimator(niter=1000, method='TNC')
+    fge = estim.first_guess_estimator()
+    plt.title('first guess estimation of field exp1')
+    estim.imshow(estim.field_from_f(fge))
 
-    #estim.imshow(fge)
+
+    fml = estim.max_logposterior_estimator(niter=1000, method='TNC')
 
     plt.figure()
-    plt.title('Gaussian estimation of field')
+    plt.title('MAP estimator of field')
     plt.xticks([])
     plt.yticks([])
-    estim.imshow(estim.field_from_f(fge))
+    estim.imshow(estim.field_from_f(fml))
     print('...done')
 
     print('prior Poissonian rate')
     plt.figure()
+    plt.title('prior density under Gaussian of lams')
     lams = np.linspace(0, 2*estim.field_from_f(estim.prior_mean.max()), 10000)[1:-1]
     plt.plot(lams, estim.density_under_gaussian(lams,estim.prior_mean.mean(), v2))
     print('...done')
@@ -189,6 +192,7 @@ def experiment_1(
     plt.figure()
 
 
+    np.random.seed(0)
     print('sampling 130 posterior')
     sres=0
     count = 0
@@ -221,6 +225,8 @@ def experiment_1_sparse_precision(
     alpha=0.2,
     lam=10,
     nmax_mix=60,
+    rho=1,
+    v2=1
 ):
     """
     Sparse-precision variant of experiment_1.
@@ -228,6 +234,9 @@ def experiment_1_sparse_precision(
     The synthetic data generation stays checkerboard-based, but the Gaussian
     prior is set as f ~ N(mu, Q^{-1}) with sparse grid precision Q.
     """
+
+    np.random.seed(0)
+
     sparse_precision_estimators = (
         pgd.PolyaGammaDensity,
         pgd.RampDensity,
@@ -239,21 +248,23 @@ def experiment_1_sparse_precision(
             "PolyaGammaDensity, RampDensity, ExponentialDensity, or their 2D "
             "variants."
         )
-
+    # preparing data
     estim = EstimatorClass(n=n, m=n, lam=lam, nmax_mix=nmax_mix)
 
+    ## from intensity to parameters
     aa = estim.f_from_field(a)
     bb = estim.f_from_field(b)
 
+    # pm = single_square(n, nn, aa, bb)
     ncheck = 4
     assert n % ncheck == 0, 'n must be divisible by ncheck for checkerboard data'
     tm = checkerboard(n // ncheck, ncheck, aa, bb)
-    pm = np.mean(tm) * np.ones(n * n)
+    
+    pm = np.mean(tm) * np.ones(n*n)
 
-    #precision = grid_precision_laplacian(n, tau=tau, alpha=alpha)
-    print('first guess gaussian aproximation')
-    precision =  np.linalg.inv(ck.spatial_covariance_matern_2_3(n, n, 3, 1))
-    estim.set_prior_precision_sparse( pm, precision )
+
+    precision =  np.linalg.inv(ck.spatial_covariance_matern_2_3(n, n, rho, v2))
+    estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=False)
 
 
     data = estim.random_events_from_field(estim.field_from_f(tm))
@@ -287,25 +298,33 @@ def experiment_1_sparse_precision(
     print('...done')
 
     print('first guess gaussian aproximation')
-    estim.set_data(data)
-    estim.set_prior_precision_sparse(
-        estim.f_from_field(data.mean()) * np.ones(estim.prior_mean.shape),
-        precision,
-    )
-    fge = estim.max_logposterior_estimator(niter=1000, method='TNC')
+    fge = estim.first_guess_estimator()
 
     plt.figure()
-    plt.title('Gaussian estimation of field')
+    plt.title('First guess estimation of field exp1_sparse')
     plt.xticks([])
     plt.yticks([])
     estim.imshow(estim.field_from_f(fge))
     print('...done')
 
+
+    fml = estim.max_logposterior_estimator(niter=1000, method='TNC')
+
     plt.figure()
+    plt.title('MAP estimator field')
+    plt.xticks([])
+    plt.yticks([])
+    estim.imshow(estim.field_from_f(fml))
+    print('...done')
+
+
+    plt.figure()
+    np.random.seed(0)
 
     print('sampling 130 posterior with sparse precision')
     sres = 0
     count = 0
+
     for i, res in enumerate(estim.sample_posterior(initial_f=fge, n_iter=130)):
         field = estim.field_from_f(res)
         sres += field
@@ -334,7 +353,8 @@ if __name__ == "__main__":
 
     # experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
     # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
-    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
+    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=4, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1)
+    experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, n=4, rho=5, v2=1)
     
     #experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
     # experiment_2()
