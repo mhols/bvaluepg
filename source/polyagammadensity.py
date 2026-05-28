@@ -115,7 +115,7 @@ def _cholmod_sample_noise(factor, size):
     Draw eps ~ N(0, A^{-1}) from a CHOLMOD factorization of A.
     """
     lower, perm = _as_cholmod_lower_factor(factor)
-    z = np.random.normal(size=size)
+    z = np.ones(size) #np.random.normal(size=size)
     eps_permuted = sparse_linalg.spsolve_triangular(lower.T, z, lower=False)
     eps = np.empty_like(eps_permuted)
     eps[perm] = eps_permuted
@@ -883,7 +883,7 @@ class SigmoidMixin(Density):
                 m = self.Lprior @ rhs
 
                 # Draw eps ~ N(0, A^{-1}) using A^{-1} = L M^{-1} L.T.
-                z = np.random.normal(size=nbins)
+                z = np.ones(nbins) #np.random.normal(size=nbins)
                 # Löse L^T x = z für x, sodass x ~ N(0, A^{-1})
                 #eps = spla.solve_triangular(chol, z, lower=True, trans=True)
                 # eps = spla.solve_triangular(chol.T, z, lower=False)
@@ -906,7 +906,7 @@ class SigmoidMixin(Density):
                 y = spla.solve_triangular(chol, bvec, lower=True, trans=False)
                 m = spla.solve_triangular(chol, y, lower=True, trans=True)
 
-                z = np.random.normal(size=nbins)
+                z = np.ones(nbins) #np.random.normal(size=nbins)
                 eps = spla.solve_triangular(chol, z, trans=True, lower=True)
                 f = m + eps
             else:

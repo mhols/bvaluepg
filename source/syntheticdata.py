@@ -264,7 +264,7 @@ def experiment_1_sparse_precision(
 
 
     precision =  np.linalg.inv(ck.spatial_covariance_matern_2_3(n, n, rho, v2))
-    estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=False)
+    estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=True)
 
 
     data = estim.random_events_from_field(estim.field_from_f(tm))
