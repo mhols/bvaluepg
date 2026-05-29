@@ -65,13 +65,16 @@ def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
 # # Idee Sigma0_inv_dot(v) mit L =pdg.Lprior
 ## TODO into util.py
 
-def sigma0_inv_dot(v, L):
+def solve_using_chol_factor(L, v):
     """Berechne Sigma0^{-1} @ v unter Verwendung der Cholesky-Zerlegung L von Sigma0."""
     # Rechne L @ y = v
     y = spla.solve_triangular(L, v, lower=True, trans=False)
     # Rechne L.T @ x = y
     x = spla.solve_triangular(L, y, lower=True, trans=True)
     return x
+
+def solve_using_chol_factor_sparse(L, v):
+    pass
 
 
 def _as_cholmod_lower_factor(factor):
@@ -92,55 +95,19 @@ def _as_cholmod_lower_factor(factor):
     return lower, perm
 
 
-def _cholmod_solve_A(factor, b):
-    """
-    Solve A x = b from a CHOLMOD factorization.
 
-    For lower=True, CHOLMOD returns L L.T = P A P.T. Therefore solve in the
-    permuted system and map the result back with P.T.
-    """
-    if not isinstance(factor, tuple) and hasattr(factor, "solve_A"):
-        return np.asarray(factor.solve_A(b), dtype=float)
+def apply_cholesky_sparse(factor, v):
+    pass
 
-    lower, perm = _as_cholmod_lower_factor(factor)
-    rhs = np.asarray(b, dtype=float)[perm]
-    y = sparse_linalg.spsolve_triangular(lower, rhs, lower=True)
-    z = sparse_linalg.spsolve_triangular(lower.T, y, lower=False)
-    x = np.empty_like(z)
-    x[perm] = z
-    return x
+def apply_cholesky_sparse_T(factor, v):
+    pass
 
+def apply_cholesky_sparse_inverse(factor, v):
+    pass
 
-def _cholmod_sample_noise(factor, size):
-    """
-    Draw eps ~ N(0, A^{-1}) from a CHOLMOD factorization of A.
-    """
-    lower, perm = _as_cholmod_lower_factor(factor)
-    z = np.ones(size) #np.random.normal(size=size)
-    eps_permuted = sparse_linalg.spsolve_triangular(lower.T, z, lower=False)
-    eps = np.empty_like(eps_permuted)
-    eps[perm] = eps_permuted
-    return eps
+def apply_cholesky_sparse_inverse_T(factor, v):
+    pass
 
-
-def _sparse_cholesky(A):
-    """
-    Sparse Cholesky wrapper.
-
-    scipy.sparse provides sparse matrix formats and sparse LU, but no native
-    sparse Cholesky. We use CHOLMOD when available and keep the matrix itself
-    in scipy.sparse format.
-    """
-    try:
-        from sksparse.cholmod import cholesky
-    except Exception as exc:
-        raise ImportError(
-            "Sparse posterior sampling needs scikit-sparse/CHOLMOD. "
-            "SciPy has sparse LU but no native sparse Cholesky for drawing "
-            "N(m, A^{-1}) samples. Install scikit-sparse or use a dense prior."
-        ) from exc
-
-    return cholesky(A, lower=True)
 
 
 def _mixture_gaussian_params(z, nobs, mix):
@@ -163,34 +130,7 @@ def _mixture_gaussian_params(z, nobs, mix):
     return mu, dinv
 
 
-def _sample_f_cond_z_precision(z, nobs, prior_mean, prior_precision, mix, sparse_prior):
-    """
-    Sample f | z, n for a Gaussian-mixture likelihood and precision prior.
 
-    The conditional posterior precision is:
-        A = Q + diag(dinv)
-    where Q is the prior precision and dinv is the diagonal likelihood
-    precision induced by the active mixture component.
-    """
-    mu, dinv = _mixture_gaussian_params(z, nobs, mix)
-    b = prior_precision @ prior_mean + dinv * mu
-    N = int(prior_mean.shape[0])
-
-    if sparse_prior:
-        A = (prior_precision + sps.diags(dinv, format="csc")).tocsc()
-        factor = _sparse_cholesky(A)
-        mean = _cholmod_solve_A(factor, b)
-        noise = _cholmod_sample_noise(factor, N)
-        return mean + noise
-
-    A = prior_precision + np.diag(dinv)
-    chol = np.linalg.cholesky(A)
-    y = spla.solve_triangular(chol, b, lower=True, trans=False)
-    mean = spla.solve_triangular(chol, y, lower=True, trans=True)
-
-    z_noise = np.random.normal(size=N)
-    noise = spla.solve_triangular(chol.T, z_noise, lower=False)
-    return mean + noise
 
 class Density:
     """
@@ -259,87 +199,7 @@ class Density:
         if not self.prior_mean.shape[0] == n:
             raise Exception("dimensions of prior mean and covariance / precision do not match")
         
-        """         
-        if self.sparse and self.mode == Density.PRECISION:
-            #self.cholesky = _sparse_cholesky
-            self.apply_prior_choleski_precision = lambda f: self.Vprior @ f
-            self.apply_prior_choleski_precision_T = lambda f: self.Vprior.T @ f
-            self.apply_prior_precision = self._apply_prior_direct_precision
 
-        else:
-            #self.cholesky = lambda M: sp.linalg.cholesky(M, lower=True)
-            
-            ### Covar mathods
-            self.apply_prior_choleski_covar = lambda f: self.Lprior @ f
-            self.apply_prior_choleski_covar_inverse = lambda f: sp.linalg.solve_triangular(self.Lprior, f, trans=False, lower=True)
-            self.apply_prior_choleski_covar_T = lambda f: self.Lprior.T @ f
-            self.apply_prior_choleski_covar_inverse_T = lambda f: sp.linalg.solve_triangular(self.Lprior, f, trans=True, lower=True)
-            self.apply_prior_inverse_covar = self._apply_prior_inverse_covar
-
-            ### Precision methods
-            self.apply_prior_choleski_precision = lambda f: self.Vprior @ f
-            self.apply_prior_choleski_precision_inverse = lambda f: sp.linalg.solve_triangular(self.Vprior, f, trans=False, lower=True)
-            self.apply_prior_choleski_precision_T = lambda f: self.Vprior.T @ f
-            self.apply_prior_choleski_precision_inverse_T = lambda f: sp.linalg.solve_triangular(self.Vprior, f, trans=True, lower=True)
-            self.apply_prior_inverse_precision = self._apply_prior_inverse_precision
-
-            ### Generic method: always means Q @ f
-            if self.mode == Density.COVARIANCE:
-                self.apply_prior_precision = self._apply_prior_precision_from_covariance
-            elif self.mode == Density.PRECISION:
-                self.apply_prior_precision = self._apply_prior_direct_precision
-            else:
-                raise ValueError("Unknown prior mode.")
-        """       
-
-    def _apply_prior_inverse_covar(self, f):
-        """
-        Apply C^{-1} f when C = L L.T.
-        """
-        tmp = self.apply_prior_choleski_covar_inverse(f)
-        tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
-        return tmp
-
-    # def set_prior_precision_sparse(self, prior_mean, prior_precision):
-    #     """
-    #     Set a Gaussian prior through a sparse precision matrix Q.
-
-    #     This represents f ~ N(prior_mean, Q^{-1}) and enables the sparse
-    #     posterior path in PolyaGammaDensity.sample_posterior().
-    #     """
-    #     self.set_prior_Gaussian(
-    #         prior_mean=prior_mean,
-    #         prior_precision=prior_precision,
-    #         sparse=True,
-    #     )
-
-
-    def _apply_prior_precision_from_covariance(self, f):
-        """
-        Apply Q f in covariance mode, where Q = C^{-1}.
-        """
-        return self._apply_prior_inverse_covar(f)
-
-
-    def _apply_prior_inverse_precision(self, f):
-        """
-        Apply Q^{-1} f when Q = V V.T.
-        """
-        tmp = self.apply_prior_choleski_precision_inverse(f)
-        tmp = self.apply_prior_choleski_precision_inverse_T(tmp)
-        return tmp
-
-
-    def _apply_prior_direct_precision(self, f):
-        """
-        Apply Q f when Q = V V.T.
-        """
-        if self.sparse:
-            tmp = self.prior_precision @ f
-        else:
-            tmp = self.apply_prior_choleski_precision_T(f)
-            tmp = self.apply_prior_choleski_precision(tmp)
-        return tmp
 
     def set_data(self, nobs):
         """
