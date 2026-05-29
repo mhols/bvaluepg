@@ -96,8 +96,10 @@ def experiment_1(
     pm = np.mean(tm) * np.ones(n*n)
 
     covar = ck.spatial_covariance_matern_2_3(n, n, rho, v2)
+    print(rho, v2)
+    #covar = np.diag(np.arange(n*n)+1)
 
-    estim.set_prior_Gaussian(prior_mean=pm, prior_covariance=covar, sparse=False)
+    estim.set_prior_Gaussian(prior_mean=pm, prior_covariance=covar, sparse=True)
 
     #print(estim.get_prior_precision() @ estim.prior_covariance)
 
@@ -118,6 +120,7 @@ def experiment_1(
     print(data.shape, pm.shape)
     estim.set_data(data.ravel())
 
+    print('data', estim.nobs)
    
     print('artificial data')
     plt.figure()
@@ -196,15 +199,17 @@ def experiment_1(
     print('sampling 130 posterior')
     sres=0
     count = 0
-    for i, res in enumerate(estim.sample_posterior(initial_f = fge, n_iter=130)):
+
+    for i, res in enumerate(estim.sample_posterior(initial_f=np.ones(n*n), n_iter=130)):
         field = estim.field_from_f(res)
         sres += field
-        if i%10==1 and count<12:
-            plt.subplot(3,4,count+1)
+
+        if i % 10 == 1 and count < 12:
+            plt.subplot(3, 4, count + 1)
             plt.xticks([])
             plt.yticks([])
             estim.imshow(field)
-            count +=1
+            count += 1
 
     plt.figure()
     plt.title('posterior mean')
@@ -259,17 +264,18 @@ def experiment_1_sparse_precision(
     ncheck = 4
     assert n % ncheck == 0, 'n must be divisible by ncheck for checkerboard data'
     tm = checkerboard(n // ncheck, ncheck, aa, bb)
-    
+        
+
     pm = np.mean(tm) * np.ones(n*n)
+    covar = ck.spatial_covariance_matern_2_3(n, n, rho, v2)
 
-
-    precision =  np.linalg.inv(ck.spatial_covariance_matern_2_3(n, n, rho, v2))
-    estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=True)
-
-
+    print(rho, v2)
+    #covar = np.diag(np.arange(n*n)+1)
+    estim.set_prior_Gaussian(prior_mean=pm, prior_precision=np.linalg.inv(covar), sparse=True)
     data = estim.random_events_from_field(estim.field_from_f(tm))
     estim.set_data(data.ravel())
 
+    print('data', estim.nobs)
     print('sparse precision prior')
     #print(f'grid: {n} x {n}; N={n*n}; nnz={precision.nnz}; density={precision.nnz / (n*n)**2:.6g}')
 
@@ -325,9 +331,10 @@ def experiment_1_sparse_precision(
     sres = 0
     count = 0
 
-    for i, res in enumerate(estim.sample_posterior(initial_f=fge, n_iter=130)):
+    for i, res in enumerate(estim.sample_posterior(initial_f=np.ones(n*n), n_iter=130)):
         field = estim.field_from_f(res)
         sres += field
+        
         if i % 10 == 1 and count < 12:
             plt.subplot(3, 4, count + 1)
             plt.xticks([])

@@ -16,6 +16,7 @@ from pathlib import Path
 from matplotlib.colors import LogNorm
 from matplotlib.colors import PowerNorm
 from collections.abc import Iterable
+from sksparse.cholmod import cholesky
 
 
 from polyagamma import random_polyagamma
@@ -840,6 +841,25 @@ class SigmoidMixin(Density):
         n_keep = max(0, (n_iter - burn_in) // thin)
         f_samples = np.zeros((n_keep, nbins))
 
+
+        if self.mode == Density.COVARIANCE and not self.sparse:
+            print('case COVARIANCE')
+            Sigma0_inv_mu0 = spla.solve_triangular(self.Lprior, mu0, lower=True, trans=False)
+            Sigma0_inv_mu0 = spla.solve_triangular(self.Lprior, Sigma0_inv_mu0, lower=True, trans=True)
+
+        elif self.mode == Density.PRECISION and not self.sparse:
+            print('case PRECISION not sparse')
+            Sigma0_inv_mu0 = self.prior_precision @ mu0
+
+        elif self.mode == Density.PRECISION and self.sparse:
+            print('case PRECISION sparse')
+            Sigma0_inv_mu0 = self.prior_precision @ mu0
+
+        else:
+            raise Exception('not implemented yet')
+        
+
+        
         # Gibbs loop
         for it in range(n_iter):
             print('iteration ', it)
@@ -850,64 +870,79 @@ class SigmoidMixin(Density):
 
             # --- Step 2: sample w gegeben f und counts ---
             b_counts = (self.nobs + k).astype(int)  # Gültigen PG-Formparameter sicherstellen
+
             w = sample_polya_gamma(b_counts, f)
 
             # --- Step 3: sample f gegeben w, k ---
             # Kappa berechnen
             kappa = 0.5 * (self.nobs - k)
             # Posterior-Präzision und Mittelwert
+
+
+            # same for all cases
+            b = Sigma0_inv_mu0 + kappa
             
             
             if self.mode == Density.COVARIANCE and not self.sparse:
-                # Posterior precision:
-                #   A = Sigma0^{-1} + diag(w)
-                # with Sigma0 = L L.T.
-                # Transform with f = L u. Then
-                #   A = L^{-T} (I + L.T diag(w) L) L^{-1}.
-                # Thus we only factor the whitened matrix M below.
+
+                
                 weighted_L = w[:, None] * self.Lprior
                 M = np.eye(nbins) + self.Lprior.T @ weighted_L
-                chol = np.linalg.cholesky(M)
 
-                # Right-hand side in whitened coordinates:
-                # compute A^{-1} (Sigma0^{-1} mu + kappa )
-                # L.T @ (Sigma0^{-1} mu0 + kappa)
-                # = L^{-1} mu0 + L.T @ kappa.
-                rhs = spla.solve_triangular(self.Lprior, mu0, lower=True, trans=False)
-                rhs += self.Lprior.T @ kappa
-                #rhs = self.apply_prior_choleski_covar_inverse(mu0) + self.L.T @ kappa
+                chol = sp.linalg.cholesky(M, lower=True)
 
-                # Solve M u_mean = rhs and transform back: m = L u_mean.
+                rhs = self.Lprior.T @ b  
+
                 rhs = spla.solve_triangular(chol, rhs, lower=True, trans=False)
                 rhs = spla.solve_triangular(chol, rhs, lower=True, trans=True)
                 m = self.Lprior @ rhs
 
-                # Draw eps ~ N(0, A^{-1}) using A^{-1} = L M^{-1} L.T.
-                z = np.ones(nbins) #np.random.normal(size=nbins)
-                # Löse L^T x = z für x, sodass x ~ N(0, A^{-1})
-                #eps = spla.solve_triangular(chol, z, lower=True, trans=True)
-                # eps = spla.solve_triangular(chol.T, z, lower=False)
-                u_noise = spla.solve_triangular(chol, z, lower=True, trans=True)
-                eps = self.Lprior @ u_noise
+                print('m', m)
+
+                # sampling of new f 
+                z = np.random.normal(size=nbins)
+
+                print('z', z[:5])
+                eps = spla.solve_triangular(chol, z, lower=True, trans=True)
+                eps = self.Lprior @ eps
+
+
                 f = m + eps
+
             elif self.mode == Density.PRECISION and self.sparse:
                 A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
-                Sigma0_inv_mu0 = self.prior_precision @ mu0
-                bvec = Sigma0_inv_mu0 + kappa
-                factor = _sparse_cholesky(A)
-                m = _cholmod_solve_A(factor, bvec)
-                eps = _cholmod_sample_noise(factor, nbins)
+
+                F, p = cholesky(A, lower=True)
+
+
+                bb = np.empty(self.nbins, dtype=float)
+                bb = b[p]
+                tmp = sparse_linalg.spsolve_triangular(F, bb, lower=True)
+                tmp = sparse_linalg.spsolve_triangular(F.T, tmp, lower=False)
+
+                m = np.empty(self.nbins, dtype=float)
+                m[p] = tmp
+
+                z = np.random.normal(size=nbins)
+
+                eps = np.empty(self.nbins, dtype=float)
+                eps[p] = sparse_linalg.spsolve_triangular(F.T, z, lower=False)
+
                 f = m + eps
+
+
             elif self.mode == Density.PRECISION and not self.sparse:   
                 A = self.prior_precision + np.diag(w)
-                Sigma0_inv_mu0 = self.prior_precision @ mu0
-                bvec = Sigma0_inv_mu0 + kappa
-                chol = np.linalg.cholesky(A)
-                y = spla.solve_triangular(chol, bvec, lower=True, trans=False)
-                m = spla.solve_triangular(chol, y, lower=True, trans=True)
 
-                z = np.ones(nbins) #np.random.normal(size=nbins)
-                eps = spla.solve_triangular(chol, z, trans=True, lower=True)
+                chol = sp.linalg.cholesky(A, lower=True)
+
+                rhs = spla.solve_triangular(chol, b, lower=True, trans=False)
+                m = spla.solve_triangular(chol, rhs, lower=True, trans=True)
+
+
+                z = np.random.normal(size=nbins)
+                eps = spla.solve_triangular(chol, z, lower=True, trans=True)
+
                 f = m + eps
             else:
                 raise Exception('not implemented yet')
