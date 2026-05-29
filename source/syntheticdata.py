@@ -201,8 +201,8 @@ def experiment_2(nn=5, ncheck=5, a=1, b=2):
 
 if __name__ == "__main__":
 
-    experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
-    #experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
+    # experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
+    experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
     # experiment_2()
 
 
