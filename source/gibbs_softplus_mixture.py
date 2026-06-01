@@ -246,12 +246,8 @@ def sample_f_cond_z_cache(
         # noise ~ N(0, L T^{-1} L.T)
         z_noise = np.random.normal(size=N)
 
-        eps = spla.solve_triangular(
-            cholT,
-            z_noise,
-            lower=True,
-            trans=True,
-        )
+        eps = spla.solve_triangular(cholT, z_noise, lower=True, trans=True)
+      
 
         noise = L @ eps
 
@@ -266,12 +262,7 @@ def sample_f_cond_z_cache(
 
         # noise ~ N(0, A^{-1})
         z_noise = np.random.normal(size=N)
-        noise = spla.solve_triangular(
-            cholA,
-            lower=True,
-            z_noise,
-            trans=True,
-        )
+        noise = spla.solve_triangular(cholA, z_noise, lower=True, trans=True )
 
         return mean + noise
 

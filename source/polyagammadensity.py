@@ -84,6 +84,9 @@ def _as_cholmod_lower_factor(factor):
     Newer local builds can return (L, p) directly. Older scikit-sparse builds
     return a Factor object.
     """
+    # Kleine Adapterfunktion fuer verschiedene scikit-sparse-Versionen:
+    # manche geben direkt (L, perm) zurueck, andere ein Factor-Objekt.
+    # Am Ende wollen wir immer dasselbe Format haben: sparse Cholesky-L und perm.
     if isinstance(factor, tuple):
         return factor[0].tocsc(), np.asarray(factor[1], dtype=int)
 
@@ -97,19 +100,60 @@ def _as_cholmod_lower_factor(factor):
 
 
 def apply_cholesky_sparse(factor, v):
-    F, p = factor
-    tmp = np.empty(v.shape[0], dtype=float)
-    tmp[p] = F @ v[p]
-    return tmp
+    L, perm = _as_cholmod_lower_factor(factor)
+    v = np.asarray(v, dtype=float)
 
+    # CHOLMOD faktorisiert nicht A direkt, sondern die permutierte Matrix:
+    # L L.T = P A P.T.
+    # perm ist dabei "neu -> alt": perm[j] ist der alte/originale Index,
+    # der in der neuen CHOLMOD-Reihenfolge an Position j steht.
+    #
+    # Wir verwenden als Cholesky-Faktor im Originalraum C = P.T L.
+    # Erst rechnen wir y = L v in CHOLMOD-Reihenfolge, dann schreiben wir
+    # mit out[perm] zurueck in die alte/originale Reihenfolge.
+    y = L @ v
+    out = np.empty_like(y, dtype=float)
+    # Bei einem Vektor ist das identisch zu out[perm] = y.
+    # Bei einer Matrix werden nur die Zeilen permutiert, die Spalten bleiben.
+    out[perm, ...] = y
+    return out
 
 def apply_cholesky_sparse_T(factor, v):
-    F, p = factor
-    tmp = np.empty(v.shape[0], dtype=float)
-    tmp[p] = F.T @ v[p]
-    return tmp
+    L, perm = _as_cholmod_lower_factor(factor)
+    v = np.asarray(v, dtype=float)
 
+    # Transponierter Faktor C.T = L.T P.
+    # Also zuerst den Eingabevektor in die CHOLMOD-Reihenfolge bringen:
+    # v[perm] ist die Vorwaertspermutation alt/original -> neu/CHOLMOD.
+    return L.T @ v[perm, ...]
 
+def apply_cholesky_sparse_inverse(factor, v):
+    L, perm = _as_cholmod_lower_factor(factor)
+    v = np.asarray(v, dtype=float)
+
+    # Loest C x = v mit C = P.T L.
+    # Daraus wird L x = P v. Im Array-Code ist P v einfach v[perm].
+    return sparse_linalg.spsolve_triangular(
+        L,
+        v[perm, ...],
+        lower=True,
+    )
+
+def apply_cholesky_sparse_inverse_T(factor, v):
+    L, perm = _as_cholmod_lower_factor(factor)
+    v = np.asarray(v, dtype=float)
+
+    # Loest C.T x = v mit C.T = L.T P.
+    # Erst L.T y = v loesen. y liegt danach noch in CHOLMOD-Reihenfolge.
+    y = sparse_linalg.spsolve_triangular(
+        L.T,
+        v,
+        lower=False,
+    )
+    out = np.empty_like(y, dtype=float)
+    # Ruecksortieren aus CHOLMOD-Reihenfolge in die originale Bin-Reihenfolge.
+    out[perm, ...] = y
+    return out
 
 def _mixture_gaussian_params(z, nobs, mix):
     """
