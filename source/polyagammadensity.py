@@ -106,7 +106,10 @@ def apply_cholesky_sparse_inverse(factor, v):
     pass
 
 def apply_cholesky_sparse_inverse_T(factor, v):
-    pass
+    F, p = factor
+    tmp = np.empty(v.shape[0], dtype=float)
+    tmp[p] = sparse_linalg.spsolve_triangular(F.T, v[p], lower=False)
+    return tmp
 
 
 
@@ -171,8 +174,6 @@ class Density:
             n,m = prior_covariance.shape
             self.sparse = False
             self._Lprior = None
-            self._Vprior = None
-            self._Vsprior = None
             self.prior_precision = None
             self.mode = Density.COVARIANCE    ### covariance Mome
             if not n==m:
@@ -187,7 +188,6 @@ class Density:
             n,m = self.prior_precision.shape
             self.prior_covariance = None
             self._Lprior = None
-            self._Vprior = None
             self.mode = Density.PRECISION
             if not n==m:
                 raise Exception("not a quadratic covariance / precision matrix")
@@ -224,18 +224,6 @@ class Density:
             self._Lprior = sp.linalg.cholesky(self.prior_covariance, lower=True)
         return self._Lprior
     
-    @property
-    def Vprior(self):
-        """
-        Lazy evaluation of Cholesky factor of prior precision
-        """
-        if self._Vprior is None:
-            if self.sparse:
-                self._Vprior = _sparse_cholesky(self.prior_precision)
-            else:
-                self._Vprior = sp.linalg.cholesky(self.prior_precision, lower=True)
-        return self._Vprior
-
     def get_prior_precision(self):
         """
         lazy method that should be avoided all together if dimension is larg
@@ -282,16 +270,38 @@ class Density:
         for LLf, ww in zip(Lf, w):
             res += ww * poisson.pmf(n, LLf)
         return res / res.sum()
+    
+    def posterior_n_single_observation(self, pm, pv2, ncount, n):
+        """
+        The posterior distribution of number of observed events
+        under Gaussian prior (pm, pv2) and a single observation of ncount
+        No correlations are taken into account.
+
+        pm: float, prior mean
+        pv2: float, prior variance
+        ncount: observed number of events
+        n: array(dtype=int), the number of predicted events
+
+        returns: array of length n.shape[0] containing the probabilities to observe n events
+        """
+        
+        # using N_HERMITE points for Hermite integration
+        N_HERMITE = 20
+        f, w = roots_hermite(N_HERMITE)
+        
+        Lf = self.field_from_f( pm + np.sqrt(2 * pv2) *f)
+
+        res = 0
+        tot = 0
+        for LLf, ww in zip(Lf, w):
+            res += ww * poisson.pmf(n, LLf) * poisson.pmf(ncount, LLf)
+            tot += ww * poisson.pmf(ncount, LLf)
+
+        return res / tot
 
     @property
     def nbins(self):
         return self.prior_mean.shape[0]
-    
-    def get_prior_mean(self):
-        """
-        shall be redefined in inheriting class for 2D data
-        """
-        return self.prior_mean
     
     @classmethod
     def random_events_from_field(cls, field):
@@ -341,21 +351,20 @@ class Density:
         raise Exception('please implement me befor using me')
     
     def density_under_gaussian(self, field, mu, gamma2):
-        print('WARNING: depricated, replace by prior field')
-        tmp = np.exp( - (self.f_from_field(field) - mu)**2/(2*gamma2))
+        print('WARNING: depricated, replace by prior single_bin_field')
+        tmp = np.exp( - (self.f_from_field(field) - mu)**2/(2*gamma2)) / np.sqrt(2*np.pi*gamma2)
         tmp /= np.abs(self.derivative_field_from_f(self.f_from_field(field)))
 
-        return tmp / np.sum(tmp)
+        return tmp
     
     def prior_single_bin_f(self, f, mu, gamma2):
-        tmp = np.exp( - (f-mu)**2 / (2* gamma2))
-        tmp /= np.sum(tmp)
+        tmp = np.exp( - (f-mu)**2 / (2* gamma2)) / np.sqrt(2*np.pi*gamma2)
         return tmp
     
     def prior_single_bin_field(self, field, mu, gamma2):
         return self.density_under_gaussian(field, mu, gamma2)
     
-    def log_likelihood_single_obeservation_f(self, f, n):
+    def log_likelihood_single_observation_f(self, f, n):
         field = self.field_from_f(f)
         return self.log_likelihood_single_observation_field(field, n)
 
@@ -368,15 +377,17 @@ class Density:
         tmp = np.exp(tmp)
         tmp /= np.sum(tmp)
 
+        #TODO: compute normalization by Gauss integration instaed
+
         return tmp
     
     def posterior_single_obeservation_f(self, f, mu, gamma2, n):
-        tmp = self.log_likelihood_single_obeservation_f(f, mu, gamma2, n)
+        tmp = self.log_likelihood_single_observation_f(f, mu, gamma2, n)
         tmp -= (f-mu)**2/(2*gamma2)
         tmp -= np.max(tmp)
         tmp = np.exp(tmp)
         tmp /= np.sum(tmp)
-
+        #TODO: compute normalization by Gauss integration instaed
         return tmp
 
     def random_events_from_f(self, f):
@@ -386,13 +397,14 @@ class Density:
         """
         generates a random sample
         """
+        z = np.random.normal(size=self.nbins)
+        
         if self.mode == Density.PRECISION:
             if self.sparse:
-                factor = _sparse_cholesky(self.prior_precision)
-                f = _cholmod_sample_noise(factor, self.nbins)
+                factor = cholesky(self.prior_precision)
+                f = apply_cholesky_sparse_inverse_T(factor, z) 
             else:
                 chol = np.linalg.cholesky(self.prior_precision)
-                z = np.random.normal(size=self.nbins)
                 f = spla.solve_triangular(chol.T, z, lower=False)
         elif self.mode == Density.COVARIANCE and not self.sparse:
             f = np.dot(self.Lprior, np.random.normal(size=self.nbins))
@@ -1158,112 +1170,4 @@ class ExponentialDensity2D(Mixin2D, ExponentialDensity):
     
 
 if __name__ == '__main__':
-
-    import syntheticdata as sd
-    from scipy.optimize import minimize
-    import matplotlib.pyplot as plt
-
-
-    n, m = 20, 20
-
-    pm = 5
-    lam = 20   ## then mean(n) = lam/2
-    gam = 5 #16 * 20**2 / lam**2
-    rho = 3
-
-    kwargs={'lam' : lam, 'n': n, 'm': m}
-    
-    DensityClass = PolyaGammaDensity2D ##RampDensity
-
-    #DensityClass = RampDensity2D
-
-    pgd = DensityClass(
-        prior_mean = pm * np.ones( n * m),
-        prior_covariance=sd.spatial_covariance_gaussian(n, m, rho, gam),
-        lam=lam,
-        n=n,
-        m=m
-    )
-
-    plt.figure()
-    plt.title('density of distribution of field')
-    ff = np.linspace(0, lam, 100000)[1:-1]
-    plt.plot( ff, DensityClass(**kwargs).density_under_gaussian(ff, pm, gam))
-    plt.show()
-
-    prior = pgd.random_prior_parameters()
-
-    plt.figure()
-    plt.title('prior parameter f')
-    plt.imshow( sd.scanorder_to_image( prior, n, m ).T)
-
-
-
-    prior_field = pgd.field_from_f(prior)
-
-    plt.figure()
-    plt.title('frequency field')
-    plt.imshow( sd.scanorder_to_image(prior_field, n, m).T)
-
-
-    events = pgd.random_events_from_field(prior_field)
-    plt.figure()
-    plt.title('random events')
-    plt.imshow( sd.scanorder_to_image(events, n, m).T)
-
-    pgd.set_data(events)
-    print(np.min(events), np.max(events))
-
-    
-
-    plt.figure()
-    plt.title('first guess')
-    fg = pgd.first_guess_estimator()
-    pgd.imshow(fg)
-
-    grad = pgd.neg_grad_logposterior(prior)
-
-    plt.figure()
-    plt.title("Gradient log-posterior von prior sample")
-    plt.imshow( sd.scanorder_to_image( grad, n, m ).T)  
-
-    
-    #%%
-    '''compare with scipy approx
-    vorher logposterior anpassen
-    '''
-    #%%
-
-
-    #res = pgd.max_logposterior_estimator()
-
-    res = pgd.max_logposterior_estimator(fg, method='CG', niter=8000)
-    
-    plt.figure()
-    plt.title(f"max_posterior estimate of field")
-    plt.imshow( sd.scanorder_to_image( pgd.field_from_f(res), n, m ).T)
-
-    #res = pgd.max_logposterior_estimator(res, niter=100, method='CG')
-
-    #plt.figure()
-    #plt.title("additional CG step for max_posterior estimate of field")
-    #plt.imshow( sd.scanorder_to_image( pgd.field_from_f(res), n, m ).T)
-
-
-
-
-    plt.figure()
-    plt.title('relative error params')
-    plt.imshow( sd.scanorder_to_image( (res/prior -1)*100, n, m ).T)
-
-
-    plt.figure()
-    plt.title('gradient')
-    plt.imshow( sd.scanorder_to_image( pgd.neg_grad_logposterior(res), n, m ).T)
-
-    for res in pgd.sample_posterior(initial_f=res, n_iter=10):
-        plt.figure()
-        pgd.imshow(res)
-
-
-    plt.show()
+    pass
