@@ -127,33 +127,7 @@ def apply_cholesky_sparse_T(factor, v):
     # v[perm] ist die Vorwaertspermutation alt/original -> neu/CHOLMOD.
     return L.T @ v[perm, ...]
 
-def apply_cholesky_sparse_inverse(factor, v):
-    L, perm = _as_cholmod_lower_factor(factor)
-    v = np.asarray(v, dtype=float)
 
-    # Loest C x = v mit C = P.T L.
-    # Daraus wird L x = P v. Im Array-Code ist P v einfach v[perm].
-    return sparse_linalg.spsolve_triangular(
-        L,
-        v[perm, ...],
-        lower=True,
-    )
-
-def apply_cholesky_sparse_inverse_T(factor, v):
-    L, perm = _as_cholmod_lower_factor(factor)
-    v = np.asarray(v, dtype=float)
-
-    # Loest C.T x = v mit C.T = L.T P.
-    # Erst L.T y = v loesen. y liegt danach noch in CHOLMOD-Reihenfolge.
-    y = sparse_linalg.spsolve_triangular(
-        L.T,
-        v,
-        lower=False,
-    )
-    out = np.empty_like(y, dtype=float)
-    # Ruecksortieren aus CHOLMOD-Reihenfolge in die originale Bin-Reihenfolge.
-    out[perm, ...] = y
-    return out
 
 def _mixture_gaussian_params(z, nobs, mix):
     """
@@ -255,18 +229,19 @@ class Density:
         self.nobs = nobs.ravel()
         self.ndata = sum(self.nobs)
 
-    def apply_cholesky_sparse_inverse(self, factor, v):
-        F, p = factor
-        tmp = np.empty(v.shape[0], dtype=float)
-        tmp[p] = sparse_linalg.spsolve_triangular(F, v[p], lower=True)
-        return tmp
+    def apply_cholesky_sparse_inverse(factor, v):
+        L, perm = _as_cholmod_lower_factor(factor)
+        v = np.asarray(v, dtype=float)
+
+        # Loest C x = v mit C = P.T L.
+        # Daraus wird L x = P v. Im Array-Code ist P v einfach v[perm].
+        return sparse_linalg.spsolve_triangular(L, v[perm, ...], lower=True)
 
 
-    def apply_cholesky_sparse_inverse_T(self, factor, v):
-        F, p = factor
-        tmp = np.empty(v.shape[0], dtype=float)
-        tmp[p] = sparse_linalg.spsolve_triangular(F.T, v[p], lower=False)
-        return tmp
+    def apply_cholesky_sparse_inverse_T(factor, v):
+        L, perm = _as_cholmod_lower_factor(factor)
+        v = np.asarray(v, dtype=float)
+        return sparse_linalg.spsolve_triangular(L.T, v, lower=False)
     
     @property
     def Lprior(self):
@@ -286,9 +261,11 @@ class Density:
         if self.mode == Density.PRECISION:
             return self.prior_precision
 
-        if not hasattr(self, 'prior_precision'):
-            tmp = self.apply_prior_choleski_covar_inverse(np.identity(self.nbins))
-            self.prior_precision = self.apply_prior_choleski_covar_inverse_T(tmp)
+        if self.mode == Density.COVARIANCE:
+            I = np.eye(self.nbins)
+            tmp =  sp.linalg.solve_triangular(self.Lprior, I,  trans=False, lower=True)
+          
+            self.prior_precision = sp.linalg.solve_triangular(self.Lprior, tmp, trans=True, lower=True)
         
         return self.prior_precision
     
@@ -525,13 +502,7 @@ class Density:
     #def apply_prior_choleski_covar_T(self, f):
     #    return self.Lprior.T @ f
     # 
-    def _apply_prior_inverse_covar(self, f):
-        tmp = self.apply_prior_choleski_covar_inverse(f)
-        tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
-        return tmp
-    
-    def _apply_prior_precision(self, f):
-        return self.apply_prior_inverse_covar(f)
+
  
     def neg_grad_logposterior(self, f):
         """
