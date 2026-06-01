@@ -418,7 +418,7 @@ class Density:
         
         if self.mode == Density.PRECISION:
             if self.sparse:
-                factor = cholesky(self.prior_precision)
+                factor = cholesky(self.prior_precision, lower=True)
                 f = self.apply_cholesky_sparse_inverse_T(factor, z) 
             else:
                 chol = np.linalg.cholesky(self.prior_precision)
