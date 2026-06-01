@@ -129,27 +129,6 @@ def apply_cholesky_sparse_T(factor, v):
 
 
 
-def _mixture_gaussian_params(z, nobs, mix):
-    """
-    Return diagonal Gaussian likelihood parameters for a fixed mixture state z.
-    """
-    z = np.asarray(z, dtype=int)
-    nobs = np.asarray(nobs, dtype=int)
-    N = int(nobs.shape[0])
-
-    mu = np.empty(N, dtype=float)
-    s2 = np.empty(N, dtype=float)
-    for i in range(N):
-        n_i = int(nobs[i])
-        mu[i] = float(mix["means"][n_i][int(z[i])])
-        sigma = float(mix["sigma"][n_i])
-        s2[i] = sigma * sigma
-
-    dinv = 1.0 / (s2 + 1e-15)
-    return mu, dinv
-
-
-
 
 class Density:
     """
@@ -233,15 +212,21 @@ class Density:
         L, perm = _as_cholmod_lower_factor(factor)
         v = np.asarray(v, dtype=float)
 
-        # Loest C x = v mit C = P.T L.
-        # Daraus wird L x = P v. Im Array-Code ist P v einfach v[perm].
+        # Solve C x = v with C = P.T L.
+        # This becomes L x = P v. In array code, P v is simply v[perm].
         return sparse_linalg.spsolve_triangular(L, v[perm, ...], lower=True)
-
 
     def apply_cholesky_sparse_inverse_T(factor, v):
         L, perm = _as_cholmod_lower_factor(factor)
         v = np.asarray(v, dtype=float)
-        return sparse_linalg.spsolve_triangular(L.T, v, lower=False)
+
+        # Solve C.T x = v with C.T = L.T P.
+        # First solve L.T y = v. Afterwards y is still in CHOLMOD order.
+        y = sparse_linalg.spsolve_triangular(L.T, v, lower=False)
+        out = np.empty_like(y, dtype=float)
+        # Sort back from CHOLMOD order into the original bin order.
+        out[perm, ...] = y
+        return out
     
     @property
     def Lprior(self):
@@ -434,7 +419,7 @@ class Density:
         if self.mode == Density.PRECISION:
             if self.sparse:
                 factor = cholesky(self.prior_precision)
-                f = apply_cholesky_sparse_inverse_T(factor, z) 
+                f = self.apply_cholesky_sparse_inverse_T(factor, z) 
             else:
                 chol = np.linalg.cholesky(self.prior_precision)
                 f = spla.solve_triangular(chol.T, z, lower=False)
@@ -810,21 +795,12 @@ class SigmoidMixin(Density):
             elif self.mode == Density.PRECISION and self.sparse:
                 A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
 
-                F, p = cholesky(A, lower=True)
-
-
-                bb = np.empty(self.nbins, dtype=float)
-                bb = b[p]
-                tmp = sparse_linalg.spsolve_triangular(F, bb, lower=True)
-                tmp = sparse_linalg.spsolve_triangular(F.T, tmp, lower=False)
-
-                m = np.empty(self.nbins, dtype=float)
-                m[p] = tmp
+                factor = cholesky(A, lower=True)
+                tmp = self.apply_cholesky_sparse_inverse(factor, b)
+                m = self.apply_cholesky_sparse_inverse_T(factor, tmp)
 
                 z = np.random.normal(size=nbins)
-
-                eps = np.empty(self.nbins, dtype=float)
-                eps[p] = sparse_linalg.spsolve_triangular(F.T, z, lower=False)
+                eps = self.apply_cholesky_sparse_inverse_T(factor, z)
 
                 f = m + eps
 
