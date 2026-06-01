@@ -137,9 +137,25 @@ L.T x = y
 
 und gibt `x = Sigma0^-1 v` zurueck.
 
-### `_sparse_cholesky(A)`
+### Sparse Cholesky und alte Helper
 
 Sparse Cholesky wird ueber `sksparse.cholmod.cholesky(A, lower=True)` berechnet. SciPy selbst hat keine native sparse Cholesky-Zerlegung fuer symmetrisch positive definite Matrizen.
+
+Im aktuellen Code wird dafuer direkt
+
+```python
+factor = cholesky(A, lower=True)
+```
+
+verwendet. Frueher gab es dafuer einen kleinen Wrapper `_sparse_cholesky(A)`. Die alte Idee war:
+
+```python
+def _sparse_cholesky(A):
+    from sksparse.cholmod import cholesky
+    return cholesky(A, lower=True)
+```
+
+Diese alte Schreibweise ist hier noch dokumentiert, weil sie fuer das Verstaendnis des sparse Pfads hilfreich ist. Im Code selbst gibt es `_sparse_cholesky` aber nicht mehr.
 
 CHOLMOD nutzt intern eine Permutation, um Fill-in zu reduzieren. Das ist wichtig: Es wird nicht direkt
 
@@ -196,7 +212,36 @@ Kurz:
 - Nach dem Loesen: permutierte Loesung `z` wird mit `x[perm] = z` wieder in alte/originale Reihenfolge gebracht.
 - `perm` ist also kein Array "neuer Index pro altem Index", sondern wird im Code als "alter Index pro neuer/permutierter Position" benutzt.
 
-### `_cholmod_solve_A(factor, b)`
+### Aktuelle sparse Cholesky-Operatoren
+
+Der aktuelle Code verwendet vier kleine Operatorfunktionen:
+
+```python
+apply_cholesky_sparse(factor, v)
+apply_cholesky_sparse_T(factor, v)
+apply_cholesky_sparse_inverse(factor, v)
+apply_cholesky_sparse_inverse_T(factor, v)
+```
+
+Sie interpretieren den CHOLMOD-Faktor als Faktor im Originalraum
+
+```text
+C = P.T L
+C C.T = A
+```
+
+Damit bedeuten die Funktionen:
+
+```text
+apply_cholesky_sparse           -> C v
+apply_cholesky_sparse_T         -> C.T v
+apply_cholesky_sparse_inverse   -> C^-1 v
+apply_cholesky_sparse_inverse_T -> C^-T v
+```
+
+Die alten Helfer `_cholmod_solve_A` und `_cholmod_sample_noise` sind im aktuellen Code dadurch ersetzt. Sie bleiben hier als Rechenweg stehen, weil sie explizit zeigen, wie die Permutation eingesetzt wird.
+
+### `_cholmod_solve_A(factor, b)` (fruehere Version)
 
 Loest
 
@@ -225,7 +270,7 @@ Die Loesung im permutierten System ist `z = P x`; die Ruecktransformation ist `x
 
 Hinweis zur Quelle: scikit-sparse dokumentiert fuer `CholeskyFactor.solve(..., system="A")`, dass nur das `A`-System die Permutation automatisch beruecksichtigt. Die manuelle Loesung in dieser Datei macht diesen Schritt deshalb explizit: erst `b[perm]`, dann die Dreieckssysteme, dann `x[perm] = z`.
 
-### `_cholmod_sample_noise(factor, size)`
+### `_cholmod_sample_noise(factor, size)` (fruehere Version)
 
 Soll einen Gaußschen Rauschterm
 
@@ -248,13 +293,14 @@ eps[perm] = eps_permuted
 
 berechnet.
 
-Wichtig zur aktuellen Implementierung:
+Im aktuellen Code wird der Noise direkt so erzeugt:
 
 ```python
-z = np.ones(size)  # np.random.normal(size=size)
+z = np.random.normal(size=nbins)
+eps = apply_cholesky_sparse_inverse_T(factor, z)
 ```
 
-Aktuell ist `z` also deterministisch auf Einsen gesetzt. Fuer echtes Sampling aus `N(0, A^-1)` muesste hier normalerweise ein Standardnormalvektor verwendet werden. Die mathematische Absicht ist der Cholesky-Noise-Draw, aber der aktuelle Code erzeugt dadurch keinen zufaelligen Normalterm.
+Das entspricht dem alten `eps = L.T \ z` mit anschliessendem Ruecksortieren in die originale Bin-Reihenfolge.
 
 ## Gaussian-Mixture-Hilfen
 
@@ -667,13 +713,27 @@ Im Code:
 
 ```python
 A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
+factor = cholesky(A, lower=True)
+tmp = apply_cholesky_sparse_inverse(factor, bvec)
+m = apply_cholesky_sparse_inverse_T(factor, tmp)
+
+z = np.random.normal(size=nbins)
+eps = apply_cholesky_sparse_inverse_T(factor, z)
+f = m + eps
+```
+
+Hier entsteht die CHOLMOD-Permutation. `A` wird von CHOLMOD aus Fill-in-Gruenden in eine neue Ordnung gebracht. Die Funktionen `apply_cholesky_sparse_inverse` und `apply_cholesky_sparse_inverse_T` erledigen das Umsortieren mit `v[perm]` und `out[perm] = ...` intern. Das gespeicherte `f` ist also wieder in der normalen Scan-Reihenfolge.
+
+Frueher stand hier sinngemaess:
+
+```python
 factor = _sparse_cholesky(A)
 m = _cholmod_solve_A(factor, bvec)
 eps = _cholmod_sample_noise(factor, nbins)
 f = m + eps
 ```
 
-Hier entsteht die CHOLMOD-Permutation. `A` wird von CHOLMOD aus Fill-in-Gruenden in eine neue Ordnung gebracht. `m` und `eps` werden am Ende durch `x[perm] = z` beziehungsweise `eps[perm] = eps_permuted` wieder in die alte/originale Bin-Reihenfolge zurueckgeschrieben. Das gespeicherte `f` ist also wieder in der normalen Scan-Reihenfolge.
+Das ist mathematisch dieselbe Absicht, nur heute auf die allgemeineren `apply_cholesky_sparse*`-Operatoren verteilt.
 
 #### Precision mode, dicht
 

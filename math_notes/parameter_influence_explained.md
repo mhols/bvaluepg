@@ -1,6 +1,6 @@
 # Einfluss der Parameter auf die Verteilungen
 
-Dieses Experiment betrachtet die Bausteine getrennt: Link-Funktion, Poisson-Likelihood und raeumlicher Gaussian-Prior. Das ist sinnvoll, weil dieselben Parameter im Posterior zusammenwirken, aber einzeln leichter zu interpretieren sind.
+Dieses Experiment betrachtet die Bausteine getrennt: Link-Funktion, Poisson-Likelihood, eindimensionale Posterior-Dichte und raeumlicher Gaussian-Prior. Das ist sinnvoll, weil dieselben Parameter im Posterior zusammenwirken, aber einzeln leichter zu interpretieren sind.
 
 ## Link-Funktionen
 
@@ -44,7 +44,20 @@ Fuer beobachtete Counts `n` gilt `p(n | rate) proportional rate^n * exp(-rate)`.
 - Als Funktion von `f` haengt die Form stark vom Link ab:
   - `exp`: Maximum bei `f = log(n)` fuer `n > 0`.
   - `softplus`: Maximum bei dem `f`, fuer das `softplus(kf)/k = n`.
-  - `sigmoid`: Maximum bei dem `f`, fuer das `lam * sigmoid(f) = n`, sofern `n < lam`. Wenn `n >= lam`, drueckt die Likelihood an die obere Sättigung.
+  - `sigmoid`: Maximum bei dem `f`, fuer das `lam * sigmoid(f) = n`, sofern `n < lam`. Wenn `n >= lam`, drueckt die Likelihood an die obere Saettigung.
+
+## Eindimensionale Posterior-Dichte
+
+Die neuen Posterior-Plots betrachten eine einzelne Zelle isoliert:
+
+`p(f | n) proportional p(n | rate(f)) * N(f | mu, v2)`
+
+- `n` ist der beobachtete Count in dieser Zelle. Kleine Counts ziehen den Posterior zu kleinen Raten, grosse Counts zu groesseren Raten.
+- `mu` und `v2` bestimmen den Gaussian-Prior auf `f`. Kleine `v2` halten den Posterior nahe am Prior-Mittelwert, grosse `v2` lassen die Likelihood staerker dominieren.
+- Bei `sigmoid` kann der Posterior fuer grosse `n` an die Saettigung laufen, wenn `lam` zu klein ist.
+- Bei `softplus` veraendert `k` besonders den linken Posterior-Tail und die Schaerfe des Uebergangs nahe Rate `0`.
+- Bei `exp` liegt der Likelihood-Peak fuer `n > 0` nahe `log(n)`, aber der Prior kann diesen Peak deutlich verschieben oder verbreitern.
+- Die Plots zeigen bewusst `prior`, `likelihood` und `posterior` zusammen, damit sichtbar ist, welcher Bestandteil die Form dominiert.
 
 ## Raeumlicher Gaussian-Prior
 

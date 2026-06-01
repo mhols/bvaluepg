@@ -546,15 +546,23 @@ Prior `Q`.
 
   ———
 
-  ## 5. _sparse_cholesky(A)
+  ## 5. Sparse Cholesky: aktueller Code und alte Helper
 
-  Funktion:
+  Aktuell steht im Code direkt:
+
+  ```python
+  factor = cholesky(A, lower=True)
+  ```
+
+  Frueher war das als eigener Helper geschrieben. Die alte Funktion war:
 
   source/polyagammadensity.py:123
 
   def _sparse_cholesky(A):
       from sksparse.cholmod import cholesky
       return cholesky(A, lower=True)
+
+  `_sparse_cholesky` gibt es im aktuellen Code nicht mehr. Die Beschreibung bleibt hier stehen, weil sie zeigt, dass der Factor einfach aus `sksparse.cholmod.cholesky(A, lower=True)` kommt.
 
   Input:
 
@@ -590,7 +598,24 @@ Prior `Q`.
 
   ———
 
-  ## 6. _cholmod_solve_A(factor, bvec)
+  ## 6. apply_cholesky_sparse* und alter _cholmod_solve_A-Weg
+
+  Aktuell wird `A m = bvec` nicht mehr mit `_cholmod_solve_A` geloest, sondern mit den neuen Operatoren:
+
+  ```python
+  tmp = apply_cholesky_sparse_inverse(factor, bvec)
+  m = apply_cholesky_sparse_inverse_T(factor, tmp)
+  ```
+
+  Das ist:
+
+  ```text
+  m = C^-T C^-1 bvec = A^-1 bvec
+  ```
+
+  mit `C C.T = A`.
+
+  Der alte Helper sah sinngemaess so aus und bleibt zum Verstaendnis der Permutation wichtig:
 
   Funktion:
 
@@ -646,13 +671,20 @@ Prior `Q`.
 
   ———
 
-  ## 7. _cholmod_sample_noise(factor, nbins)
+  ## 7. apply_cholesky_sparse_inverse_T und alter _cholmod_sample_noise-Weg
 
   Funktion:
 
   source/polyagammadensity.py:111
 
-  Im Sampler:
+  Aktuell steht im Sampler:
+
+  ```python
+  z = np.random.normal(size=nbins)
+  eps = apply_cholesky_sparse_inverse_T(factor, z)
+  ```
+
+  Das ersetzt den alten Helper-Aufruf:
 
   eps = _cholmod_sample_noise(factor, nbins)
 
@@ -740,9 +772,11 @@ Zieht uns einen Zufallsanteil:
   Dann im Sampler:
 
   A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
-  factor = _sparse_cholesky(A)
-  m = _cholmod_solve_A(factor, bvec)
-  eps = _cholmod_sample_noise(factor, nbins)
+  factor = cholesky(A, lower=True)
+  tmp = apply_cholesky_sparse_inverse(factor, bvec)
+  m = apply_cholesky_sparse_inverse_T(factor, tmp)
+  z = np.random.normal(size=nbins)
+  eps = apply_cholesky_sparse_inverse_T(factor, z)
   f = m + eps
 
-  Das sollte komplette sparse Polya-Gamma-Weg.
+  Das ist der aktuelle sparse Polya-Gamma-Weg. Die alten Namen `_sparse_cholesky`, `_cholmod_solve_A` und `_cholmod_sample_noise` beschreiben denselben Rechenweg, sind aber im Code durch die `apply_cholesky_sparse*`-Operatoren ersetzt.
