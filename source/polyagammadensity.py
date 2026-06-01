@@ -84,9 +84,15 @@ def _as_cholmod_lower_factor(factor):
     Newer local builds can return (L, p) directly. Older scikit-sparse builds
     return a Factor object.
     """
+<<<<<<< HEAD
     # Small adapter for different scikit-sparse versions:
     # some return (L, perm) directly, others return a Factor object.
     # In the end we always want the same format: sparse Cholesky L and perm.
+=======
+    # Kleine Adapterfunktion fuer verschiedene scikit-sparse-Versionen:
+    # manche geben direkt (L, perm) zurueck, andere ein Factor-Objekt.
+    # Am Ende wollen wir immer dasselbe Format haben: sparse Cholesky-L und perm.
+>>>>>>> monday_branch
     if isinstance(factor, tuple):
         return factor[0].tocsc(), np.asarray(factor[1], dtype=int)
 
@@ -103,6 +109,7 @@ def apply_cholesky_sparse(factor, v):
     L, perm = _as_cholmod_lower_factor(factor)
     v = np.asarray(v, dtype=float)
 
+<<<<<<< HEAD
     # CHOLMOD does not factorize A directly, but the permuted matrix:
     # L L.T = P A P.T.
     # perm is "new -> old": perm[j] is the old/original index
@@ -115,12 +122,27 @@ def apply_cholesky_sparse(factor, v):
     out = np.empty_like(y, dtype=float)
     # For a vector this is identical to out[perm] = y.
     # For a matrix only the rows are permuted; columns are left untouched.
+=======
+    # CHOLMOD faktorisiert nicht A direkt, sondern die permutierte Matrix:
+    # L L.T = P A P.T.
+    # perm ist dabei "neu -> alt": perm[j] ist der alte/originale Index,
+    # der in der neuen CHOLMOD-Reihenfolge an Position j steht.
+    #
+    # Wir verwenden als Cholesky-Faktor im Originalraum C = P.T L.
+    # Erst rechnen wir y = L v in CHOLMOD-Reihenfolge, dann schreiben wir
+    # mit out[perm] zurueck in die alte/originale Reihenfolge.
+    y = L @ v
+    out = np.empty_like(y, dtype=float)
+    # Bei einem Vektor ist das identisch zu out[perm] = y.
+    # Bei einer Matrix werden nur die Zeilen permutiert, die Spalten bleiben.
+>>>>>>> monday_branch
     out[perm, ...] = y
     return out
 
 def apply_cholesky_sparse_T(factor, v):
     L, perm = _as_cholmod_lower_factor(factor)
     v = np.asarray(v, dtype=float)
+<<<<<<< HEAD
 
     # Transposed factor C.T = L.T P.
     # Therefore first put the input vector into CHOLMOD order:
@@ -173,6 +195,13 @@ def _mixture_gaussian_params(z, nobs, mix):
 
     dinv = 1.0 / (s2 + 1e-15)
     return mu, dinv
+=======
+
+    # Transponierter Faktor C.T = L.T P.
+    # Also zuerst den Eingabevektor in die CHOLMOD-Reihenfolge bringen:
+    # v[perm] ist die Vorwaertspermutation alt/original -> neu/CHOLMOD.
+    return L.T @ v[perm, ...]
+>>>>>>> monday_branch
 
 
 
@@ -254,6 +283,26 @@ class Density:
             assert len(nobs.ravel()) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
         self.nobs = nobs.ravel()
         self.ndata = sum(self.nobs)
+
+    def apply_cholesky_sparse_inverse(factor, v):
+        L, perm = _as_cholmod_lower_factor(factor)
+        v = np.asarray(v, dtype=float)
+
+        # Solve C x = v with C = P.T L.
+        # This becomes L x = P v. In array code, P v is simply v[perm].
+        return sparse_linalg.spsolve_triangular(L, v[perm, ...], lower=True)
+
+    def apply_cholesky_sparse_inverse_T(factor, v):
+        L, perm = _as_cholmod_lower_factor(factor)
+        v = np.asarray(v, dtype=float)
+
+        # Solve C.T x = v with C.T = L.T P.
+        # First solve L.T y = v. Afterwards y is still in CHOLMOD order.
+        y = sparse_linalg.spsolve_triangular(L.T, v, lower=False)
+        out = np.empty_like(y, dtype=float)
+        # Sort back from CHOLMOD order into the original bin order.
+        out[perm, ...] = y
+        return out
     
     @property
     def Lprior(self):
@@ -273,9 +322,11 @@ class Density:
         if self.mode == Density.PRECISION:
             return self.prior_precision
 
-        if not hasattr(self, 'prior_precision'):
-            tmp = self.apply_prior_choleski_covar_inverse(np.identity(self.nbins))
-            self.prior_precision = self.apply_prior_choleski_covar_inverse_T(tmp)
+        if self.mode == Density.COVARIANCE:
+            I = np.eye(self.nbins)
+            tmp =  sp.linalg.solve_triangular(self.Lprior, I,  trans=False, lower=True)
+          
+            self.prior_precision = sp.linalg.solve_triangular(self.Lprior, tmp, trans=True, lower=True)
         
         return self.prior_precision
     
@@ -443,8 +494,13 @@ class Density:
         
         if self.mode == Density.PRECISION:
             if self.sparse:
+<<<<<<< HEAD
                 factor = cholesky(self.prior_precision, lower=True)
                 f = apply_cholesky_sparse_inverse_T(factor, z) 
+=======
+                factor = cholesky(self.prior_precision)
+                f = self.apply_cholesky_sparse_inverse_T(factor, z) 
+>>>>>>> monday_branch
             else:
                 chol = np.linalg.cholesky(self.prior_precision)
                 f = spla.solve_triangular(chol.T, z, lower=False)
@@ -512,13 +568,7 @@ class Density:
     #def apply_prior_choleski_covar_T(self, f):
     #    return self.Lprior.T @ f
     # 
-    def _apply_prior_inverse_covar(self, f):
-        tmp = self.apply_prior_choleski_covar_inverse(f)
-        tmp = self.apply_prior_choleski_covar_inverse_T(tmp)
-        return tmp
-    
-    def _apply_prior_precision(self, f):
-        return self.apply_prior_inverse_covar(f)
+
  
     def neg_grad_logposterior(self, f):
         """
@@ -827,11 +877,19 @@ class SigmoidMixin(Density):
                 A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
 
                 factor = cholesky(A, lower=True)
+<<<<<<< HEAD
                 tmp = apply_cholesky_sparse_inverse(factor, b)
                 m = apply_cholesky_sparse_inverse_T(factor, tmp)
 
                 z = np.random.normal(size=nbins)
                 eps = apply_cholesky_sparse_inverse_T(factor, z)
+=======
+                tmp = self.apply_cholesky_sparse_inverse(factor, b)
+                m = self.apply_cholesky_sparse_inverse_T(factor, tmp)
+
+                z = np.random.normal(size=nbins)
+                eps = self.apply_cholesky_sparse_inverse_T(factor, z)
+>>>>>>> monday_branch
 
                 f = m + eps
 

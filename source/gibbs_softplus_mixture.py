@@ -6,6 +6,9 @@ import numpy as np
 import scipy.linalg as spla
 from pathlib import Path
 import pickle
+import scipy.sparse as sps
+import scipy.sparse.linalg as sparse_linalg
+from sksparse.cholmod import cholesky
 from cvxopt import matrix as cvxmat, solvers as cvxsolvers
 cvxsolvers.options["show_progress"] = False
 
@@ -75,34 +78,65 @@ def prepare_f_cond_z(dens) -> dict:
     s2 = sigma * sigma
     dinv = 1.0 / (s2 + 1e-15)
 
-    Q_prior_mean = dens.apply_prior_precision(prior_mean)
+
 
     cache = {
         "mode": dens.mode,
         "nobs": nobs,
         "dinv": dinv,
-        "Q_prior_mean": Q_prior_mean,
     }
 
-    if dens.mode == dens.COVARIANCE:
-        I = np.eye(N)
+    if dens.mode == dens.COVARIANCE and not dens.sparse:
+        L = dens.Lprior
 
-        # This is L, but obtained through the prior interface.
-        L = dens.apply_prior_choleski_covar(I)
+        # Q mu0 = C^{-1} mu0 = L^{-T} L^{-1} mu0
+        y = spla.solve_triangular(L, prior_mean, lower=True, trans=False)
+        Q_prior_mean = spla.solve_triangular(L, y, lower=True, trans=True)
 
-        # T = I + L.T @ D^{-1} L
-        T = I + dens.apply_prior_choleski_covar_T(dinv[:, None] * L)
+        # T = I + L.T D^{-1} L
+        T = np.eye(N) + L.T @ (dinv[:, None] * L)
+        cholT = spla.cholesky(T, lower=True)
 
-        cache["cholT"] = spla.cholesky(T, lower=True)
+        cache["L"] = L
+        cache["cholT"] = cholT
+        cache["Q_prior_mean"] = Q_prior_mean
 
-    elif dens.mode == dens.PRECISION:
-        A = np.asarray(dens.prior_precision, dtype=float) + np.diag(dinv)
-        cache["cholA"] = spla.cholesky(A, lower=True)
+    elif dens.mode == dens.PRECISION and not dens.sparse:
+        Q = np.asarray(dens.prior_precision, dtype=float)
+
+        # Q mu0
+        Q_prior_mean = Q @ prior_mean
+
+        # A = Q + D^{-1}
+        A = Q + np.diag(dinv)
+        cholA = spla.cholesky(A, lower=True)
+
+        cache["Q_prior_mean"] = Q_prior_mean
+        cache["cholA"] = cholA
+
+    elif dens.mode == dens.PRECISION and dens.sparse:
+        Q = dens.prior_precision
+
+        # Q mu0
+        Q_prior_mean = Q @ prior_mean
+
+        # A = Q + D^{-1}
+        A = (Q + sps.diags(dinv, format="csc")).tocsc()
+
+        # Sparse Cholesky: P A P.T = F F.T
+        factor_A = cholesky(A, lower=True)
+
+        cache["Q_prior_mean"] = Q_prior_mean
+        cache["factor_A"] = factor_A 
+  
 
     else:
-        raise ValueError(f"Unknown prior mode: {dens.mode}")
+        raise Exception(
+            "not implemented yet"
+        )
 
     return cache
+
 
 def sample_f_cond_z(
     z: np.ndarray,
@@ -197,48 +231,62 @@ def sample_f_cond_z_cache(
     # b = Q mu0 + D^{-1} mu_z
     b = Q_prior_mean + dinv * mu
 
-    if mode == dens.COVARIANCE:
+    if mode == dens.COVARIANCE  and not dens.sparse:
+        L = cache["L"]
         cholT = cache["cholT"]
 
-        # Solve posterior mean using covariance-Cholesky representation.
-        #
-        # mean = (Q + D^{-1})^{-1} b
-        #      = L T^{-1} L.T b
-        #
-        # where T = I + L.T D^{-1} L.
-        Lt_b = dens.apply_prior_choleski_covar_T(b)
+        # mean = L T^{-1} L.T b
+        rhs = L.T @ b
 
-        y = spla.solve_triangular(cholT, Lt_b, lower=True)
-        x = spla.solve_triangular(cholT.T, y, lower=False)
+        y = spla.solve_triangular(cholT, rhs, lower=True, trans=False)
+        x = spla.solve_triangular(cholT, y, lower=True, trans=True)
 
-        mean = dens.apply_prior_choleski_covar(x)
+        mean = L @ x
 
-        # Draw posterior noise:
-        #
-        # noise ~ N(0, (Q + D^{-1})^{-1})
-        #       = N(0, L T^{-1} L.T)
-        u = np.random.normal(size=N)
-        v = spla.solve_triangular(cholT.T, u, lower=False)
-        noise = dens.apply_prior_choleski_covar(v)
+        # noise ~ N(0, L T^{-1} L.T)
+        z_noise = np.random.normal(size=N)
+
+        eps = spla.solve_triangular(cholT, z_noise, lower=True, trans=True)
+      
+
+        noise = L @ eps
 
         return mean + noise
 
-    elif mode == dens.PRECISION:
+    elif mode == dens.PRECISION and not dens.sparse:
         cholA = cache["cholA"]
 
-        # A = Q + D^{-1}
         # mean = A^{-1} b
-        y = spla.solve_triangular(cholA, b, lower=True)
-        mean = spla.solve_triangular(cholA.T, y, lower=False)
+        y = spla.solve_triangular(cholA, b, lower=True, trans=False)
+        mean = spla.solve_triangular(cholA, y, lower=True, trans=True)
 
         # noise ~ N(0, A^{-1})
-        u = np.random.normal(size=N)
-        noise = spla.solve_triangular(cholA.T, u, lower=False)
+        z_noise = np.random.normal(size=N)
+        noise = spla.solve_triangular(cholA, z_noise, lower=True, trans=True )
+
+        return mean + noise
+
+    elif mode == dens.PRECISION and dens.sparse:
+        factor_A = cache["factor_A"]
+
+
+        # Solve A mean = b.
+      
+        tmp =  dens.apply_cholesky_sparse_inverse(factor_A, b)
+        mean = dens.apply_cholesky_sparse_inverse_T(factor_A, tmp)
+
+        
+
+        # noise ~ N(0, A^{-1})
+        z_noise = np.random.normal(size=N)
+
+ 
+        noise = dens.apply_cholesky_sparse_inverse_T(factor_A, z_noise)
 
         return mean + noise
 
     else:
-        raise ValueError(f"Unknown prior mode: {mode}")
+        raise Exception("not implemented yet")
 
 
 
