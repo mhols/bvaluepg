@@ -277,13 +277,15 @@ class PicturesForPaper:
         Sparse Matern Covariance
         """
 
-        n = 52
-        Q = ck.precision_matern_9pt(n, 1, 1000)
+        n = 256
+        L = ck.precision_matern_9pt(n, 0.01, 1)
+        Q = L.T @ L
 
         e = np.zeros(Q.shape[0])
         e[ n*n//2+n//2] = 1
 
         kernel = sparse_linalg.spsolve(Q, e)
+        #kernel = Q @ e
 
         plt.figure()
         plt.imshow(pg.Mixin2D().scanorder_to_image(kernel, n, n))
