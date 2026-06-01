@@ -322,8 +322,6 @@ def experiment_1_sparse_precision(
     else:
       raise ValueError("stencil must be '5pt' or '9pt'")
 
-
-    precision = grid_precision_laplacian_9pt(n, tau=tau, alpha=alpha)
     estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=True)
     data = estim.random_events_from_field(estim.field_from_f(tm))
     estim.set_data(data.ravel())    
