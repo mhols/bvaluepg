@@ -97,21 +97,29 @@ def _as_cholmod_lower_factor(factor):
 
 
 def apply_cholesky_sparse(factor, v):
-    pass
+    F, p = factor
+    tmp = np.empty(v.shape[0], dtype=float)
+    tmp[p] = F @ v[p]
+    return tmp
+
 
 def apply_cholesky_sparse_T(factor, v):
-    pass
+    F, p = factor
+    tmp = np.empty(v.shape[0], dtype=float)
+    tmp[p] = F.T @ v[p]
+    return tmp
 
 def apply_cholesky_sparse_inverse(factor, v):
-    pass
+    F, p = factor
+    tmp = np.empty(v.shape[0], dtype=float)
+    tmp[p] = sparse_linalg.spsolve_triangular(F, v[p], lower=False)
+    return tmp
 
 def apply_cholesky_sparse_inverse_T(factor, v):
     F, p = factor
     tmp = np.empty(v.shape[0], dtype=float)
     tmp[p] = sparse_linalg.spsolve_triangular(F.T, v[p], lower=False)
     return tmp
-
-
 
 def _mixture_gaussian_params(z, nobs, mix):
     """
