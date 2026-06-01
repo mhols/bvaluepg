@@ -1,5 +1,6 @@
 import numpy as np
 from polyagammadensity import Mixin2D 
+import scipy.sparse as sps
 
 
 def _d2(n, m):
@@ -44,3 +45,59 @@ def spatial_covariance_matern_3_5(n, m, rho, v2):
     d = d2**0.5
 
     return v2 * (1+5**0.5 * d / rho + 5 * d2 / (3 * rho**2)) * np.exp(- 5**0.5 * d / rho)
+
+
+def precision_matern(n, tau=1.0, alpha=0.2):
+    """
+    Sparse precision Q = tau I + alpha L for an n x n grid.
+    """
+    one_dim = sps.diags(
+        [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
+        offsets=[-1, 0, 1],
+        format="csr",
+    )
+    identity = sps.eye(n, format="csr")
+    laplacian = (
+        sps.kron(identity, one_dim, format="csr")
+        + sps.kron(one_dim, identity, format="csr")
+    )
+    return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
+
+def precision_matern_9pt(n, tau=1.0, alpha=0.2):
+    """
+    Sparse precision Q = tau I + alpha L for an n x n grid.
+    Uses a 9-point Laplacian stencil with diagonal neighbors.
+
+    Stencil references:
+    https://en.wikipedia.org/wiki/Nine-point_stencil
+    https://notebook.community/eramirem/numerical-methods-pdes/05_elliptic
+    https://scicomp.stackexchange.com/questions/37656/tensor-product-representation-for-the-9-point-finite-difference-approximations-f
+    """
+    one_dim = sps.diags(
+        [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
+        offsets=[-1, 0, 1],
+        format="csr",
+    )
+    neighbor_1d = sps.diags(
+        [np.ones(n - 1), np.ones(n - 1)],
+        offsets=[-1, 1],
+        format="csr",
+    )
+    identity = sps.eye(n, format="csr")
+
+    cardinal_laplacian = (
+        sps.kron(identity, one_dim, format="csr")
+        + sps.kron(one_dim, identity, format="csr")
+    )
+    diagonal_neighbors = sps.kron(neighbor_1d, neighbor_1d, format="csr")
+
+    laplacian = (
+        4.0 * cardinal_laplacian
+        + 4.0 * sps.eye(n * n, format="csr")
+        - diagonal_neighbors
+    ) / 6.0
+
+    return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
+    
+## --> TODO: move out of this module into research experiments module
+

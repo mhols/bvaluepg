@@ -3,7 +3,7 @@ import syntheticdata as sd
 import matplotlib.pyplot as plt
 import covariance_kernels as ck
 import numpy as np
-
+import scipy.sparse.linalg as sparse_linalg
 
 class PicturesForPaper:
 
@@ -272,6 +272,24 @@ class PicturesForPaper:
 
         plt.plot( n, CALC.posterior_n_single_observation(pm, pv2, ncount, n), 'o')
 
+    def figure_18(self, title):
+        """
+        Sparse Matern Covariance
+        """
+
+        n = 52
+        Q = ck.precision_matern_9pt(n, 1, 1000)
+
+        e = np.zeros(Q.shape[0])
+        e[ n*n//2+n//2] = 1
+
+        kernel = sparse_linalg.spsolve(Q, e)
+
+        plt.figure()
+        plt.imshow(pg.Mixin2D().scanorder_to_image(kernel, n, n))
+
+
+
 
 
 if __name__ == '__main__':
@@ -291,11 +309,12 @@ if __name__ == '__main__':
     # P.figure_13('posterior f for 1-observation')
     # P.figure_14('posterior f for 1-observation')
     # P.figure_15('posterior f for 1-observation', pm=1, n=1, pv2=1, CALC=pg.ExponentialDensity)
-    P.figure_16('prior distribtuion events exponential low', pm=1, pv2=4, n=np.arange(20), CALC=P.EXP_low)
-    P.figure_16('prior distribtuion events exponential high', pm=1, pv2=4, n=np.arange(20), CALC=P.EXP_high)
+    #P.figure_16('prior distribtuion events exponential low', pm=1, pv2=4, n=np.arange(20), CALC=P.EXP_low)
+    #P.figure_16('prior distribtuion events exponential high', pm=1, pv2=4, n=np.arange(20), CALC=P.EXP_high)
     
-    P.figure_17('posterior single observation sigmoid', 
-                pm=1, pv2=4, ncount=0, n=np.arange(20), CALC=P.PG_low)
-    P.figure_17('posterior single observation exponential low', 
-                pm=1, pv2=4, ncount=0, n=np.arange(20), CALC=P.EXP_low)
+    #P.figure_17('posterior single observation sigmoid', 
+    #            pm=1, pv2=4, ncount=0, n=np.arange(20), CALC=P.PG_low)
+    #P.figure_17('posterior single observation exponential low', 
+    #            pm=1, pv2=4, ncount=0, n=np.arange(20), CALC=P.EXP_low)
+    P.figure_18('Matern precision')
     plt.show()
