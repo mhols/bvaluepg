@@ -70,6 +70,42 @@ def grid_precision_laplacian(n, tau=1.0, alpha=0.2):
         + sps.kron(one_dim, identity, format="csr")
     )
     return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
+
+def grid_precision_laplacian_9pt(n, tau=1.0, alpha=0.2):
+    """
+    Sparse precision Q = tau I + alpha L for an n x n grid.
+    Uses a 9-point Laplacian stencil with diagonal neighbors.
+
+    Stencil references:
+    https://en.wikipedia.org/wiki/Nine-point_stencil
+    https://notebook.community/eramirem/numerical-methods-pdes/05_elliptic
+    https://scicomp.stackexchange.com/questions/37656/tensor-product-representation-for-the-9-point-finite-difference-approximations-f
+    """
+    one_dim = sps.diags(
+        [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
+        offsets=[-1, 0, 1],
+        format="csr",
+    )
+    neighbor_1d = sps.diags(
+        [np.ones(n - 1), np.ones(n - 1)],
+        offsets=[-1, 1],
+        format="csr",
+    )
+    identity = sps.eye(n, format="csr")
+
+    cardinal_laplacian = (
+        sps.kron(identity, one_dim, format="csr")
+        + sps.kron(one_dim, identity, format="csr")
+    )
+    diagonal_neighbors = sps.kron(neighbor_1d, neighbor_1d, format="csr")
+
+    laplacian = (
+        4.0 * cardinal_laplacian
+        + 4.0 * sps.eye(n * n, format="csr")
+        - diagonal_neighbors
+    ) / 6.0
+
+    return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
     
 ## --> TODO: move out of this module into research experiments module
 
@@ -231,7 +267,8 @@ def experiment_1_sparse_precision(
     lam=10,
     nmax_mix=60,
     rho=1,
-    v2=1
+    v2=1,
+    stencil="9pt"
 ):
     """
     Sparse-precision variant of experiment_1.
@@ -266,14 +303,31 @@ def experiment_1_sparse_precision(
     tm = checkerboard(n // ncheck, ncheck, aa, bb)
         
 
-    pm = np.mean(tm) * np.ones(n*n)
-    covar = ck.spatial_covariance_matern_2_3(n, n, rho, v2)
+    # pm = np.mean(tm) * np.ones(n*n)
+    # covar = ck.spatial_covariance_matern_2_3(n, n, rho, v2)
 
-    print(rho, v2)
+    # print(rho, v2)
+
     #covar = np.diag(np.arange(n*n)+1)
-    estim.set_prior_Gaussian(prior_mean=pm, prior_precision=np.linalg.inv(covar), sparse=True)
+    # estim.set_prior_Gaussian(prior_mean=pm, prior_precision=np.linalg.inv(covar), sparse=True)
+    # data = estim.random_events_from_field(estim.field_from_f(tm))
+    # estim.set_data(data.ravel())
+
+    pm = np.mean(tm) * np.ones(n*n)
+
+    if stencil == "5pt":
+      precision = grid_precision_laplacian(n, tau=tau, alpha=alpha)
+    elif stencil == "9pt":
+      precision = grid_precision_laplacian_9pt(n, tau=tau, alpha=alpha)
+    else:
+      raise ValueError("stencil must be '5pt' or '9pt'")
+
+
+    precision = grid_precision_laplacian_9pt(n, tau=tau, alpha=alpha)
+    estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=True)
     data = estim.random_events_from_field(estim.field_from_f(tm))
-    estim.set_data(data.ravel())
+    estim.set_data(data.ravel())    
+
 
     print('data', estim.nobs)
     print('sparse precision prior')
@@ -360,8 +414,9 @@ if __name__ == "__main__":
 
     # experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
     # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
-    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=4, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1)
-    experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, n=4, rho=5, v2=1)
+    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="9pt")
+    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="5pt")
+    # experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, n=4, rho=5, v2=1)
     
     #experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
     # experiment_2()
