@@ -109,17 +109,7 @@ def apply_cholesky_sparse_T(factor, v):
     tmp[p] = F.T @ v[p]
     return tmp
 
-def apply_cholesky_sparse_inverse(factor, v):
-    F, p = factor
-    tmp = np.empty(v.shape[0], dtype=float)
-    tmp[p] = sparse_linalg.spsolve_triangular(F, v[p], lower=False)
-    return tmp
 
-def apply_cholesky_sparse_inverse_T(factor, v):
-    F, p = factor
-    tmp = np.empty(v.shape[0], dtype=float)
-    tmp[p] = sparse_linalg.spsolve_triangular(F.T, v[p], lower=False)
-    return tmp
 
 def _mixture_gaussian_params(z, nobs, mix):
     """
@@ -220,6 +210,19 @@ class Density:
             assert len(nobs.ravel()) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
         self.nobs = nobs.ravel()
         self.ndata = sum(self.nobs)
+
+    def apply_cholesky_sparse_inverse(self, factor, v):
+        F, p = factor
+        tmp = np.empty(v.shape[0], dtype=float)
+        tmp[p] = sparse_linalg.spsolve_triangular(F, v[p], lower=True)
+        return tmp
+
+
+    def apply_cholesky_sparse_inverse_T(self, factor, v):
+        F, p = factor
+        tmp = np.empty(v.shape[0], dtype=float)
+        tmp[p] = sparse_linalg.spsolve_triangular(F.T, v[p], lower=False)
+        return tmp
     
     @property
     def Lprior(self):
