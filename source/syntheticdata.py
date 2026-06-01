@@ -414,8 +414,8 @@ if __name__ == "__main__":
 
     # experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
     # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
-    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="9pt")
-    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="5pt")
+    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=4, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="9pt")
+    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=4, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="5pt")
     # experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, n=4, rho=5, v2=1)
     
     #experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)

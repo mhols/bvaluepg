@@ -208,6 +208,7 @@ class Density:
         self.nobs = nobs.ravel()
         self.ndata = sum(self.nobs)
 
+    @staticmethod
     def apply_cholesky_sparse_inverse(factor, v):
         L, perm = _as_cholmod_lower_factor(factor)
         v = np.asarray(v, dtype=float)
@@ -216,6 +217,7 @@ class Density:
         # This becomes L x = P v. In array code, P v is simply v[perm].
         return sparse_linalg.spsolve_triangular(L, v[perm, ...], lower=True)
 
+    @staticmethod
     def apply_cholesky_sparse_inverse_T(factor, v):
         L, perm = _as_cholmod_lower_factor(factor)
         v = np.asarray(v, dtype=float)
