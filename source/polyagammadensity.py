@@ -122,9 +122,9 @@ def apply_cholesky_sparse_T(factor, v):
     L, perm = _as_cholmod_lower_factor(factor)
     v = np.asarray(v, dtype=float)
 
-    # Transponierter Faktor C.T = L.T P.
-    # Also zuerst den Eingabevektor in die CHOLMOD-Reihenfolge bringen:
-    # v[perm] ist die Vorwaertspermutation alt/original -> neu/CHOLMOD.
+    # Transposed factor C.T = L.T P.
+    # Therefore first put the input vector into CHOLMOD order:
+    # v[perm] is the forward permutation old/original -> new/CHOLMOD.
     return L.T @ v[perm, ...]
 
 
