@@ -258,8 +258,8 @@ def experiment_1(
 
 def experiment_1_sparse_precision(
     EstimatorClass=pgd.PolyaGammaDensity2D,
-    n=64,
-    nn=20,
+    n=264,
+    nn=264,
     a=3.5,
     b=6.5,
     tau=1.0,
@@ -322,7 +322,7 @@ def experiment_1_sparse_precision(
     else:
       raise ValueError("stencil must be '5pt' or '9pt'")
 
-    estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=True)
+    estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision.T @ precision, sparse=True)
     data = estim.random_events_from_field(estim.field_from_f(tm))
     estim.set_data(data.ravel())    
 
@@ -412,8 +412,8 @@ if __name__ == "__main__":
 
     # experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
     # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
-    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=4, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="9pt")
-    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=4, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="5pt")
+    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=252, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="9pt")
+    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=252, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="5pt")
     # experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, n=4, rho=5, v2=1)
     
     #experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
