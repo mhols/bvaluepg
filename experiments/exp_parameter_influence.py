@@ -47,8 +47,8 @@ except Exception:
         return np.log1p(np.exp(-np.abs(x))) + np.maximum(x, 0.0)
 
 try:
-    from exp_mix_explink import gaussian_pdf as normal_pdf
-    from exp_mix_explink import safe_exp as exp_link
+    from bvaluepg.experiments.exp_mix_explink import gaussian_pdf as normal_pdf
+    from bvaluepg.experiments.exp_mix_explink import safe_exp as exp_link
 except Exception:
     def exp_link(f: np.ndarray | float) -> np.ndarray:
         return np.exp(np.clip(f, -745.0, 700.0))
