@@ -277,18 +277,49 @@ class PicturesForPaper:
         Sparse Matern Covariance
         """
 
-        n = 256
-        L = ck.precision_matern_9pt(n, 0,  1)
-        Q = L.T @ L
+        n = 500
+        L = ck.precision_matern(n, n, 100,  1)
+        Q = L
+
+        #Q = L.T @ L
 
         e = np.zeros(Q.shape[0])
         e[ n*n//2+n//2] = 1
 
-        #kernel = sparse_linalg.spsolve(Q, e)
-        kernel = Q @ e
+        kernel = sparse_linalg.spsolve(Q, e)
+        #kernel = Q @ e
 
         plt.figure()
         plt.imshow(pg.Mixin2D().scanorder_to_image(kernel, n, n))
+
+    
+    def figure_19(self, EstimatorClass, lam=10, nmax_mix=60):
+        import os
+        DIR = os.path.dirname(__file__)
+        file = 'earthquakes_2point5_ingv_italy_2015-2026_counts_500x500.npy'
+        datapath = os.path.join(DIR, '../data/'+file)
+        counts = np.load(datapath)
+        n, m = counts.T.shape
+
+        
+
+        estim = EstimatorClass(n=n, m=m, lam=lam, nmax_mix=nmax_mix)
+        pm = 0.5 * np.ones(n*m)
+
+        precision = ck.precision_matern(n, m, rho=150, v2=1)
+
+        estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=True)
+    
+        estim.set_data(counts.T.ravel()) 
+
+        fge = estim.max_logposterior_estimator(niter=1000, method='TNC')
+
+        plt.figure()
+        estim.imshow(fge)
+        #estim.imshow(estim.field_from_f(fge), vmin=0, vmax=3)
+
+
+
 
 
 
@@ -318,5 +349,6 @@ if __name__ == '__main__':
     #            pm=1, pv2=4, ncount=0, n=np.arange(20), CALC=P.PG_low)
     #P.figure_17('posterior single observation exponential low', 
     #            pm=1, pv2=4, ncount=0, n=np.arange(20), CALC=P.EXP_low)
-    P.figure_18('Matern precision')
+    # P.figure_18('Matern precision')
+    P.figure_19(EstimatorClass=pg.PolyaGammaDensity2D, lam=5)
     plt.show()

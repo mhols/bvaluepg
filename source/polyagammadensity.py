@@ -563,7 +563,6 @@ class Density:
         if s2 is None:
             s2 = self.nobs / self.derivative_field_from_f(f)**2
 
-        D = np.diag(s2)
         tmp = f - self.prior_mean
         
         if self.mode == Density.COVARIANCE and self.sparse:
@@ -945,10 +944,11 @@ class SmoothRampMixin:
 
         idx = 0
         for it in range(total_iter):
+            print('samplilng z | f', it)
             z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
             #f = gsm.sample_f_cond_z(z, self.nobs, self.prior_mean, self.Lprior, self.mix)
+            print('samplilng f | z', it)
             f = gsm.sample_f_cond_z_cache(z, self, fz_cache)
-
             if it >= burn_in and ((it - burn_in) % thin == 0):
                 #f_samples[idx] = f
                 idx += 1

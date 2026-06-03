@@ -1,6 +1,6 @@
 {
   "source_file": "earthquakes_2point5_ingv_italy_2015-2026.json",
-  "GRID_N": 30,
+  "GRID_N": 500,
   "minx": 5.10645,
   "maxx": 19.9993,
   "miny": 35.007,

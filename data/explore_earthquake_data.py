@@ -292,7 +292,7 @@ plt.tight_layout()
 # 5) Anzahl Events in 30x30 Boxen (Grid / Heatmap-Daten)
 # -----------------------
 
-GRID_N = 252 
+GRID_N = 500
 
 # Bounding Box des Datensatzes
 minx, miny, maxx, maxy = gdf.total_bounds
@@ -341,11 +341,11 @@ grid_df["y_center"] = 0.5 * (grid_df["ymin"] + grid_df["ymax"])
 # Heatmap
 plt.figure(figsize=(8, 6))
 plt.imshow(
-    np.log(counts+1),
+    counts,
     origin="lower",
     extent=[minx, maxx, miny, maxy],
     aspect="auto",
-    vmax=3
+    vmax=counts.max()
 )
 plt.colorbar()
 plt.title("Event counts per 30x30 grid cell")
@@ -355,7 +355,7 @@ plt.tight_layout()
 plt.show()
 
 # --- Export für das Gibbs-Experiment ---
-counts_file = f"{data_stem}_counts_30x30.npy"
+counts_file = f"{data_stem}_counts_{GRID_N}x{GRID_N}.npy"
 grid_file = f"{data_stem}_grid_30x30.csv"
 meta_file = f"{data_stem}_grid_meta.json"
 

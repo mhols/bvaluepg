@@ -261,7 +261,7 @@ def experiment_1_sparse_precision(
     n=264,
     nn=264,
     a=3.5,
-    b=6.5,
+    b=4.0,
     tau=1.0,
     alpha=0.2,
     lam=10,
@@ -316,7 +316,7 @@ def experiment_1_sparse_precision(
     pm = np.mean(tm) * np.ones(n*n)
 
     if stencil == "5pt":
-      precision = grid_precision_laplacian(n, tau=tau, alpha=alpha)
+      precision = ck.precision_matern(n, n, rho, v2)
     elif stencil == "9pt":
       precision = grid_precision_laplacian_9pt(n, tau=tau, alpha=alpha)
     else:
@@ -365,8 +365,8 @@ def experiment_1_sparse_precision(
     estim.imshow(estim.field_from_f(fge))
     print('...done')
 
-
-    fml = estim.max_logposterior_estimator(niter=1000, method='TNC')
+    print('computing max logposterior estimator')
+    fml = estim.max_logposterior_estimator(f0=fge, niter=1000, method='TNC')
 
     plt.figure()
     plt.title('MAP estimator field')
@@ -383,11 +383,11 @@ def experiment_1_sparse_precision(
     sres = 0
     count = 0
 
-    for i, res in enumerate(estim.sample_posterior(initial_f=np.ones(n*n), n_iter=130)):
+    for i, res in enumerate(estim.sample_posterior(initial_f=np.ones(n*n), n_iter=26)):
         field = estim.field_from_f(res)
         sres += field
         
-        if i % 10 == 1 and count < 12:
+        if i % 2 == 1 and count < 12:
             plt.subplot(3, 4, count + 1)
             plt.xticks([])
             plt.yticks([])
@@ -398,7 +398,7 @@ def experiment_1_sparse_precision(
     plt.title('posterior mean')
     plt.xticks([])
     plt.yticks([])
-    estim.imshow(sres / 130)
+    estim.imshow(sres / 26)
     print('...done')
 
 
@@ -412,9 +412,10 @@ if __name__ == "__main__":
 
     # experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
     # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
-    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=252, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="9pt")
-    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=252, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="5pt")
+    #experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=252, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="9pt")
+    #experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=500, nmax_mix=60, tau=1.0, alpha=0.2, rho=200, v2=1, stencil="5pt")
     # experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, n=4, rho=5, v2=1)
+    experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, n=500, nmax_mix=60, tau=1.0, alpha=0.2, rho=400, v2=1, stencil="5pt")
     
     #experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
     # experiment_2()

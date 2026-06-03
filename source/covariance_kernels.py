@@ -1,7 +1,7 @@
 import numpy as np
 from polyagammadensity import Mixin2D 
 import scipy.sparse as sps
-
+import scipy.sparse.linalg as sparse_linalg
 
 def _d2(n, m):
     x, y = np.meshgrid( np.arange(m), np.arange(n))
@@ -47,21 +47,36 @@ def spatial_covariance_matern_3_5(n, m, rho, v2):
     return v2 * (1+5**0.5 * d / rho + 5 * d2 / (3 * rho**2)) * np.exp(- 5**0.5 * d / rho)
 
 
-def precision_matern(n, tau=1.0, alpha=0.2):
+def precision_matern(n, m, rho, v2):
     """
-    Sparse precision Q = tau I + alpha L for an n x n grid.
+    Sparse precision Q = I + alpha L for an n x m grid.
     """
-    one_dim = sps.diags(
+    one_dim_x = sps.diags(
         [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
         offsets=[-1, 0, 1],
         format="csr",
     )
-    identity = sps.eye(n, format="csr")
-    laplacian = (
-        sps.kron(identity, one_dim, format="csr")
-        + sps.kron(one_dim, identity, format="csr")
+    one_dim_y = sps.diags(
+        [-np.ones(m - 1), 2.0 * np.ones(m), -np.ones(m - 1)],
+        offsets=[-1, 0, 1],
+        format="csr",
     )
-    return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
+    identity_x = sps.eye(n, format="csr")
+    identity_y = sps.eye(m, format="csr")
+    laplacian = (
+        sps.kron(identity_x, one_dim_y, format="csr")
+        + sps.kron(one_dim_x, identity_y, format="csr")
+    )
+    ## compute tau and alpha
+    #tau, alpha = 1, 1
+    Q = (sps.eye(n * m, format="csr") + rho * laplacian).tocsc()
+    Q = Q.T @ Q
+    e = np.zeros(Q.shape[0])
+    e[ (n//2)*m + m//2] = 1
+
+    kernel = sparse_linalg.spsolve(Q, e)
+    iv2 = np.sum(kernel * e)
+    return (iv2 / v2) * Q
 
 def precision_matern_9pt(n, tau=1.0, alpha=0.2):
     """
@@ -98,6 +113,7 @@ def precision_matern_9pt(n, tau=1.0, alpha=0.2):
     ) / 6.0
 
     return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
+
     
 ## --> TODO: move out of this module into research experiments module
 

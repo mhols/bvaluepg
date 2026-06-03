@@ -1,6 +1,6 @@
 {
   "source_file": "instrumental-seismicity-in-mainland-france_dataset_1962-2021.json",
-  "GRID_N": 30,
+  "GRID_N": 500,
   "minx": -7.3668,
   "maxx": 10.0649,
   "miny": 41.1885,
