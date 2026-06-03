@@ -11,8 +11,15 @@ from scipy.stats import poisson
 from scipy.special import roots_hermite
 import matplotlib.pyplot as plt
 import gibbs_softplus_mixture as gsm
-import exp_mix_explink as eme
 from pathlib import Path
+
+import sys
+
+EXPERIMENTS_ROOT = Path(__file__).resolve().parents[1] / "experiments"
+if str(EXPERIMENTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(EXPERIMENTS_ROOT))
+
+import exp_mix_explink as eme
 from matplotlib.colors import LogNorm
 from matplotlib.colors import PowerNorm
 from collections.abc import Iterable
