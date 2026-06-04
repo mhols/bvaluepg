@@ -278,8 +278,7 @@ class PicturesForPaper:
         """
 
         n = 500
-        L = ck.precision_matern(n, n, 100,  1)
-        Q = L
+        Q = ck.precision_matern(n, n, 10,  1)
 
         #Q = L.T @ L
 
@@ -293,20 +292,21 @@ class PicturesForPaper:
         plt.imshow(pg.Mixin2D().scanorder_to_image(kernel, n, n))
 
     
-    def figure_19(self, EstimatorClass, lam=10, nmax_mix=60):
+    def figure_19(self, EstimatorClass, lam=10, nmax_mix=60, **kwargs):
         import os
         DIR = os.path.dirname(__file__)
         file = 'earthquakes_2point5_ingv_italy_2015-2026_counts_500x500.npy'
         datapath = os.path.join(DIR, '../data/'+file)
         counts = np.load(datapath)
+        counts = np.where(counts >=4, 0, counts)
         n, m = counts.T.shape
 
         
 
-        estim = EstimatorClass(n=n, m=m, lam=lam, nmax_mix=nmax_mix)
-        pm = 0.5 * np.ones(n*m)
+        estim = EstimatorClass(n=n, m=m, lam=lam, nmax_mix=nmax_mix, **kwargs)
+        pm = 1 * np.ones(n*m)
 
-        precision = ck.precision_matern(n, m, rho=150, v2=1)
+        precision = ck.precision_matern(n, m, rho=10, v2=1)
 
         estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=True)
     
@@ -316,7 +316,7 @@ class PicturesForPaper:
 
         plt.figure()
         estim.imshow(fge)
-        #estim.imshow(estim.field_from_f(fge), vmin=0, vmax=3)
+        #estim.imshow(estim.field_from_f(fge), vmin=0, vmax=1)
 
 
 
@@ -350,5 +350,5 @@ if __name__ == '__main__':
     #P.figure_17('posterior single observation exponential low', 
     #            pm=1, pv2=4, ncount=0, n=np.arange(20), CALC=P.EXP_low)
     # P.figure_18('Matern precision')
-    P.figure_19(EstimatorClass=pg.PolyaGammaDensity2D, lam=5)
+    P.figure_19(EstimatorClass=pg.RampDensity2D, lam=5, softplus_k=2)
     plt.show()

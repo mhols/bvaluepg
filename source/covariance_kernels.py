@@ -69,7 +69,11 @@ def precision_matern(n, m, rho, v2):
     )
     ## compute tau and alpha
     #tau, alpha = 1, 1
-    Q = (sps.eye(n * m, format="csr") + rho * laplacian).tocsc()
+
+    alpha = 0.5 / (np.cosh(1/rho) -1)
+
+
+    Q = (sps.eye(n * m, format="csr") + alpha * laplacian).tocsc()
     Q = Q.T @ Q
     e = np.zeros(Q.shape[0])
     e[ (n//2)*m + m//2] = 1
