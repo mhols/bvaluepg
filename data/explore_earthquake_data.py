@@ -18,12 +18,12 @@ os.chdir(SCRIPT_DIR)
 # 1) Datei wählen und laden
 # -----------------------
 DEFAULT_FILES = [
+    "earthquakes_california_m2p5_2010_2025.txt",
     "earthquakes_2point5_ingv_italy_2015-2026.json",
     "earthquakes_mw2point5_bcsf_renass_france_1962-2021.json",
     "earthquakes_3point5_cl_2010-2020.json",
     "instrumental-seismicity-in-mainland-france_dataset_1962-2021.json",
     "italy_ingv_m2point5_2015-2026.txt",
-    "earthquakes_california_m2p5_2010_2025.txt",
     "earthquakes_3point5_cl_2010-2020.csv",
 ]
 

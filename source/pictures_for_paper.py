@@ -295,7 +295,8 @@ class PicturesForPaper:
     def figure_19(self, EstimatorClass, lam=10, nmax_mix=60, **kwargs):
         import os
         DIR = os.path.dirname(__file__)
-        file = 'earthquakes_2point5_ingv_italy_2015-2026_counts_500x500.npy'
+        file = 'earthquakes_california_m2p5_2010_2025_counts_500x500.npy'
+        # file = 'earthquakes_2point5_ingv_italy_2015-2026_counts_500x500.npy'
         datapath = os.path.join(DIR, '../data/'+file)
         counts = np.load(datapath)
         counts = np.where(counts >=4, 0, counts)
@@ -310,18 +311,21 @@ class PicturesForPaper:
 
         estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=True)
     
-        estim.set_data(counts.T.ravel()) 
+        # estim.set_data(counts.T.ravel()) 
+        estim.set_data(counts.ravel()) ## fix rotation
 
         fge = estim.max_logposterior_estimator(niter=1000, method='TNC')
 
         plt.figure()
-        estim.imshow(fge)
+        estim.imshow(fge, origin="lower")
         #estim.imshow(estim.field_from_f(fge), vmin=0, vmax=1)
 
-
-
-
-
+        # Orientation note: explore_earthquake_data.py stores the grid as counts[y_bin, x_bin], i.e. rows are latitude bins and columns are longitude bins. 
+        # counts.T.ravel() would switch to the transposed scan order and rotate field relative to the count grid. 
+        # origin="lower" only fixes the display convention: row 0 is the southern/min-y row.
+        # https://numpy.org/doc/stable/reference/generated/numpy.histogram2d.html
+        # https://numpy.org/doc/stable/reference/generated/numpy.ravel.html
+        # https://matplotlib.org/stable/api/_as_gen/matplotlib.pyplot.imshow.html
 
 
 
