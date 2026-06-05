@@ -1,0 +1,9 @@
+{
+  "source_file": "earthquakes_california_m2p5_2010_2025.txt",
+  "GRID_N": 500,
+  "minx": -121.58633,
+  "maxx": -114.293,
+  "miny": 31.0625,
+  "maxy": 37.288,
+  "rows": 14250
+}
