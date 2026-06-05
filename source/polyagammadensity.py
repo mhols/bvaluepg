@@ -11,7 +11,6 @@ from scipy.stats import poisson
 from scipy.special import roots_hermite
 import matplotlib.pyplot as plt
 import gibbs_softplus_mixture as gsm
-import exp_mix_explink as eme
 from pathlib import Path
 from matplotlib.colors import LogNorm
 from matplotlib.colors import PowerNorm
@@ -1105,7 +1104,7 @@ class Mixin2D:
     @classmethod
     def image_to_scanorder(cls, image):
         assert len(image.shape)==2, 'image must be 2 dimensional'
-        return image.ravel()
+        return image.T.ravel()
 
     def scanorder_to_image(self, linear_image, n=None, m=None):
         if n is None:
@@ -1113,7 +1112,7 @@ class Mixin2D:
         if m is None:
             m = self.m
         assert len(linear_image) == n*m, 'number of elements do not correspond'
-        return np.reshape(linear_image, (n, m))
+        return np.reshape(linear_image, (m, n)).T
     
 
     def random_catalog_from_nobs(self, nobs):
@@ -1137,7 +1136,7 @@ class Mixin2D:
         self.scanorder_to_image(d, self.n, self.m)
     
     def imshow(self, d, **kwargs):
-        plt.imshow( self.scanorder_to_image(d, self.n, self.m), **kwargs)
+        plt.imshow( self.scanorder_to_image(d, self.n, self.m).T, **kwargs)
 
 
 class Density2D(Mixin2D, Density):

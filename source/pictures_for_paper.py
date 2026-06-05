@@ -295,12 +295,18 @@ class PicturesForPaper:
     def figure_19(self, EstimatorClass, lam=10, nmax_mix=60, **kwargs):
         import os
         DIR = os.path.dirname(__file__)
-        file = 'earthquakes_2point5_ingv_italy_2015-2026_counts_500x500.npy'
+        #file = 'earthquakes_2point5_ingv_italy_2015-2026_counts_500x500.npy'
+        file = 'earthquakes_3point5_cl_2010-2020_counts_500x500.npy'
+       
         datapath = os.path.join(DIR, '../data/'+file)
         counts = np.load(datapath)
         counts = np.where(counts >=4, 0, counts)
-        n, m = counts.T.shape
-
+        
+        n, m = counts.shape
+        
+        plt.figure()
+        plt.imshow(np.log(counts+1))
+        plt.show()
         
 
         estim = EstimatorClass(n=n, m=m, lam=lam, nmax_mix=nmax_mix, **kwargs)
@@ -310,7 +316,7 @@ class PicturesForPaper:
 
         estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=True)
     
-        estim.set_data(counts.T.ravel()) 
+        estim.set_data(counts.ravel()) 
 
         fge = estim.max_logposterior_estimator(niter=1000, method='TNC')
 

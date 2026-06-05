@@ -82,7 +82,7 @@ def precision_matern(n, m, rho, v2):
     iv2 = np.sum(kernel * e)
     return (iv2 / v2) * Q
 
-def precision_matern_9pt(n, tau=1.0, alpha=0.2):
+def precision_matern_9pt(ny, mx, tau=1.0, alpha=0.2):
     """
     Sparse precision Q = tau I + alpha L for an n x n grid.
     Uses a 9-point Laplacian stencil with diagonal neighbors.
