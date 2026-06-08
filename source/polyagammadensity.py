@@ -1102,16 +1102,22 @@ class Mixin2D:
     
     @classmethod
     def image_to_scanorder(cls, image):
+        """Flatten a 2D image in row-major scan order.
+
+        Matrix shape is interpreted as (ny, nx): rows first, columns second.
+        The first scan-order entries are image[0, 0], image[0, 1], ...
+        """
         assert len(image.shape)==2, 'image must be 2 dimensional'
-        return image.T.ravel()
+        return image.ravel(order="C")
 
     def scanorder_to_image(self, linear_image, n=None, m=None):
+        """Restore a row-major scan-order vector to image shape (ny, nx)."""
         if n is None:
             n = self.n
         if m is None:
             m = self.m
         assert len(linear_image) == n*m, 'number of elements do not correspond'
-        return np.reshape(linear_image, (m, n)).T
+        return np.reshape(linear_image, (n, m), order="C")
     
 
     def random_catalog_from_nobs(self, nobs):

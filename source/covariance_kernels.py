@@ -84,7 +84,15 @@ def precision_matern(n, m, rho, v2):
 
 def precision_matern_9pt(ny, mx, tau=1.0, alpha=0.2):
     """
-    Sparse precision Q = tau I + alpha L for an n x n grid.
+    Sparse precision for an n x n grid using a 9-point Laplacian stencil.
+
+    If rho and v2 are provided, this mirrors precision_matern() with
+    Q = I + alpha L and alpha = 0.5 / (cosh(1/rho) - 1), followed by the same
+    Q.T @ Q and v2 normalization.
+
+    If rho is omitted, this remains the generic builder
+    Q = tau I + alpha L, with alpha defaulting to 0.2.
+
     Uses a 9-point Laplacian stencil with diagonal neighbors.
 
     Stencil references:
@@ -116,8 +124,26 @@ def precision_matern_9pt(ny, mx, tau=1.0, alpha=0.2):
         - diagonal_neighbors
     ) / 6.0
 
+    if rho is None:
+        if alpha is None:
+            alpha = 0.2
+        return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
+
+    if v2 is None:
+        raise ValueError("v2 must be provided when rho is provided")
+    
     return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
+
+    # alpha = 0.5 / (np.cosh(1/rho) -1)
+
+    # Q = (sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
+    # Q = Q.T @ Q
+    # e = np.zeros(Q.shape[0])
+    # e[(n//2)*n + n//2] = 1
+
+    # kernel = sparse_linalg.spsolve(Q, e)
+    # iv2 = np.sum(kernel * e)
+    # return (iv2 / v2) * Q
 
     
 ## --> TODO: move out of this module into research experiments module
-
