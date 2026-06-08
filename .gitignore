@@ -1,12 +1,17 @@
 # macOS / editor
 .DS_Store
 .vscode/
+*.swp
 
 # Python
 __pycache__/
 *.pyc
 *.npy
 venv/
+
+# Local raw catalog exports
+data/HORUS_Ita_*
+data/README.txt
 
 # LaTeX (minimal essentials)
 *.pdf

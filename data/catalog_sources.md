@@ -63,3 +63,42 @@ Source: Southern California Earthquake Data Center (SCEDC), "Earthquake Catalogs
 ```text
 https://scedc.caltech.edu/data/eq-catalogs.html
 ```
+
+## Horus (Link from sofiane)
+
+HORUS - HOmogenized instRUmental Seismic catalog
+
+Different criteria in the last decades provide different instrumental magnitudes of Italian earthquakes (Gasperini et al., 2013a).
+In the last few years, we calibrated conversion relationships between various types of traditional magnitudes (ML, Md, Ms, mb) and moment magnitude Mw (Lolli and Gasperini, 2012; Gasperini et al., 2012, 2013a, 2013b; Lolli et al., 2014, 2015, 2018) in order to obtain a homogenous catalog of instrumental earthquakes in terms of Mw.
+
+CITATION
+Lolli B., Randazzo D., Vannucci G., Gasperini P. (2020). The Homogenized Instrumental Seismic Catalog (HORUS) of Italy from 1960 to Present, Seismol. Res. Lett, doi: 10.1785/0220200148.
+
+```text
+https://horus.bo.ingv.it
+```
+
+  `HORUS_Ita_Catalog.txt` is the compact working file with harmonized `Mw` and `sigMw` for each
+  event. It is the appropriate choice for analyses using a unified magnitude scale.
+
+  `HORUS_Ita_DataOrigin.txt` additionally contains the original magnitude types with source and
+  uncertainty (`ML-CSI`, `Ma`, `Md`, `ML`, `Mw-MT`, `MI`) and the derived `Mw/Mpry`. It is
+  useful for tracing how the harmonized magnitude was obtained.
+
+  The `_o` files are older/original variants. They have the same structure, but differ from 16
+  April 2005 onward in the harmonized magnitude (`Mw` or `Mw/Mpry`) by up to about ±0.09. For
+  current analyses, use the versions without `_o`.
+
+  Time coverage: `Catalog` 1960-2026, `DataOrigin` 1981-2026.
+
+## ESHM20 – Unified Earthquake Catalogue
+
+```text
+https://hazard.efehr.org/en/Documentation/specific-hazard-models/europe/eshm2020-overview/eshm20-unified-earthquake-catalogue/
+```
+
+The ESHM20 unified earthquake catalogue consists of two parts: 
+
+the so-called “instrumental” catalogue (after 1900) based on the updated European-Mediterranean Earthquake Catalogue (EMEC,  Grünthal, G., Wahlström, et al.2012),
+the European PreInstrumental Earthquake Catalogue EPICA (Rovida and Antonucci, 2021;) earthquake catalogue (between the years 1000 CE and 1899).
+The ESHM20 unified earthquake catalogue is open for access and feature additional information: a) completing information for each event, and b) declustering information for each event.

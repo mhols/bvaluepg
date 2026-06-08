@@ -19,6 +19,7 @@ os.chdir(SCRIPT_DIR)
 # -----------------------
 DEFAULT_FILES = [
     "earthquakes_california_m2p5_2010_2025.txt",
+    "HORUS_Ita_Catalog.txt",
     "earthquakes_2point5_ingv_italy_2015-2026.json",
     "earthquakes_mw2point5_bcsf_renass_france_1962-2021.json",
     "earthquakes_3point5_cl_2010-2020.json",
@@ -182,10 +183,49 @@ def load_scedc_txt(path: Path) -> gpd.GeoDataFrame:
     return normalize_columns(gdf)
 
 
+def load_horus_txt(path: Path) -> gpd.GeoDataFrame:
+    print(f"Loading HORUS TXT: {path}")
+    df = pd.read_csv(path, sep="\t", low_memory=False)
+    df.columns = [col.strip() or f"col{i + 1}" for i, col in enumerate(df.columns)]
+    df = df.rename(
+        columns={
+            "Year": "year",
+            "Mo": "month",
+            "Da": "day",
+            "Ho": "hour",
+            "Mi": "minute",
+            "Se": "second",
+            "Lat": "latitude",
+            "Lon": "longitude",
+            "Depth": "depth",
+            "Mw": "mag",
+            "Mw/Mpry": "mag",
+            "sigMw": "sigMw",
+            "Ev. type": "event_type",
+            "Iside n.": "event_id",
+            "ISIDe nr.": "event_id",
+        }
+    )
+    for col in ["year", "month", "day", "hour", "minute", "second", "latitude", "longitude", "depth", "mag", "sigMw"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+    if "event_type" in df.columns:
+        df["event_type"] = df["event_type"].astype(str).str.strip().replace({"": np.nan})
+    df = df.dropna(subset=["latitude", "longitude"])
+    gdf = gpd.GeoDataFrame(
+        df,
+        geometry=gpd.points_from_xy(df["longitude"], df["latitude"], df["depth"]),
+        crs="EPSG:4326",
+    )
+    return normalize_columns(gdf)
+
+
 def load_txt(path: Path) -> gpd.GeoDataFrame:
     first_line = path.read_text(encoding="utf-8", errors="ignore").splitlines()[0]
     if first_line.startswith("#EventID|"):
         return load_ingv_txt(path)
+    if first_line.startswith("Year\tMo\tDa\tHo\tMi\tSe\tLat\tLon\tDepth"):
+        return load_horus_txt(path)
     return load_scedc_txt(path)
 
 
