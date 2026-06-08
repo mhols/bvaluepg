@@ -12,6 +12,11 @@ from __future__ import annotations
 
 import pickle
 from pathlib import Path
+import sys
+
+SOURCE_ROOT = Path(__file__).resolve().parents[1] / "source"
+if str(SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SOURCE_ROOT))
 
 import numpy as np
 import matplotlib.pyplot as plt
