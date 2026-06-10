@@ -3,6 +3,8 @@ from polyagammadensity import Mixin2D
 import scipy.sparse as sps
 import scipy.sparse.linalg as sparse_linalg
 
+import matplotlib.pyplot as plt
+
 
 def laplacian_1d(n, boundary="zero"):
     """
@@ -113,10 +115,19 @@ def precision_matern(n, m, rho, v2, boundary="zero"):
 
     Q = (sps.eye(n * m, format="csr") + alpha * laplacian).tocsc()
     Q = Q.T @ Q
-    e = np.zeros(Q.shape[0])
-    e[ (n//2)*m + m//2] = 1
+    e = np.ones(Q.shape[0])
+    e[ (n//2)*m + m//2] = 0
+
+    plt.figure()
+    plt.imshow( (Q @ e).reshape( (n, m)))
+    plt.show()
 
     kernel = sparse_linalg.spsolve(Q, e)
+
+    plt.figure()
+    plt.imshow( kernel.reshape((n, m)))
+    plt.show()
+
     iv2 = np.sum(kernel * e)
     return (iv2 / v2) * Q
 

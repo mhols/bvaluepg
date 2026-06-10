@@ -302,6 +302,10 @@ def experiment_1_sparse_precision(
     ncheck = 4
     assert n % ncheck == 0, 'n must be divisible by ncheck for checkerboard data'
     tm = checkerboard(n // ncheck, ncheck, aa, bb)
+
+    tm = 0 * tm + 2
+
+
         
 
     # pm = np.mean(tm) * np.ones(n*n)
@@ -315,6 +319,8 @@ def experiment_1_sparse_precision(
     # estim.set_data(data.ravel())
 
     pm = np.mean(tm) * np.ones(n*n)
+
+
 
     if stencil == "5pt":
       precision = ck.precision_matern(n, n, rho, v2, boundary=boundary)
@@ -385,14 +391,14 @@ def experiment_1_sparse_precision(
     count = 0
 
     for i, res in enumerate(estim.sample_posterior(initial_f=np.ones(n*n), n_iter=26)):
-        field = estim.field_from_f(res)
-        sres += field
+        #field = estim.field_from_f(res)
+        sres += res #field
         
         if i % 2 == 1 and count < 12:
             plt.subplot(3, 4, count + 1)
             plt.xticks([])
             plt.yticks([])
-            estim.imshow(field)
+            estim.imshow(res)
             count += 1
 
     plt.figure()
@@ -424,6 +430,6 @@ if __name__ == "__main__":
 
     # Compare the effect of different boundary conditions on the precision matrix and resulting samples.
     # experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, n=500, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="5pt", boundary="zero")
-    experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, n=256, nmax_mix=60, tau=1.0, alpha=0.2, rho=200, v2=1, stencil="5pt", boundary="symmetric")
+    experiment_1_sparse_precision(EstimatorClass=pgd.ExponentialDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=2, v2=1, stencil="5pt", boundary="zero")
 
     plt.show()
