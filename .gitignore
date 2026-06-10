@@ -13,6 +13,9 @@ venv/
 data/HORUS_Ita_*
 data/README.txt
 
+# Local test/debug outputs
+tests/plots/
+
 # LaTeX (minimal essentials)
 *.pdf
 *.aux

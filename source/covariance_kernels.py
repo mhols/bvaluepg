@@ -3,6 +3,55 @@ from polyagammadensity import Mixin2D
 import scipy.sparse as sps
 import scipy.sparse.linalg as sparse_linalg
 
+
+def laplacian_1d(n, boundary="zero"):
+    """
+    Positive 1D Laplacian for a line with configurable boundary handling.
+
+    ``boundary="zero"`` keeps the previous zero-extension behavior.
+    ``boundary="symmetric"`` mirrors the boundary value itself, e.g.
+    u[-1] = u[0] and u[n] = u[n-1].
+    """
+    if n < 1:
+        raise ValueError("n must be positive")
+
+    main = 2.0 * np.ones(n)
+    off = -np.ones(n - 1)
+
+    if boundary == "zero":
+        pass
+    elif boundary == "symmetric":
+        main[0] = 1.0
+        main[-1] = 1.0
+    else:
+        raise ValueError(f"unknown boundary: {boundary}")
+
+    return sps.diags(
+        [off, main, off],
+        offsets=[-1, 0, 1],
+        shape=(n, n),
+        format="csr",
+    )
+
+
+def laplacian_2d(ny, nx, boundary="zero"):
+    """
+    Positive 2D Laplacian for row-major scan order on shape (ny, nx).
+
+    For ``image.ravel(order="C")`` the x-direction is the fast index, hence
+    L = L_y kron I_x + I_y kron L_x.
+    """
+    Ly = laplacian_1d(ny, boundary=boundary)
+    Lx = laplacian_1d(nx, boundary=boundary)
+    Iy = sps.eye(ny, format="csr")
+    Ix = sps.eye(nx, format="csr")
+
+    return (
+        sps.kron(Ly, Ix, format="csr")
+        + sps.kron(Iy, Lx, format="csr")
+    )
+
+
 def _d2(n, m):
     x, y = np.meshgrid( np.arange(m), np.arange(n))
     x = Mixin2D.image_to_scanorder(x)
@@ -47,26 +96,15 @@ def spatial_covariance_matern_3_5(n, m, rho, v2):
     return v2 * (1+5**0.5 * d / rho + 5 * d2 / (3 * rho**2)) * np.exp(- 5**0.5 * d / rho)
 
 
-def precision_matern(n, m, rho, v2):
+def precision_matern(n, m, rho, v2, boundary="zero"):
     """
-    Sparse precision Q = I + alpha L for an n x m grid.
+    Sparse Matern-style precision for an n x m grid.
+
+    ``boundary`` is passed to :func:`laplacian_2d`. The default ``"zero"``
+    preserves the previous zero-extension behavior. Use ``"symmetric"`` for
+    mirrored boundary values, e.g. A_ext[-1, j] = A[0, j].
     """
-    one_dim_x = sps.diags(
-        [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
-        offsets=[-1, 0, 1],
-        format="csr",
-    )
-    one_dim_y = sps.diags(
-        [-np.ones(m - 1), 2.0 * np.ones(m), -np.ones(m - 1)],
-        offsets=[-1, 0, 1],
-        format="csr",
-    )
-    identity_x = sps.eye(n, format="csr")
-    identity_y = sps.eye(m, format="csr")
-    laplacian = (
-        sps.kron(identity_x, one_dim_y, format="csr")
-        + sps.kron(one_dim_x, identity_y, format="csr")
-    )
+    laplacian = laplacian_2d(n, m, boundary=boundary)
     ## compute tau and alpha
     #tau, alpha = 1, 1
 

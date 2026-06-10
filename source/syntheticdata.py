@@ -268,7 +268,8 @@ def experiment_1_sparse_precision(
     nmax_mix=60,
     rho=1,
     v2=1,
-    stencil="9pt"
+    stencil="9pt",
+    boundary="zero"
 ):
     """
     Sparse-precision variant of experiment_1.
@@ -316,9 +317,9 @@ def experiment_1_sparse_precision(
     pm = np.mean(tm) * np.ones(n*n)
 
     if stencil == "5pt":
-      precision = ck.precision_matern(n, n, rho, v2)
+      precision = ck.precision_matern(n, n, rho, v2, boundary=boundary)
     elif stencil == "9pt":
-      precision = grid_precision_laplacian_9pt(n, tau=tau, alpha=alpha)
+      precision = grid_precision_laplacian_9pt(n, tau=tau, alpha=alpha, boundary=boundary)
     else:
       raise ValueError("stencil must be '5pt' or '9pt'")
 
@@ -411,14 +412,18 @@ def experiment_2(nn=5, ncheck=5, a=1, b=2):
 if __name__ == "__main__":
 
     # experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
+    # experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, n=4, rho=5, v2=1, boundary="symmetric")
     # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, tau=1.0, alpha=0.2)
-    #experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=252, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="9pt")
-    #experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=500, nmax_mix=60, tau=1.0, alpha=0.2, rho=200, v2=1, stencil="5pt")
-    # experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, nmax_mix=60, n=4, rho=5, v2=1)
-    experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, n=500, nmax_mix=60, tau=1.0, alpha=0.2, rho=400, v2=1, stencil="5pt")
+    # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=256, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="9pt")
+    # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=500, nmax_mix=60, tau=1.0, alpha=0.2, rho=200, v2=1, stencil="5pt")
+
+    # experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, n=500, nmax_mix=60, tau=1.0, alpha=0.2, rho=400, v2=1, stencil="5pt", boundary="symmetric")
     
-    #experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
+    # experiment_1(EstimatorClass=pgd.PolyaGammaDensity2D, n=64, nn=8, a=1.0, b=1.5, rho=16, v2=0.1, lam=10, nmax_mix=60)
     # experiment_2()
 
+    # Compare the effect of different boundary conditions on the precision matrix and resulting samples.
+    # experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, n=500, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="5pt", boundary="zero")
+    experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, n=256, nmax_mix=60, tau=1.0, alpha=0.2, rho=200, v2=1, stencil="5pt", boundary="symmetric")
 
     plt.show()
