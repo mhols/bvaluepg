@@ -31,7 +31,7 @@ def laplacian_1d(n, boundary="zero"):
     return sps.diags(
         [off, main, off],
         offsets=[-1, 0, 1],
-        shape=(n, n),
+        # shape=(n, n),
         format="csr",
     )
 
@@ -106,17 +106,35 @@ def precision_matern(n, m, rho, v2, boundary="zero"):
     preserves the previous zero-extension behavior. Use ``"symmetric"`` for
     mirrored boundary values, e.g. A_ext[-1, j] = A[0, j].
     """
-    laplacian = laplacian_2d(n, m, boundary=boundary)
     ## compute tau and alpha
     #tau, alpha = 1, 1
 
+    one_dim_x = sps.diags(
+        [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
+        offsets=[-1, 0, 1],
+        format="csr",
+    )
+    one_dim_y = sps.diags(
+        [-np.ones(m - 1), 2.0 * np.ones(m), -np.ones(m - 1)],
+        offsets=[-1, 0, 1],
+        format="csr",
+    )
+    identity_x = sps.eye(n, format="csr")
+    identity_y = sps.eye(m, format="csr")
+    laplacian = (
+        sps.kron(identity_x, one_dim_y, format="csr")
+        + sps.kron(one_dim_x, identity_y, format="csr")
+    )
+
+
+    laplacian = laplacian_2d(n, m, boundary='symmetric')
     alpha = 0.5 / (np.cosh(1/rho) -1)
 
 
     Q = (sps.eye(n * m, format="csr") + alpha * laplacian).tocsc()
     Q = Q.T @ Q
-    e = np.ones(Q.shape[0])
-    e[ (n//2)*m + m//2] = 0
+    e = np.zeros(Q.shape[0])
+    e[ (n//2)*m + m//2] = 1
 
     plt.figure()
     plt.imshow( (Q @ e).reshape( (n, m)))

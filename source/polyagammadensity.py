@@ -60,13 +60,18 @@ def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
 
     """
     b = np.asarray(b, dtype=int)
+    
 
     # Ensure positivity (polyagamma requires h >= 1)
-    b = np.clip(b, 1, None)
+    # b = np.clip(b, 1, None) WRONG!
 
     c = np.asarray(c, dtype=float)
 
-    return random_polyagamma(h=b, z=c, method="saddle")
+    I = b>0
+
+    res = np.zeros(b.shape, dtype=float)
+    res[I] = random_polyagamma(h=b[I], z=c[I], method="saddle")
+    return res
 
 # # Idee Sigma0_inv_dot(v) mit L =pdg.Lprior
 ## TODO into util.py
@@ -770,7 +775,7 @@ class SigmoidMixin(Density):
 
 
             # same for all cases
-            b = Sigma0_inv_mu0 + kappa
+            b = Sigma0_inv_mu0 - kappa
             
             
             if self.mode == Density.COVARIANCE and not self.sparse:

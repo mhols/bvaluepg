@@ -330,7 +330,7 @@ def experiment_1_sparse_precision(
       raise ValueError("stencil must be '5pt' or '9pt'")
 
     estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision.T @ precision, sparse=True)
-    data = estim.random_events_from_field(estim.field_from_f(tm))
+    data = 0*estim.random_events_from_field(estim.field_from_f(tm))
     estim.set_data(data.ravel())    
 
 
@@ -430,6 +430,7 @@ if __name__ == "__main__":
 
     # Compare the effect of different boundary conditions on the precision matrix and resulting samples.
     # experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, n=500, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="5pt", boundary="zero")
-    experiment_1_sparse_precision(EstimatorClass=pgd.ExponentialDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=2, v2=1, stencil="5pt", boundary="zero")
+    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=10, v2=1, stencil="5pt", boundary="zero")
+    # experiment_1_sparse_precision(EstimatorClass=pgd.ExponentialDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=10, v2=1, stencil="5pt", boundary="zero")
 
     plt.show()
