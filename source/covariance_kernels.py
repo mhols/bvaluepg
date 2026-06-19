@@ -99,12 +99,41 @@ def spatial_covariance_matern_3_5(n, m, rho, v2):
 
 
 def precision_matern(n, m, rho, v2, boundary="zero"):
-    """
-    Sparse Matern-style precision for an n x m grid.
+    """Build a variance-scaled, Matern-style 5-point precision.
 
-    ``boundary`` is passed to :func:`laplacian_2d`. The default ``"zero"``
-    preserves the previous zero-extension behavior. Use ``"symmetric"`` for
-    mirrored boundary values, e.g. A_ext[-1, j] = A[0, j].
+    For the positive discrete Laplacian L, the function constructs
+
+        alpha = 1 / (2 * (cosh(1 / rho) - 1)),
+        A = I + alpha * L,
+        P0 = A.T @ A.
+
+    The returned precision is P = (s_ref / v2) * P0, where
+
+        s_ref = e_ref.T @ solve(P0, e_ref)
+
+    is the marginal variance of the unscaled prior at the central reference
+    cell. Consequently, the central entry of P^{-1} equals v2.
+
+    Parameters
+    ----------
+    n, m : int
+        Number of rows and columns. Vectors use row-major scan order.
+    rho : float
+        Positive scale parameter of the basis operator A. It is not generally
+        the actual 1/e correlation length of the final covariance P^{-1}.
+    v2 : float
+        Positive target variance at the central reference cell.
+    boundary : {"zero", "symmetric"}
+        Boundary handling passed to laplacian_2d().
+
+    Returns
+    -------
+    scipy.sparse matrix
+        The scaled prior precision P for an n-by-m latent Gaussian field.
+    
+    e_ref              markiert die mittlere Zelle
+    covariance_column  Kovarianzen aller Zellen mit dieser Zelle
+    s_ref              Varianz dieser Referenzzelle   
     """
     ## compute tau and alpha
     #tau, alpha = 1, 1
@@ -127,27 +156,21 @@ def precision_matern(n, m, rho, v2, boundary="zero"):
     )
 
 
-    laplacian = laplacian_2d(n, m, boundary='symmetric')
+    # laplacian = laplacian_2d(n, m, boundary='symmetric')
     alpha = 0.5 / (np.cosh(1/rho) -1)
 
 
     Q = (sps.eye(n * m, format="csr") + alpha * laplacian).tocsc()
-    Q = Q.T @ Q
-    e = np.zeros(Q.shape[0])
-    e[ (n//2)*m + m//2] = 1
+    Q = Q.T @ Q # Actually this is then a higher order Matern TODO: make different methods
+    A = (sps.eye(n * m, format="csr") + alpha * laplacian).tocsc()
+    P0 = A.T @ A
+    e_ref = np.zeros(P0.shape[0])
+    e_ref[(n//2)*m + m//2] = 1
 
-    plt.figure()
-    plt.imshow( (Q @ e).reshape( (n, m)))
-    plt.show()
+    covariance_column = sparse_linalg.spsolve(P0, e_ref)   # kernel column of P0^{-1} corresponding to the reference cell
 
-    kernel = sparse_linalg.spsolve(Q, e)
-
-    plt.figure()
-    plt.imshow( kernel.reshape((n, m)))
-    plt.show()
-
-    iv2 = np.sum(kernel * e)
-    return (iv2 / v2) * Q
+    s_ref = np.sum(covariance_column * e_ref)
+    return (s_ref / v2) * P0
 
 def precision_matern_9pt(ny, mx, tau=1.0, alpha=0.2):
     """
