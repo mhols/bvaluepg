@@ -1,0 +1,18 @@
+{
+  "source_file": "/Users/toni/Library/Mobile Documents/com~apple~CloudDocs/UP/BvaluePG/bvaluepg/data/italy_ingv_m2point5_2015-2026.txt",
+  "output_events": "/Users/toni/Library/Mobile Documents/com~apple~CloudDocs/UP/BvaluePG/bvaluepg/data/italy_ingv_rotated_rect_events.csv",
+  "rotation_degrees": 66.95807936628735,
+  "local_crs_wkt": "PROJCRS[\"unknown\",BASEGEOGCRS[\"unknown\",DATUM[\"World Geodetic System 1984\",ELLIPSOID[\"WGS 84\",6378137,298.257223563,LENGTHUNIT[\"metre\",1]],ID[\"EPSG\",6326]],PRIMEM[\"Greenwich\",0,ANGLEUNIT[\"degree\",0.0174532925199433],ID[\"EPSG\",8901]]],CONVERSION[\"unknown\",METHOD[\"Azimuthal Equidistant\",ID[\"EPSG\",1125]],PARAMETER[\"Latitude of natural origin\",41.752524836467,ANGLEUNIT[\"degree\",0.0174532925199433],ID[\"EPSG\",8801]],PARAMETER[\"Longitude of natural origin\",13.6635939987757,ANGLEUNIT[\"degree\",0.0174532925199433],ID[\"EPSG\",8802]],PARAMETER[\"False easting\",0,LENGTHUNIT[\"metre\",1],ID[\"EPSG\",8806]],PARAMETER[\"False northing\",0,LENGTHUNIT[\"metre\",1],ID[\"EPSG\",8807]]],CS[Cartesian,2],AXIS[\"(E)\",east,ORDER[1],LENGTHUNIT[\"metre\",1,ID[\"EPSG\",9001]]],AXIS[\"(N)\",north,ORDER[2],LENGTHUNIT[\"metre\",1,ID[\"EPSG\",9001]]]]",
+  "rectangle_bounds_km": {
+    "x_min_km": -672.7163378542273,
+    "x_max_km": 628.1091749880377,
+    "y_min_km": -381.95088120500503,
+    "y_max_km": 450.028860228007
+  },
+  "n_events_total": 11435,
+  "n_events_selected": 11200,
+  "forward_transform": "EPSG:4326 lon/lat -> local AEQD meters -> rotate -> km",
+  "inverse_transform": "rotated km -> inverse rotation -> local AEQD meters -> EPSG:4326 lon/lat",
+  "roundtrip_max_abs_lon_error": 2.1316282072803006e-14,
+  "roundtrip_max_abs_lat_error": 2.842170943040401e-14
+}
