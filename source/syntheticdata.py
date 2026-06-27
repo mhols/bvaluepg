@@ -36,9 +36,9 @@ import scipy.sparse as sps
 
 # here we define some mean value functions for synthetic data
 
-def single_square(n, nn, a, b):
+def single_square(n, m, nn, a, b):
 
-    res = a * np.ones((n,n))
+    res = a * np.ones((n,m))
     res[:nn, :nn] = b
 
     return res
@@ -54,60 +54,162 @@ def checkerboard(nn, ncheck, a, b):
     mask = ((np.indices((n, n)) // nn).sum(axis=0) % 2)
     return a*mask + b*(1-mask)
 
+# def grid_precision_laplacian(n, tau=1.0, alpha=0.2):
+#     # Sparse precision Q = tau I + alpha L for an n x n grid.
+#     one_dim = sps.diags(
+#         [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
+#         offsets=[-1, 0, 1],
+#         format="csr",
+#     )
+#     identity = sps.eye(n, format="csr")
+#     laplacian = (
+#         sps.kron(identity, one_dim, format="csr")
+#         + sps.kron(one_dim, identity, format="csr")
+#     )
+#     return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
 
-def grid_precision_laplacian(n, tau=1.0, alpha=0.2):
-    """
-    Sparse precision Q = tau I + alpha L for an n x n grid.
-    """
-    one_dim = sps.diags(
-        [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
-        offsets=[-1, 0, 1],
-        format="csr",
-    )
-    identity = sps.eye(n, format="csr")
-    laplacian = (
-        sps.kron(identity, one_dim, format="csr")
-        + sps.kron(one_dim, identity, format="csr")
-    )
-    return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
+# def grid_precision_laplacian_9pt(n, tau=1.0, alpha=0.2):
+#     """
+#     Sparse precision Q = tau I + alpha L for an n x n grid.
+#     Uses a 9-point Laplacian stencil with diagonal neighbors.
 
-def grid_precision_laplacian_9pt(n, tau=1.0, alpha=0.2):
-    """
-    Sparse precision Q = tau I + alpha L for an n x n grid.
-    Uses a 9-point Laplacian stencil with diagonal neighbors.
+#     Stencil references:
+#     https://en.wikipedia.org/wiki/Nine-point_stencil
+#     https://notebook.community/eramirem/numerical-methods-pdes/05_elliptic
+#     https://scicomp.stackexchange.com/questions/37656/tensor-product-representation-for-the-9-point-finite-difference-approximations-f
+#     """
+#     one_dim = sps.diags(
+#         [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
+#         offsets=[-1, 0, 1],
+#         format="csr",
+#     )
+#     neighbor_1d = sps.diags(
+#         [np.ones(n - 1), np.ones(n - 1)],
+#         offsets=[-1, 1],
+#         format="csr",
+#     )
+#     identity = sps.eye(n, format="csr")
 
-    Stencil references:
-    https://en.wikipedia.org/wiki/Nine-point_stencil
-    https://notebook.community/eramirem/numerical-methods-pdes/05_elliptic
-    https://scicomp.stackexchange.com/questions/37656/tensor-product-representation-for-the-9-point-finite-difference-approximations-f
-    """
-    one_dim = sps.diags(
-        [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
-        offsets=[-1, 0, 1],
-        format="csr",
-    )
-    neighbor_1d = sps.diags(
-        [np.ones(n - 1), np.ones(n - 1)],
-        offsets=[-1, 1],
-        format="csr",
-    )
-    identity = sps.eye(n, format="csr")
+#     cardinal_laplacian = (
+#         sps.kron(identity, one_dim, format="csr")
+#         + sps.kron(one_dim, identity, format="csr")
+#     )
+#     diagonal_neighbors = sps.kron(neighbor_1d, neighbor_1d, format="csr")
 
-    cardinal_laplacian = (
-        sps.kron(identity, one_dim, format="csr")
-        + sps.kron(one_dim, identity, format="csr")
-    )
-    diagonal_neighbors = sps.kron(neighbor_1d, neighbor_1d, format="csr")
+#     laplacian = (
+#         4.0 * cardinal_laplacian
+#         + 4.0 * sps.eye(n * n, format="csr")
+#         - diagonal_neighbors
+#     ) / 6.0
 
-    laplacian = (
-        4.0 * cardinal_laplacian
-        + 4.0 * sps.eye(n * n, format="csr")
-        - diagonal_neighbors
-    ) / 6.0
-
-    return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
+#     return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
     
-## --> TODO: move out of this module into research experiments module
+# ## --> TODO: move out of this module into research experiments module
+# """
+
+class Experiment:
+    """
+    direct prescription of observations
+    """
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+    def get_nobs(self):
+        if self.kwargs['type'] == 'A':
+            return np.array(self.estim.field_from_f(self.kwargs['data']), dtype='int')
+        elif self.kwargs['type'] == 'B':
+            field = self.estim.field_from_f(self.kwargs['data'])
+            return np.random.poisson(field)
+        elif self.kwargs['type'] == 'C':
+            return self.estim.random_prior_events(self.kwargs['data'])
+        else:
+            pass
+
+    @property
+    def nobs(self):
+        if not hasattr(self, '_nobs'):
+            self._nobs= self.get_nobs()
+            self.estim.set_data(self._nobs)
+        return self._nobs
+    
+    @property
+    def estim(self):
+        if not hasattr(self, '_estim'):
+            self._estim = self.kwargs['EstimatorClass'](**self.kwargs)
+            self._estim.set_data(self.nobs)
+            try:
+                self.estim.set_prior_Gaussian(**self.kwargs)
+            except:
+                pass
+
+        return self._estim
+    
+    @property
+    def nm(self):
+        return self.kwargs['n'], self.kwargs['m']
+    
+    def plot_catalog(self, title="artificial catalog"):
+        plt.figure()
+        plt.title(title)
+        plt.gca().set_aspect('equal')
+        plt.xticks([])
+        plt.yticks([])
+        plt.gca().margins(0)
+        x, y = self.estim.random_catalog_from_nobs(self.estim.nobs)
+        plt.plot(x, y, '.', markersize=1)
+
+    def plot_data(self, title="artificial data", **kwargs):
+        plt.figure()
+        plt.title(title)
+        plt.gca().set_aspect('equal')
+        self.estim.imshow(self.estim.nobs)
+
+    @property
+    def map_estimator(self):
+        if not hasattr(self, '_map_estimator'):
+            self._map_estimator = self.estim.max_logposterior_estimator()
+        return self._map_estimator
+    
+    def plot_map_estimator(self, title="MAP estimator"):
+        plt.figure()
+        plt.title(title)
+        plt.xticks([])
+        plt.yticks([])
+        self.estim.imshow(self.map_estimator)
+
+    def plot_posterior(self, title="posterior"):
+
+        plt.figure()
+        plt.title(title)
+        np.random.seed(0)
+        sres=0
+        count = 0
+
+        estim = self.estim
+
+        for i, res in enumerate(estim.sample_posterior(
+                initial_f=self.map_estimator, n_iter=130)):
+            field = estim.field_from_f(res)
+            sres += field
+
+            if i % 10 == 1 and count < 12:
+                plt.subplot(3, 4, count + 1)
+                plt.xticks([])
+                plt.yticks([])
+                estim.imshow(field)
+                count += 1
+
+        plt.figure()
+        plt.title(title + 'mean')
+        plt.xticks([])
+        plt.yticks([])
+    
+        estim.imshow(sres/130)
+        print('...done')
+
+           
+
+
 
 def experiment_1(
     EstimatorClass=pgd.PolyaGammaDensity2D, 
@@ -303,7 +405,7 @@ def experiment_1_sparse_precision(
     assert n % ncheck == 0, 'n must be divisible by ncheck for checkerboard data'
     tm = checkerboard(n // ncheck, ncheck, aa, bb)
 
-    tm = 0 * tm + 2
+    tm = 0 * tm 
 
 
         
@@ -329,7 +431,7 @@ def experiment_1_sparse_precision(
     else:
       raise ValueError("stencil must be '5pt' or '9pt'")
 
-    estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision.T @ precision, sparse=True)
+    estim.set_prior_Gaussian(prior_mean=pm, prior_precision=precision, sparse=True)
     data = 0*estim.random_events_from_field(estim.field_from_f(tm))
     estim.set_data(data.ravel())    
 
@@ -340,6 +442,7 @@ def experiment_1_sparse_precision(
 
     print('artificial data')
     plt.figure()
+    plt.title('field')
     estim.imshow(estim.field_from_f(tm.ravel()))
     print('...done')
 
@@ -430,7 +533,57 @@ if __name__ == "__main__":
 
     # Compare the effect of different boundary conditions on the precision matrix and resulting samples.
     # experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, n=500, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="5pt", boundary="zero")
-    experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=10, v2=1, stencil="5pt", boundary="zero")
+    # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=10, v2=1, stencil="5pt", boundary="zero")
     # experiment_1_sparse_precision(EstimatorClass=pgd.ExponentialDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=10, v2=1, stencil="5pt", boundary="zero")
+
+    n = 232 #67
+    m = 229 #59
+    rho = 4
+    v2 = 0.5
+    lam = 2
+
+
+    EstimatorClass = pgd.PolyaGammaDensity2D #pgd.RampDensity2D
+
+    data_one = np.ones(n * m)
+    data_corner_strong = single_square(n, m, n//2, 1, 0.2)
+
+    # choose data
+    data = data_one
+
+    # Covariance structures
+    #Cov_data_matern_2_3 = dict(
+    #    prior_mean=data, 
+    #    prior_covariance=ck.spatial_covariance_matern_2_3(n, m, rho, v2),
+    #    sparse=False) 
+    
+    #Cov_one_matern_2_3 = dict(
+    #    prior_mean= np.ones((n,m)), 
+    #    prior_covariance=ck.spatial_covariance_matern_2_3(n, m, rho, v2),
+    #    sparse=False) 
+    
+    Cov_one_matern_2_sparse = dict(
+        prior_mean= np.ones((n,m)), 
+        prior_precision=ck.precision_matern(n, m, rho, v2),
+        sparse=True) 
+  
+    # choose Covariance Structure
+    prior_covar = Cov_one_matern_2_sparse
+
+
+    A = Experiment(type='A', n=n, m=m, EstimatorClass=EstimatorClass, 
+                     data=data, **prior_covar, vmin=0, vmax=2, random_seed=1, lam=lam)
+    
+    B = Experiment(type='B', n=n, m=m, EstimatorClass=EstimatorClass, 
+                     data=data, **prior_covar,  vmin=0, vmax=2, random_seed=2, lam=lam)
+    
+    C = Experiment(type='C', n=n, m=m, EstimatorClass=EstimatorClass, 
+                     data=data, **prior_covar,  vmin=0, vmax=2, random_seed=3, lam=lam)
+    
+
+
+    for E, T in zip([A, B, C], ['A', 'B', 'C']):     
+        E.plot_map_estimator(f"map estimator exp {T}")
+        E.plot_posterior(f"posterior {T}")
 
     plt.show()

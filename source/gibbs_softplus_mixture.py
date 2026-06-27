@@ -47,7 +47,8 @@ def sample_z_cond_f(f: np.ndarray, nobs: np.ndarray, mix: dict) -> np.ndarray:
         m_act = means[active]
         w_act = w[active]
 
-        logp = np.log(w_act + 1e-300) + np.log(gaussian_pdf(f[i], m_act, sigma) + 1e-300)
+        # logp = np.log(w_act + 1e-300) + np.log(gaussian_pdf(f[i], m_act, sigma) + 1e-300)
+        logp = np.log(w_act + 1e-300) - (f[i] - m_act)**2/(2*sigma**2) + np.log(sigma)
         logp -= np.max(logp)
         p = np.exp(logp)
         p /= np.sum(p)

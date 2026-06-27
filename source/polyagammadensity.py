@@ -156,7 +156,7 @@ class Density:
                     sparse=False, 
                     **kwargs):
         """
-        
+         
         """
 
         self.kwargs = kwargs
@@ -198,7 +198,10 @@ class Density:
             if not n==m:
                 raise Exception("not a quadratic covariance / precision matrix")
         else:
-            raise Exception('at least one vovariance or precision must be speicified')
+            self.prior_precision = np.eye(prior_mean.shape[0])
+            self.mode = Density.PRECISION
+            self.sparse = True
+
 
         self.prior_mean = to_numpy(prior_mean) if not prior_mean is None else np.zeros(n)
 
@@ -207,7 +210,7 @@ class Density:
         
 
 
-    def set_data(self, nobs):
+    def set_data(self, nobs):  ## TODO: rename to set_nobs
         """
         Docstring for set_data
         
@@ -423,7 +426,7 @@ class Density:
     def random_events_from_f(self, f):
         return self.random_events_from_field(self.field_from_f(f))
 
-    def random_prior_parameters(self):
+    def random_prior_parameters(self, mean=None):
         """
         generates a random sample
         """
@@ -442,20 +445,21 @@ class Density:
         else:
             raise Exception('not yet implemented')
 
-        return self.prior_mean + f
+        m = mean if not mean is None else self.prior_mean
+        return m.ravel() + f
     
-    def random_prior_field(self):
+    def random_prior_field(self, *args):
         """
         a random realization of the underlying poissonian density in each bin
         """
-        return self.field_from_f(self.random_prior_parameters())
+        return self.field_from_f(self.random_prior_parameters(*args))
     
-    def random_prior_events(self):
+    def random_prior_events(self, *args):
         """
         samples counting data from the prior distribution
         """
 
-        return self.random_events_from_field(self.random_prior_field())
+        return self.random_events_from_field(self.random_prior_field(*args))
     
     def loglikelihood(self, f):
         """
@@ -849,7 +853,7 @@ class SmoothRampMixin:
         prior_precision=None,
         sparse=False,
         nmax_mix:int=60,
-        cache_dir:Path=Path('.mixture'),
+        cache_dir:Path=Path('.mixture'), ### TODO: use relative path
         softplus_k: float = 1.0,
         **kwargs,
     ) -> dict:
@@ -1144,6 +1148,7 @@ class Mixin2D:
         self.scanorder_to_image(d, self.n, self.m)
     
     def imshow(self, d, **kwargs):
+        d = np.array(d, dtype=float)
         plt.imshow( self.scanorder_to_image(d, self.n, self.m).T, **kwargs)
 
 
