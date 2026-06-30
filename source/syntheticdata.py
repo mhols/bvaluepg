@@ -116,15 +116,18 @@ class Experiment:
 
     def get_nobs(self):
         if self.kwargs['type'] == 'A':
+            self.field = self.kwargs['data']
             return np.array(self.kwargs['data'], dtype='float')
         elif self.kwargs['type'] == 'B':
-            field = self.kwargs['data']
-            return np.random.poisson(field)
+            self.field = self.kwargs['data']
+            return np.random.poisson(self.field)
         elif self.kwargs['type'] == 'C':
-            f = self.estim.f_from_field(self.kwargs['data'])
-            return self.estim.random_prior_events(f)
+            self.field = self.estim.random_prior_field(self.kwargs['data'])
+            return np.random.poisson(self.field)
         else:
             pass
+
+
 
     @property
     def nobs(self):
@@ -184,6 +187,14 @@ class Experiment:
         plt.xticks([])
         plt.yticks([])
         self.estim.imshow(self.estim.field_from_f(self.map_estimator), vmin=self.kwargs['vmin_field'], vmax=self.kwargs['vmax_field'])
+    
+    def plot_true_field(self, title="MAP estimator"):
+        plt.figure()
+        plt.title(title)
+        plt.xticks([])
+        plt.yticks([])
+        self.estim.imshow(self.field, vmin=self.kwargs['vmin_field'], vmax=self.kwargs['vmax_field'])
+
 
     def plot_posterior_f(self, title="posterior"):
 
@@ -574,46 +585,52 @@ if __name__ == "__main__":
     # experiment_1_sparse_precision(EstimatorClass=pgd.ExponentialDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=10, v2=1, stencil="5pt", boundary="zero")
     
 
+    EstimatorClass = pgd.PolyaGammaDensity2D  ###gdd.ExponentialDensity2D ###pgd.PolyaGammaDensity2D ###pgd.RampDensity2D
+    n = 67 #232 # 
+    m = 59 #229
+    data_one = np.ones(n * m)
+    data_two = 2 * np.ones(n * m)
+    data_corner_strong = single_square(n, m, n//2, 1, 0)
+    
+    # choose data
+    #data = data_one
+    #data = data_two
+    data = data_corner_strong
     kwargs = dict(
-    n = 67, #232 # 
-    m = 59, #229
-     rho = 4,
+    n = n, 
+    m = m,
+    rho = 4,
     v2 = 0.5,
     lam = 5,
     vmin_f = -3,
     vmax_f = 1,
     vmin_field = 0,
-    vmax_field = 3.5
+    vmax_field = 3.5,
+    data = data_corner_strong,
+    prior_mean = EstimatorClass().f_from_field(data_corner_strong)
     )
 
-    EstimatorClass = pgd.PolyaGammaDensity2D  ###gdd.ExponentialDensity2D ###pgd.PolyaGammaDensity2D ###pgd.RampDensity2D
-    n, m = kwargs['n'], kwargs['m']
-    data_one = np.ones(n * m)
-    data_corner_strong = single_square(n, m, n//2, 1, 0.2)
-
-    # choose data
-    data = data_one
 
     # Covariance structures
     def Cov_data_matern_2_3():
         return dict(
-            prior_mean=data, 
             prior_covariance=ck.spatial_covariance_matern_2_3(**kwargs),
-            sparse=False
+            sparse=False,
+            **kwargs
         ) 
     
     def Cov_one_matern_2_3():
         return dict(
-            prior_mean= np.ones((n,m)), 
             prior_covariance=ck.spatial_covariance_matern_2_3(**kwargs),
-            sparse=False
+            sparse=False,
+            **kwargs
         ) 
     
     def Cov_one_matern_2_sparse():
         return dict(
-            prior_mean= np.ones((n,m)), 
             prior_precision=ck.precision_matern(**kwargs),
-            sparse=True
+            sparse=True,
+            **kwargs
         ) 
   
     # choose Covariance Structure
@@ -629,10 +646,9 @@ if __name__ == "__main__":
     C = Experiment(type='C',  EstimatorClass=EstimatorClass, 
                      data=data, **prior_covar, **kwargs, random_seed=3)
     
-
-
     for E, T in zip([A, B, C], ['A', 'B', 'C']):     
         E.plot_map_estimator_field(f"map estimator exp {T}")
-        E.plot_posterior_field(f"posterior {T}")
+        E.plot_posterior_field(f"posterior exp {T}")
+        E.plot_true_field(f"field exp {T}")
 
     plt.show()

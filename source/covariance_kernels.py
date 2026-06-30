@@ -64,7 +64,7 @@ def _d2(n, m):
     return d2
 
 
-def spatial_covariance_gaussian(n, m, rho, v2):
+def spatial_covariance_gaussian(n, m, rho, v2, **kwargs):
     """
     Docstring for spatial_covariance_gaussian
     

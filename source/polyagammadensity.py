@@ -1123,7 +1123,7 @@ class Mixin2D:
             n = self.n
         if m is None:
             m = self.m
-        assert len(linear_image) == n*m, 'number of elements do not correspond'
+        assert len(linear_image.ravel()) == n*m, 'number of elements do not correspond'
         return np.reshape(linear_image, (n, m), order="C")
     
 
