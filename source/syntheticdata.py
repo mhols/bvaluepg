@@ -176,14 +176,14 @@ class Experiment:
         plt.title(title)
         plt.xticks([])
         plt.yticks([])
-        self.estim.imshow(self.map_estimator, vmin=self.kwargs['vmin'], vmax=self.kwargs['vmax'])
+        self.estim.imshow(self.map_estimator, vmin=self.kwargs['vmin_f'], vmax=self.kwargs['vmax_f'])
 
     def plot_map_estimator_field(self, title="MAP estimator"):
         plt.figure()
         plt.title(title)
         plt.xticks([])
         plt.yticks([])
-        self.estim.imshow(self.exstim.field_from_f(self.map_estimator), vmin=self.kwargs['vmin'], vmax=self.kwargs['vmax'])
+        self.estim.imshow(self.estim.field_from_f(self.map_estimator), vmin=self.kwargs['vmin_field'], vmax=self.kwargs['vmax_field'])
 
     def plot_posterior_f(self, title="posterior"):
 
@@ -211,7 +211,7 @@ class Experiment:
         plt.xticks([])
         plt.yticks([])
     
-        estim.imshow(sres/130, vmin=self.kwargs['vmin'], vmax=self.kwargs['vmax'])
+        estim.imshow(sres/130, vmin=self.kwargs['vmin_f'], vmax=self.kwargs['vmax_f'])
         print('...done')
 
     def plot_posterior_field(self, title="posterior"):
@@ -572,16 +572,22 @@ if __name__ == "__main__":
     # experiment_1_sparse_precision(EstimatorClass=pgd.RampDensity2D, n=500, nmax_mix=60, tau=1.0, alpha=0.2, rho=5, v2=1, stencil="5pt", boundary="zero")
     # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=10, v2=1, stencil="5pt", boundary="zero")
     # experiment_1_sparse_precision(EstimatorClass=pgd.ExponentialDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=10, v2=1, stencil="5pt", boundary="zero")
+    
 
-    n = 67 #232 # 
-    m = 59 #229
-    rho = 4
-    v2 = 0.5
-    lam = 5
-
+    kwargs = dict(
+    n = 67, #232 # 
+    m = 59, #229
+     rho = 4,
+    v2 = 0.5,
+    lam = 5,
+    vmin_f = -3,
+    vmax_f = 1,
+    vmin_field = 0,
+    vmax_field = 3.5
+    )
 
     EstimatorClass = pgd.PolyaGammaDensity2D  ###gdd.ExponentialDensity2D ###pgd.PolyaGammaDensity2D ###pgd.RampDensity2D
-
+    n, m = kwargs['n'], kwargs['m']
     data_one = np.ones(n * m)
     data_corner_strong = single_square(n, m, n//2, 1, 0.2)
 
@@ -592,21 +598,21 @@ if __name__ == "__main__":
     def Cov_data_matern_2_3():
         return dict(
             prior_mean=data, 
-            prior_covariance=ck.spatial_covariance_matern_2_3(n, m, rho, v2),
+            prior_covariance=ck.spatial_covariance_matern_2_3(**kwargs),
             sparse=False
         ) 
     
     def Cov_one_matern_2_3():
         return dict(
             prior_mean= np.ones((n,m)), 
-            prior_covariance=ck.spatial_covariance_matern_2_3(n, m, rho, v2),
+            prior_covariance=ck.spatial_covariance_matern_2_3(**kwargs),
             sparse=False
         ) 
     
     def Cov_one_matern_2_sparse():
         return dict(
             prior_mean= np.ones((n,m)), 
-            prior_precision=ck.precision_matern(n, m, rho, v2),
+            prior_precision=ck.precision_matern(**kwargs),
             sparse=True
         ) 
   
@@ -614,19 +620,19 @@ if __name__ == "__main__":
     prior_covar = Cov_one_matern_2_sparse() ###Cov_one_matern_2_3() ###Cov_one_matern_2_sparse()
 
 
-    A = Experiment(type='A', n=n, m=m, EstimatorClass=EstimatorClass, 
-                     data=data, **prior_covar, vmin=0, vmax=2, random_seed=1, lam=lam)
+    A = Experiment(type='A', EstimatorClass=EstimatorClass, 
+                     data=data, **prior_covar, **kwargs, random_seed=1)
     
-    B = Experiment(type='B', n=n, m=m, EstimatorClass=EstimatorClass, 
-                     data=data, **prior_covar,  vmin=0, vmax=2, random_seed=2, lam=lam)
+    B = Experiment(type='B', EstimatorClass=EstimatorClass, 
+                     data=data, **prior_covar,  **kwargs, random_seed=2)
     
-    C = Experiment(type='C', n=n, m=m, EstimatorClass=EstimatorClass, 
-                     data=data, **prior_covar,  vmin=0, vmax=2, random_seed=3, lam=lam)
+    C = Experiment(type='C',  EstimatorClass=EstimatorClass, 
+                     data=data, **prior_covar, **kwargs, random_seed=3)
     
 
 
     for E, T in zip([A, B, C], ['A', 'B', 'C']):     
-        E.plot_map_estimator(f"map estimator exp {T}")
-        E.plot_posterior(f"posterior {T}")
+        E.plot_map_estimator_field(f"map estimator exp {T}")
+        E.plot_posterior_field(f"posterior {T}")
 
     plt.show()

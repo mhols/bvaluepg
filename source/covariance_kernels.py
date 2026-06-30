@@ -79,26 +79,26 @@ def spatial_covariance_gaussian(n, m, rho, v2):
     return v2 * np.exp(-d2/(2 * rho**2))  + 0.000001 * v2 * np.identity(n*m)
 
 
-def spatial_covariance_matern_1_2(n, m, rho, v2):
+def spatial_covariance_matern_1_2(n, m, rho, v2, **kwargs):
     d = _d2(n,m)**0.5
 
     return v2 * np.exp(-d/rho)
 
 
-def spatial_covariance_matern_2_3(n, m, rho, v2):
+def spatial_covariance_matern_2_3(n, m, rho, v2, **kwargs):
     d = _d2(n,m)**0.5
 
     return v2 * (1+3**0.5 * d/rho) * np.exp(- 3**0.5 * d / rho)
 
 
-def spatial_covariance_matern_3_5(n, m, rho, v2):
+def spatial_covariance_matern_3_5(n, m, rho, v2, **kwargs):
     d2 = _d2(n,m)
     d = d2**0.5
 
     return v2 * (1+5**0.5 * d / rho + 5 * d2 / (3 * rho**2)) * np.exp(- 5**0.5 * d / rho)
 
 
-def precision_matern(n, m, rho, v2, boundary="zero"):
+def precision_matern(n, m, rho, v2, boundary="zero", **kwargs):
     """Build a variance-scaled, Matern-style 5-point precision.
 
     For the positive discrete Laplacian L, the function constructs
@@ -172,7 +172,7 @@ def precision_matern(n, m, rho, v2, boundary="zero"):
     s_ref = np.sum(covariance_column * e_ref)
     return (s_ref / v2) * P0
 
-def precision_matern_9pt(ny, mx, tau=1.0, alpha=0.2):
+def precision_matern_9pt(ny, mx, tau=1.0, alpha=0.2, **kwargs):
     """
     Sparse precision for an n x n grid using a 9-point Laplacian stencil.
 
