@@ -116,12 +116,13 @@ class Experiment:
 
     def get_nobs(self):
         if self.kwargs['type'] == 'A':
-            return np.array(self.estim.field_from_f(self.kwargs['data']), dtype='int')
+            return np.array(self.kwargs['data'], dtype='float')
         elif self.kwargs['type'] == 'B':
-            field = self.estim.field_from_f(self.kwargs['data'])
+            field = self.kwargs['data']
             return np.random.poisson(field)
         elif self.kwargs['type'] == 'C':
-            return self.estim.random_prior_events(self.kwargs['data'])
+            f = self.estim.f_from_field(self.kwargs['data'])
+            return self.estim.random_prior_events(f)
         else:
             pass
 
@@ -170,14 +171,21 @@ class Experiment:
             self._map_estimator = self.estim.max_logposterior_estimator()
         return self._map_estimator
     
-    def plot_map_estimator(self, title="MAP estimator"):
+    def plot_map_estimator_f(self, title="MAP estimator"):
         plt.figure()
         plt.title(title)
         plt.xticks([])
         plt.yticks([])
-        self.estim.imshow(self.map_estimator)
+        self.estim.imshow(self.map_estimator, vmin=self.kwargs['vmin'], vmax=self.kwargs['vmax'])
 
-    def plot_posterior(self, title="posterior"):
+    def plot_map_estimator_field(self, title="MAP estimator"):
+        plt.figure()
+        plt.title(title)
+        plt.xticks([])
+        plt.yticks([])
+        self.estim.imshow(self.exstim.field_from_f(self.map_estimator), vmin=self.kwargs['vmin'], vmax=self.kwargs['vmax'])
+
+    def plot_posterior_f(self, title="posterior"):
 
         plt.figure()
         plt.title(title)
@@ -189,14 +197,13 @@ class Experiment:
 
         for i, res in enumerate(estim.sample_posterior(
                 initial_f=self.map_estimator, n_iter=130)):
-            field = estim.field_from_f(res)
-            sres += field
+            sres += res
 
             if i % 10 == 1 and count < 12:
                 plt.subplot(3, 4, count + 1)
                 plt.xticks([])
                 plt.yticks([])
-                estim.imshow(field)
+                estim.imshow(res)
                 count += 1
 
         plt.figure()
@@ -204,7 +211,37 @@ class Experiment:
         plt.xticks([])
         plt.yticks([])
     
-        estim.imshow(sres/130)
+        estim.imshow(sres/130, vmin=self.kwargs['vmin'], vmax=self.kwargs['vmax'])
+        print('...done')
+
+    def plot_posterior_field(self, title="posterior"):
+
+        plt.figure()
+        plt.title(title)
+        np.random.seed(0)
+        sres=0
+        count = 0
+
+        estim = self.estim
+
+        for i, res in enumerate(estim.sample_posterior(
+                initial_f=self.map_estimator, n_iter=130)):
+            sres += self.estim.field_from_f(res)
+
+            if i % 10 == 1 and count < 12:
+                plt.subplot(3, 4, count + 1)
+                plt.xticks([])
+                plt.yticks([])
+                estim.imshow(self.estim.field_from_f(res), vmin=self.kwargs['vmin_field'], 
+                             vmax=self.kwargs['vmax_field'] )
+                count += 1
+
+        plt.figure()
+        plt.title(title + 'mean')
+        plt.xticks([])
+        plt.yticks([])
+    
+        estim.imshow(sres/130, vmin=self.kwargs['vmin_field'], vmax=self.kwargs['vmax_field'])
         print('...done')
 
            
@@ -536,14 +573,14 @@ if __name__ == "__main__":
     # experiment_1_sparse_precision(EstimatorClass=pgd.PolyaGammaDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=10, v2=1, stencil="5pt", boundary="zero")
     # experiment_1_sparse_precision(EstimatorClass=pgd.ExponentialDensity2D, n=128, nmax_mix=60, tau=1.0, alpha=0.2, rho=10, v2=1, stencil="5pt", boundary="zero")
 
-    n = 232 #67
-    m = 229 #59
+    n = 67 #232 # 
+    m = 59 #229
     rho = 4
     v2 = 0.5
-    lam = 2
+    lam = 5
 
 
-    EstimatorClass = pgd.PolyaGammaDensity2D #pgd.RampDensity2D
+    EstimatorClass = pgd.PolyaGammaDensity2D  ###gdd.ExponentialDensity2D ###pgd.PolyaGammaDensity2D ###pgd.RampDensity2D
 
     data_one = np.ones(n * m)
     data_corner_strong = single_square(n, m, n//2, 1, 0.2)
@@ -552,23 +589,29 @@ if __name__ == "__main__":
     data = data_one
 
     # Covariance structures
-    #Cov_data_matern_2_3 = dict(
-    #    prior_mean=data, 
-    #    prior_covariance=ck.spatial_covariance_matern_2_3(n, m, rho, v2),
-    #    sparse=False) 
+    def Cov_data_matern_2_3():
+        return dict(
+            prior_mean=data, 
+            prior_covariance=ck.spatial_covariance_matern_2_3(n, m, rho, v2),
+            sparse=False
+        ) 
     
-    #Cov_one_matern_2_3 = dict(
-    #    prior_mean= np.ones((n,m)), 
-    #    prior_covariance=ck.spatial_covariance_matern_2_3(n, m, rho, v2),
-    #    sparse=False) 
+    def Cov_one_matern_2_3():
+        return dict(
+            prior_mean= np.ones((n,m)), 
+            prior_covariance=ck.spatial_covariance_matern_2_3(n, m, rho, v2),
+            sparse=False
+        ) 
     
-    Cov_one_matern_2_sparse = dict(
-        prior_mean= np.ones((n,m)), 
-        prior_precision=ck.precision_matern(n, m, rho, v2),
-        sparse=True) 
+    def Cov_one_matern_2_sparse():
+        return dict(
+            prior_mean= np.ones((n,m)), 
+            prior_precision=ck.precision_matern(n, m, rho, v2),
+            sparse=True
+        ) 
   
     # choose Covariance Structure
-    prior_covar = Cov_one_matern_2_sparse
+    prior_covar = Cov_one_matern_2_sparse() ###Cov_one_matern_2_3() ###Cov_one_matern_2_sparse()
 
 
     A = Experiment(type='A', n=n, m=m, EstimatorClass=EstimatorClass, 

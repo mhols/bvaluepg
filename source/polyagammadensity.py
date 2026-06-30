@@ -779,7 +779,7 @@ class SigmoidMixin(Density):
 
 
             # same for all cases
-            b = Sigma0_inv_mu0 - kappa
+            b = Sigma0_inv_mu0 + kappa
             
             
             if self.mode == Density.COVARIANCE and not self.sparse:
