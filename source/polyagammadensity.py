@@ -426,7 +426,7 @@ class Density:
     def random_events_from_f(self, f):
         return self.random_events_from_field(self.field_from_f(f))
 
-    def random_prior_parameters(self, mean=None):
+    def random_prior_parameters(self, prior_mean=None, **kwargs):
         """
         generates a random sample
         """
@@ -445,21 +445,21 @@ class Density:
         else:
             raise Exception('not yet implemented')
 
-        m = mean if not mean is None else self.prior_mean
+        m = prior_mean if not prior_mean is None else self.prior_mean
         return m.ravel() + f
     
-    def random_prior_field(self, *args):
+    def random_prior_field(self, **kwargs):
         """
         a random realization of the underlying poissonian density in each bin
         """
-        return self.field_from_f(self.random_prior_parameters(*args))
+        return self.field_from_f(self.random_prior_parameters(**kwargs))
     
-    def random_prior_events(self, *args):
+    def random_prior_events(self, **kwargs):
         """
         samples counting data from the prior distribution
         """
 
-        return self.random_events_from_field(self.random_prior_field(*args))
+        return self.random_events_from_field(self.random_prior_field(**kwargs))
     
     def loglikelihood(self, f):
         """
@@ -1074,7 +1074,7 @@ class PolyaGammaDensity(SigmoidMixin, Density):
             prior_covariance,
             prior_precision=prior_precision,
             sparse=sparse,
-            **kwargs,
+            **kwargs
         )
 
 class RampDensity(SmoothRampMixin, Density):
@@ -1167,7 +1167,7 @@ class PolyaGammaDensity2D(Mixin2D, PolyaGammaDensity):
             prior_covariance,
             prior_precision=prior_precision,
             sparse=sparse,
-            **kwargs,
+            **kwargs
         )
 
    

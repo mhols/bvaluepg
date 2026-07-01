@@ -122,7 +122,7 @@ class Experiment:
             self.field = self.kwargs['data']
             return np.random.poisson(self.field)
         elif self.kwargs['type'] == 'C':
-            self.field = self.estim.random_prior_field(self.kwargs['data'])
+            self.field = self.estim.random_prior_field(**self.kwargs)
             return np.random.poisson(self.field)
         else:
             pass
@@ -586,19 +586,14 @@ if __name__ == "__main__":
     
 
     EstimatorClass = pgd.PolyaGammaDensity2D  ###gdd.ExponentialDensity2D ###pgd.PolyaGammaDensity2D ###pgd.RampDensity2D
-    n = 67 #232 # 
-    m = 59 #229
-    data_one = np.ones(n * m)
-    data_two = 2 * np.ones(n * m)
-    data_corner_strong = single_square(n, m, n//2, 1, 0)
-    
+   
     # choose data
     #data = data_one
     #data = data_two
-    data = data_corner_strong
+
     kwargs = dict(
-    n = n, 
-    m = m,
+    n = 67, 
+    m = 59,
     rho = 4,
     v2 = 0.5,
     lam = 5,
@@ -606,31 +601,37 @@ if __name__ == "__main__":
     vmax_f = 1,
     vmin_field = 0,
     vmax_field = 3.5,
-    data = data_corner_strong,
-    prior_mean = EstimatorClass().f_from_field(data_corner_strong)
     )
 
+    ## setting prior mean for inversion
+    n, m = kwargs['n'], kwargs['m']
+    data_one = np.ones(n * m)
+    data_two = 2 * np.ones(n * m)
+    data_corner_strong = single_square(n, m, n//2, 1, 0)
+
+    data = data_one
+    kwargs.update(
+        data = data,    ### the field
+        prior_mean = EstimatorClass(**kwargs).f_from_field(data)
+    )
 
     # Covariance structures
     def Cov_data_matern_2_3():
         return dict(
             prior_covariance=ck.spatial_covariance_matern_2_3(**kwargs),
             sparse=False,
-            **kwargs
         ) 
     
     def Cov_one_matern_2_3():
         return dict(
             prior_covariance=ck.spatial_covariance_matern_2_3(**kwargs),
-            sparse=False,
-            **kwargs
+            sparse=False
         ) 
     
     def Cov_one_matern_2_sparse():
         return dict(
             prior_precision=ck.precision_matern(**kwargs),
-            sparse=True,
-            **kwargs
+            sparse=True
         ) 
   
     # choose Covariance Structure
@@ -638,13 +639,13 @@ if __name__ == "__main__":
 
 
     A = Experiment(type='A', EstimatorClass=EstimatorClass, 
-                     data=data, **prior_covar, **kwargs, random_seed=1)
+                    random_seed=1, **prior_covar, **kwargs)
     
     B = Experiment(type='B', EstimatorClass=EstimatorClass, 
-                     data=data, **prior_covar,  **kwargs, random_seed=2)
+                    random_seed=1, **prior_covar,  **kwargs)
     
     C = Experiment(type='C',  EstimatorClass=EstimatorClass, 
-                     data=data, **prior_covar, **kwargs, random_seed=3)
+                    random_seed=1, **prior_covar, **kwargs)
     
     for E, T in zip([A, B, C], ['A', 'B', 'C']):     
         E.plot_map_estimator_field(f"map estimator exp {T}")

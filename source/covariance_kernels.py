@@ -64,7 +64,7 @@ def _d2(n, m):
     return d2
 
 
-def spatial_covariance_gaussian(n, m, rho, v2, **kwargs):
+def spatial_covariance_gaussian(n=None, m=None, rho=None, v2=None, **kwargs):
     """
     Docstring for spatial_covariance_gaussian
     
@@ -79,26 +79,26 @@ def spatial_covariance_gaussian(n, m, rho, v2, **kwargs):
     return v2 * np.exp(-d2/(2 * rho**2))  + 0.000001 * v2 * np.identity(n*m)
 
 
-def spatial_covariance_matern_1_2(n, m, rho, v2, **kwargs):
+def spatial_covariance_matern_1_2(n=None, m=None, rho=None, v2=None, **kwargs):
     d = _d2(n,m)**0.5
 
     return v2 * np.exp(-d/rho)
 
 
-def spatial_covariance_matern_2_3(n, m, rho, v2, **kwargs):
+def spatial_covariance_matern_2_3(n=None, m=None, rho=None, v2=None, **kwargs):
     d = _d2(n,m)**0.5
 
     return v2 * (1+3**0.5 * d/rho) * np.exp(- 3**0.5 * d / rho)
 
 
-def spatial_covariance_matern_3_5(n, m, rho, v2, **kwargs):
+def spatial_covariance_matern_3_5(n=None, m=None, rho=None, v2=None, **kwargs):
     d2 = _d2(n,m)
     d = d2**0.5
 
     return v2 * (1+5**0.5 * d / rho + 5 * d2 / (3 * rho**2)) * np.exp(- 5**0.5 * d / rho)
 
 
-def precision_matern(n, m, rho, v2, boundary="zero", **kwargs):
+def precision_matern(n=None, m=None, rho=None, v2=None, boundary="zero", **kwargs):
     """Build a variance-scaled, Matern-style 5-point precision.
 
     For the positive discrete Laplacian L, the function constructs
