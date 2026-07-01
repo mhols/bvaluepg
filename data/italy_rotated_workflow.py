@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 from pathlib import Path
@@ -13,7 +12,6 @@ import pandas as pd
 from pyproj import CRS, Transformer
 from shapely.geometry import Polygon, box
 
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
@@ -26,9 +24,8 @@ OUTPUT_EVENTS = SCRIPT_DIR / "italy_ingv_rotated_rect_events.csv"
 OUTPUT_META = SCRIPT_DIR / "italy_ingv_rotated_rect_meta.json"
 OUTPUT_PLOT = PLOTS_DIR / "italy_ingv_rotated_rect_cut.png"
 
-# Set to a number such as 67.0 to fix the angle in the script.
 # Keep as None to compute the angle automatically from the point cloud.
-DEFAULT_ROTATION_DEGREES = None
+DEFAULT_ROTATION_DEGREES = -55.0
 
 # Rectangle bounds in rotated kilometers. Keep all four as None to use an
 # automatic quantile box; set all four numbers to define your own cut.
@@ -40,6 +37,12 @@ RECT_Y_MAX_KM = None
 AUTO_RECTANGLE_QUANTILE_LOW = 0.01
 AUTO_RECTANGLE_QUANTILE_HIGH = 0.99
 AUTO_RECTANGLE_PADDING_KM = 25.0
+
+
+def marker_sizes(gdf: gpd.GeoDataFrame) -> pd.Series:
+    mag = pd.to_numeric(gdf["mag"], errors="coerce")
+    scaled = (mag - mag.min()) / (mag.max() - mag.min() + 1e-9)
+    return 4 + 28 * scaled.fillna(0)
 
 
 def load_ingv_txt(path: Path) -> gpd.GeoDataFrame:
@@ -124,16 +127,15 @@ def rotated_km_to_lonlat(
     return np.asarray(lon), np.asarray(lat)
 
 
-def rectangle_bounds_from_args(
-    args: argparse.Namespace,
+def rectangle_bounds(
     x_rot_km: np.ndarray,
     y_rot_km: np.ndarray,
 ) -> dict[str, float]:
     values = {
-        "x_min_km": args.xmin_km,
-        "x_max_km": args.xmax_km,
-        "y_min_km": args.ymin_km,
-        "y_max_km": args.ymax_km,
+        "x_min_km": RECT_X_MIN_KM,
+        "x_max_km": RECT_X_MAX_KM,
+        "y_min_km": RECT_Y_MIN_KM,
+        "y_max_km": RECT_Y_MAX_KM,
     }
     if all(value is not None for value in values.values()):
         return {key: float(value) for key, value in values.items()}
@@ -175,6 +177,15 @@ def set_plot_bounds(
     miny = min(float(y_values.min()), bounds["y_min_km"])
     maxy = max(float(y_values.max()), bounds["y_max_km"])
     pad = max(maxx - minx, maxy - miny) * pad_fraction
+    ax.set_xlim(minx - pad, maxx + pad)
+    ax.set_ylim(miny - pad, maxy + pad)
+
+
+def set_bounds(ax, bounds: tuple[float, float, float, float], pad_fraction: float = 0.06) -> None:
+    minx, miny, maxx, maxy = bounds
+    dx = maxx - minx
+    dy = maxy - miny
+    pad = max(dx, dy) * pad_fraction
     ax.set_xlim(minx - pad, maxx + pad)
     ax.set_ylim(miny - pad, maxy + pad)
 
@@ -234,20 +245,7 @@ def rotate_geometry_to_rotated_km(geom, rotation_degrees: float):
     return affinity.scale(rotated, xfact=0.001, yfact=0.001, origin=(0, 0))
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Cut INGV Italy events with an axis-aligned rectangle in rotated coordinates."
-    )
-    parser.add_argument("--rotation", type=float, default=DEFAULT_ROTATION_DEGREES)
-    parser.add_argument("--xmin-km", type=float, default=RECT_X_MIN_KM)
-    parser.add_argument("--xmax-km", type=float, default=RECT_X_MAX_KM)
-    parser.add_argument("--ymin-km", type=float, default=RECT_Y_MIN_KM)
-    parser.add_argument("--ymax-km", type=float, default=RECT_Y_MAX_KM)
-    return parser.parse_args()
-
-
 def main() -> None:
-    args = parse_args()
     PLOTS_DIR.mkdir(exist_ok=True)
 
     gdf = load_ingv_txt(DATA_FILE)
@@ -256,7 +254,7 @@ def main() -> None:
     x_m = projected.geometry.x.to_numpy()
     y_m = projected.geometry.y.to_numpy()
 
-    rotation_degrees = args.rotation
+    rotation_degrees = DEFAULT_ROTATION_DEGREES
     if rotation_degrees is None:
         rotation_degrees = principal_axis_rotation_degrees(x_m, y_m)
 
@@ -273,7 +271,7 @@ def main() -> None:
     gdf["longitude_from_rotated"] = lon_back
     gdf["latitude_from_rotated"] = lat_back
 
-    bounds = rectangle_bounds_from_args(args, x_rot_km, y_rot_km)
+    bounds = rectangle_bounds(x_rot_km, y_rot_km)
     inside_mask = (
         (gdf["x_rot_km"] >= bounds["x_min_km"])
         & (gdf["x_rot_km"] <= bounds["x_max_km"])
@@ -306,8 +304,6 @@ def main() -> None:
     print(f"Selected events: {int(inside_mask.sum())}")
     print(f"Applied rotation: {rotation_degrees:.2f} degrees")
     print(f"Rectangle bounds km: {bounds}")
-    print(f"Roundtrip max lon error: {meta['roundtrip_max_abs_lon_error']:.3e}")
-    print(f"Roundtrip max lat error: {meta['roundtrip_max_abs_lat_error']:.3e}")
     print(f"Saved events: {OUTPUT_EVENTS}")
     print(f"Saved metadata: {OUTPUT_META}")
     print(f"Saved plot: {OUTPUT_PLOT}")
