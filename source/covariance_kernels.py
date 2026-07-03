@@ -31,7 +31,7 @@ def laplacian_1d(n, boundary="zero"):
     return sps.diags(
         [off, main, off],
         offsets=[-1, 0, 1],
-        # shape=(n, n),
+        shape=(n, n),
         format="csr",
     )
 
@@ -135,33 +135,9 @@ def precision_matern(n=None, m=None, rho=None, v2=None, boundary="zero", **kwarg
     covariance_column  Kovarianzen aller Zellen mit dieser Zelle
     s_ref              Varianz dieser Referenzzelle   
     """
-    ## compute tau and alpha
-    #tau, alpha = 1, 1
-
-    one_dim_x = sps.diags(
-        [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
-        offsets=[-1, 0, 1],
-        format="csr",
-    )
-    one_dim_y = sps.diags(
-        [-np.ones(m - 1), 2.0 * np.ones(m), -np.ones(m - 1)],
-        offsets=[-1, 0, 1],
-        format="csr",
-    )
-    identity_x = sps.eye(n, format="csr")
-    identity_y = sps.eye(m, format="csr")
-    laplacian = (
-        sps.kron(identity_x, one_dim_y, format="csr")
-        + sps.kron(one_dim_x, identity_y, format="csr")
-    )
-
-
-    # laplacian = laplacian_2d(n, m, boundary='symmetric')
+    laplacian = laplacian_2d(n, m, boundary=boundary)
     alpha = 0.5 / (np.cosh(1/rho) -1)
 
-
-    Q = (sps.eye(n * m, format="csr") + alpha * laplacian).tocsc()
-    Q = Q.T @ Q # Actually this is then a higher order Matern TODO: make different methods
     A = (sps.eye(n * m, format="csr") + alpha * laplacian).tocsc()
     P0 = A.T @ A
     e_ref = np.zeros(P0.shape[0])

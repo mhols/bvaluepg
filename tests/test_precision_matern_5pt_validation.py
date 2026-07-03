@@ -61,8 +61,6 @@ def test_missing_crossing_returns_nan():
 
 
 def test_precision_matern_sets_center_variance_to_v2(monkeypatch):
-    # precision_matern() still contains diagnostic plots. Suppress only their
-    # interactive display; the production calculation remains unchanged.
     monkeypatch.setattr(ck.plt, "figure", lambda: None)
     monkeypatch.setattr(ck.plt, "imshow", lambda *args, **kwargs: None)
     monkeypatch.setattr(ck.plt, "show", lambda: None)
@@ -85,6 +83,31 @@ def test_precision_matern_sets_center_variance_to_v2(monkeypatch):
     assert covariance_column[center] == pytest.approx(v2)
 
 
+def test_precision_matern_respects_boundary_argument():
+    ny, nx = 4, 5
+
+    precision_zero = ck.precision_matern(
+        ny,
+        nx,
+        rho=1.7,
+        v2=2.5,
+        boundary="zero",
+    )
+    precision_symmetric = ck.precision_matern(
+        ny,
+        nx,
+        rho=1.7,
+        v2=2.5,
+        boundary="symmetric",
+    )
+
+    assert (precision_zero - precision_symmetric).nnz > 0
+    assert not np.allclose(
+        precision_zero.toarray(),
+        precision_symmetric.toarray(),
+    )
+
+
 @pytest.mark.parametrize("boundary", ["zero", "symmetric"])
 def test_precision_matern_is_symmetric_positive_definite_on_rectangular_grid(
     boundary,
@@ -102,3 +125,98 @@ def test_precision_matern_is_symmetric_positive_definite_on_rectangular_grid(
     assert precision.shape == (ny * nx, ny * nx)
     assert np.allclose(precision_dense, precision_dense.T)
     assert np.linalg.eigvalsh(precision_dense).min() > 0.0
+
+
+def _show_boundary_precision_plots():
+    """Manual visual check for the 5-point precision boundary effect.
+
+    This helper is intentionally not a pytest test. Run this file directly to
+    see the plots:
+
+        python tests/test_precision_matern_5pt_validation.py
+    """
+    ny, nx = 20, 25
+    rho = 3.0
+    v2 = 1.0
+    def compute_results(delta_index):
+        delta = np.zeros(ny * nx)
+        delta[delta_index] = 1.0
+
+        results = {}
+        for boundary in ["zero", "symmetric"]:
+            precision = ck.precision_matern(
+                ny,
+                nx,
+                rho=rho,
+                v2=v2,
+                boundary=boundary,
+            )
+            precision_impulse = precision @ delta
+            covariance_column = sparse_linalg.spsolve(precision, delta)
+            results[boundary] = {
+                "precision_impulse": precision_impulse.reshape(ny, nx),
+                "covariance_column": covariance_column.reshape(ny, nx),
+            }
+        return results
+
+    def plot_boundary_comparison(results, title, profile_row):
+        diff_precision = (
+            results["symmetric"]["precision_impulse"]
+            - results["zero"]["precision_impulse"]
+        )
+        diff_covariance = (
+            results["symmetric"]["covariance_column"]
+            - results["zero"]["covariance_column"]
+        )
+
+        fig, axes = ck.plt.subplots(3, 3, figsize=(10, 8), constrained_layout=True)
+        fig.suptitle(title)
+
+        rows = [
+            ("zero", results["zero"]),
+            ("symmetric", results["symmetric"]),
+            ("symmetric - zero", {
+                "precision_impulse": diff_precision,
+                "covariance_column": diff_covariance,
+            }),
+        ]
+
+        for row, (label, data) in enumerate(rows):
+            im0 = axes[row, 0].imshow(data["precision_impulse"])
+            axes[row, 0].set_title(f"{label}: P @ delta")
+            ck.plt.colorbar(im0, ax=axes[row, 0], fraction=0.046)
+
+            im1 = axes[row, 1].imshow(data["covariance_column"])
+            axes[row, 1].set_title(f"{label}: covariance column")
+            ck.plt.colorbar(im1, ax=axes[row, 1], fraction=0.046)
+
+            axes[row, 2].plot(data["covariance_column"][profile_row, :])
+            axes[row, 2].set_title(f"{label}: row profile")
+            axes[row, 2].grid(True)
+
+            for col in range(3):
+                axes[row, col].set_xticks([])
+                axes[row, col].set_yticks([])
+
+    center = (ny // 2) * nx + nx // 2
+    near_corner = 1 * nx + 1
+
+    center_results = compute_results(center)
+    near_corner_results = compute_results(near_corner)
+
+    plot_boundary_comparison(
+        center_results,
+        f"center impulse, grid={ny}x{nx}, rho={rho}, v2={v2}",
+        profile_row=ny // 2,
+    )
+    plot_boundary_comparison(
+        near_corner_results,
+        f"near-corner impulse at row=1, col=1, grid={ny}x{nx}, rho={rho}, v2={v2}",
+        profile_row=1,
+    )
+
+    ck.plt.show()
+
+
+if __name__ == "__main__":
+    _show_boundary_precision_plots()
