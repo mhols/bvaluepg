@@ -25,84 +25,34 @@ eqCat = EqCat( )
 print( 'EqCat Methods: ', eqCat.methods)
 
 # ============================================================
-# HELPERS FOR SAVING CSV WITH ORIGINAL HORUS STRUCTURE
+# HELPERS FOR SAVING CSV WITH ORIGINAL INGV STRUCTURE
 # ============================================================
 
-def load_original_horus_with_matching_fields(path):
-
-    df = pd.read_csv(path, sep="\t", low_memory=False)
+def load_original_ingv_with_matching_fields(path):
+    """
+    Load the original INGV CSV catalogue, keep the original columns,
+    and add helper columns for filtering/matching.
+    """
+    df = pd.read_csv(path, low_memory=False)
     df.columns = [str(c).strip() for c in df.columns]
 
     original_columns = list(df.columns)
 
-    # Add helper columns while preserving the original HORUS columns.
-    column_map = {
-        "Year": "year",
-        "Mo": "month",
-        "Da": "day",
-        "Ho": "hour",
-        "Mi": "minute",
-        "Se": "second",
-        "Lat": "lat",
-        "Lon": "lon",
-        "Depth": "depth",
-        "Mw": "mag_main",
-        "Mw/Mpry": "mag_alt",
-        "Iside n.": "event_id",
-        "ISIDe nr.": "event_id",
-    }
-
-    for old, new in column_map.items():
-        if old in df.columns:
-            # If both Iside n. and ISIDe nr. exist, keep the first useful one.
-            if new in df.columns:
-                df[new] = df[new].fillna(df[old])
-            else:
-                df[new] = df[old]
-
-    # Combine magnitude columns into helper column "mag".
-    if "mag_main" in df.columns and "mag_alt" in df.columns:
-        df["mag"] = pd.to_numeric(df["mag_main"], errors="coerce").fillna(
-            pd.to_numeric(df["mag_alt"], errors="coerce")
+    # Required columns in italy_ingv_rotated_rect_events.csv
+    required = ["event_id", "time", "latitude", "longitude", "depth", "mag"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Missing required INGV columns: {missing}\n"
+            f"Available columns: {df.columns.tolist()}"
         )
-    elif "mag_main" in df.columns:
-        df["mag"] = pd.to_numeric(df["mag_main"], errors="coerce")
-    elif "mag_alt" in df.columns:
-        df["mag"] = pd.to_numeric(df["mag_alt"], errors="coerce")
-    else:
-        raise ValueError("Could not find HORUS magnitude column: Mw or Mw/Mpry")
 
-    required = ["year", "month", "day", "hour", "minute", "second", "lat", "lon", "depth", "mag"]
-    for col in required:
-        if col not in df.columns:
-            raise ValueError(f"Missing column needed for matching/filtering: {col}")
-        df[col] = pd.to_numeric(df[col], errors="coerce")
-
-    if "event_id" in df.columns:
-        df["event_id_num"] = pd.to_numeric(df["event_id"], errors="coerce")
-    else:
-        df["event_id_num"] = np.nan
-
-    sec = df["second"].fillna(0).to_numpy(float)
-    whole_second = np.floor(sec).astype(int)
-    microsecond = np.round((sec - whole_second) * 1_000_000).astype(int)
-
-    carry = microsecond >= 1_000_000
-    whole_second[carry] += 1
-    microsecond[carry] -= 1_000_000
-
-    df["datetime"] = pd.to_datetime(
-        {
-            "year": df["year"].astype("Int64"),
-            "month": df["month"].astype("Int64"),
-            "day": df["day"].astype("Int64"),
-            "hour": df["hour"].fillna(0).astype(int),
-            "minute": df["minute"].fillna(0).astype(int),
-            "second": whole_second,
-            "microsecond": microsecond,
-        },
-        errors="coerce",
-    )
+    df["datetime"] = pd.to_datetime(df["time"], errors="coerce")
+    df["lat"] = pd.to_numeric(df["latitude"], errors="coerce")
+    df["lon"] = pd.to_numeric(df["longitude"], errors="coerce")
+    df["depth"] = pd.to_numeric(df["depth"], errors="coerce").fillna(0.0)
+    df["mag"] = pd.to_numeric(df["mag"], errors="coerce")
+    df["event_id_num"] = pd.to_numeric(df["event_id"], errors="coerce")
 
     df = df.dropna(subset=["datetime", "lat", "lon", "mag"]).copy()
     df = df.sort_values("datetime").reset_index(drop=True)
@@ -115,11 +65,11 @@ def load_original_horus_with_matching_fields(path):
         / (next_year_start - year_start).dt.total_seconds()
     )
 
-    # Reconstruct N exactly as create_horus_mat_for_clust.py did.
+    # Match the N values created by create_eqcat_mat_from_ingv.py.
     if df["event_id_num"].notna().any():
         event_id = df["event_id_num"].to_numpy(dtype=float, copy=True)
-        missing = ~np.isfinite(event_id)
-        event_id[missing] = np.arange(1, len(df) + 1, dtype=float)[missing]
+        missing_id = ~np.isfinite(event_id)
+        event_id[missing_id] = np.arange(1, len(df) + 1, dtype=float)[missing_id]
     else:
         event_id = np.arange(1, len(df) + 1, dtype=float)
 
@@ -133,9 +83,9 @@ def load_original_horus_with_matching_fields(path):
 
 def save_original_structure_csv(original_catalog_file, eqCat, is_keep, Mmin, Mmax, tmin, tmax, out_csv):
     """
-    Save selected HORUS events with original columns plus a boolean kept column.
+    Save selected INGV events with original columns plus a boolean kept column.
     """
-    df, original_columns = load_original_horus_with_matching_fields(original_catalog_file)
+    df, original_columns = load_original_ingv_with_matching_fields(original_catalog_file)
 
     # Apply same filtering as EqCat.
     if Mmin is not None:
@@ -152,7 +102,7 @@ def save_original_structure_csv(original_catalog_file, eqCat, is_keep, Mmin, Mma
     kept_by_id = dict(zip(eqCat.data["N"].astype(float), is_keep.astype(bool)))
     df["kept"] = df["_N_match"].astype(float).map(kept_by_id)
 
-    # Fallback if there is a tiny ID mismatch but the order and length agree.
+    # Fallback: if IDs do not match exactly but order/length agree.
     if df["kept"].isna().any():
         if len(df) == len(is_keep):
             print("Warning: some IDs did not match; using selected-catalogue order for kept column.")
@@ -166,7 +116,7 @@ def save_original_structure_csv(original_catalog_file, eqCat, is_keep, Mmin, Mma
 
     df["kept"] = df["kept"].astype(bool)
 
-    # Preserve original HORUS structure, with one new column at the end.
+    # Preserve original CSV structure, with one new column at the end.
     df[original_columns + ["kept"]].to_csv(out_csv, index=False)
 
     print("save original-structure CSV:", out_csv)
@@ -175,20 +125,18 @@ def save_original_structure_csv(original_catalog_file, eqCat, is_keep, Mmin, Mma
     print("kept=False:", int((~df["kept"]).sum()))
 
 
-
-
 # ============================================================
 # PARAMETERS TO CHANGE
 # ============================================================
 
 
-file_in= 'HORUS_Ita_Catalog.mat'
+file_in = "italy_ingv_rotated_rect_events.mat"
+Mmin, Mmax = 2.5, None
+tmin, tmax = 2015, 2026.5
 
-ORIGINAL_CATALOG_FILE = 'HORUS_Ita_Catalog.txt'
+ORIGINAL_CATALOG_FILE = 'italy_ingv_rotated_rect_events.csv'
 
-# Filtering
-Mmin, Mmax = 3, None    # use None for no magnitude filter
-tmin, tmax = 1980, 2012    # use None for no time filter
+
 
 
 #=================================2==============================================
@@ -286,7 +234,9 @@ scipy.io.savemat( NND_file, dNND, do_compression  = True)
 #                          plot histogram
 #================================================================================
 # load eta_0 value - only for plotting purposes
-eta_0_file = f"HORUS_Ita_Catalog_Mc_{dPar['Mc']:.1f}_eta_0.mat"
+catalog_stem = Path(file_in).stem
+eta_0_file = f"{catalog_stem}_Mc_{dPar['Mc']:.1f}_eta_0.txt"
+
 if os.path.isfile( eta_0_file):
     print( 'load eta_0 from file'),
     f_eta_0 = np.loadtxt( eta_0_file, dtype = float)
@@ -387,16 +337,9 @@ for iEv in range( catParent.size()):
     else: # independent events
         ax.plot( [catChild.data['Time'][iEv]], [catChild.data['Lat'][iEv]], 'bo', ms = 5, alpha = .6)
 
-eqCat = EqCat( )
-#=================================1==============================================
-#                            load data, select events
-#================================================================================
-eqCat.loadMatBin( f"{file_in}")
 
-eqCat.selectEvents( Mmin, Mmax, 'Mag')
-eqCat.selectEvents( tmin, tmax, 'Time')
 N_tot = eqCat.size()
-print(  'total no. of events', N_tot)
+print('total no. of events', N_tot)
 
 
 fig, ax = plt.subplots(figsize=(9, 8))

@@ -17,8 +17,8 @@ from scipy.io import savemat
 # PARAMETERS TO CHANGE
 # ============================================================
 
-INPUT_FILE = "HORUS_Ita_Catalog.txt"
-OUTPUT_FILE = "HORUS_Ita_Catalog.mat"
+INPUT_FILE = "italy_ingv_rotated_rect_events.csv"
+OUTPUT_FILE = "italy_ingv_rotated_rect_events.mat"
 
 # Optional filter before saving.
 MIN_MAGNITUDE = None     # e.g. 3.0, or None
@@ -31,56 +31,50 @@ YEAR_MAX = None          # e.g. 2020, or None
 # ============================================================
 
 def load_horus(path):
-    df = pd.read_csv(path, sep="\t", low_memory=False)
-    df.columns = [str(c).strip() or f"col{i + 1}" for i, c in enumerate(df.columns)]
+    df = pd.read_csv(path, low_memory=False)
+    df.columns = [str(c).strip() for c in df.columns]
 
+    # Rename INGV CSV columns to the names expected by the rest of the script.
     df = df.rename(
         columns={
-            "Year": "year",
-            "Mo": "month",
-            "Da": "day",
-            "Ho": "hour",
-            "Mi": "minute",
-            "Se": "second",
-            "Lat": "lat",
-            "Lon": "lon",
-            "Depth": "depth",
-            "Mw": "mag",
-            "Mw/Mpry": "mag",
-            "sigMw": "sigMw",
-            "Ev. type": "event_type",
-            "Iside n.": "event_id",
-            "ISIDe nr.": "event_id",
+            "event_id": "event_id",
+            "time": "datetime",
+            "latitude": "lat",
+            "longitude": "lon",
+            "depth": "depth",
+            "mag": "mag",
         }
     )
 
-    # If both Mw and Mw/Mpry exist, both may have become "mag".
-    # Merge duplicate columns by taking the first non-missing value rowwise.
-    if df.columns.duplicated().any():
-        fixed = []
-        for col in pd.unique(df.columns):
-            block = df.loc[:, df.columns == col]
-            if block.shape[1] == 1:
-                fixed.append(block.iloc[:, 0].rename(col))
-            else:
-                fixed.append(block.bfill(axis=1).iloc[:, 0].rename(col))
-        df = pd.concat(fixed, axis=1)
-
-    required = ["year", "month", "day", "hour", "minute", "second", "lat", "lon", "depth", "mag"]
+    required = ["datetime", "lat", "lon", "depth", "mag"]
     missing = [c for c in required if c not in df.columns]
     if missing:
-        raise ValueError(f"Missing HORUS columns after renaming: {missing}\nAvailable columns: {df.columns.tolist()}")
+        raise ValueError(
+            f"Missing columns after renaming: {missing}\n"
+            f"Available columns: {df.columns.tolist()}"
+        )
 
-    for col in required:
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+
+    df["year"] = df["datetime"].dt.year
+    df["month"] = df["datetime"].dt.month
+    df["day"] = df["datetime"].dt.day
+    df["hour"] = df["datetime"].dt.hour
+    df["minute"] = df["datetime"].dt.minute
+    df["second"] = (
+        df["datetime"].dt.second
+        + df["datetime"].dt.microsecond / 1_000_000
+    )
+
+    for col in ["lat", "lon", "depth", "mag"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
     if "event_id" in df.columns:
-        # Keep original IDs where possible, but convert non-numeric to sequential below.
         df["event_id_num"] = pd.to_numeric(df["event_id"], errors="coerce")
     else:
         df["event_id_num"] = np.nan
 
-    df = df.dropna(subset=["year", "month", "day", "lat", "lon", "mag"]).copy()
+    df = df.dropna(subset=["datetime", "lat", "lon", "mag"]).copy()
 
     return df
 
