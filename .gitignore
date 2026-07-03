@@ -11,7 +11,10 @@ venv/
 
 # Local raw catalog exports
 data/HORUS_Ita_*
-data/README.txt
+data/*.txt
+data/*.json
+data/*.csv
+
 
 # Local test/debug outputs
 tests/plots/
@@ -28,3 +31,6 @@ tests/plots/
 *.fdb_latexmk
 _minted*/
 source/__pycache__/
+
+# Local build artifacts
+_storage/
