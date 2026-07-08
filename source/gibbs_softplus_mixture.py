@@ -516,12 +516,24 @@ def precompute_softplus_mixtures(
 
     return mix
 
-def load_or_build_mix(nmax_mix: int, cache_dir: Path, softplus_k: float = 1.0,) -> dict:
+def load_or_build_mix(
+    nmax_mix: int,
+    cache_dir: Path | None = None,
+    softplus_k: float = 1.0,
+) -> dict:
     softplus_k = float(softplus_k)
+
+    if cache_dir is None:
+        HERE = Path(__file__).resolve().parent
+        cache_dir = HERE / ".mixture"
+
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     k_tag = str(softplus_k).replace(".", "p")
     cache_path = cache_dir / f"softplus_mix_k{k_tag}_L1_nmax{nmax_mix}_tail60.pkl"
+
+    print("cwd =", Path.cwd())
+    print("cache_path =", cache_path.resolve())
 
     if cache_path.exists():
         print(f"[mix] loading cache: {cache_path}")
