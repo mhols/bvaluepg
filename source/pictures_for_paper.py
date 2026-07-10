@@ -36,8 +36,8 @@ class PicturesForPaper:
         self.prior_mean_PG_high = self.prior_mean_PG_high_value * np.ones(self.n * self.m)
 
 
-        self.truth_high_contrast_square = sd.single_square(n=self.n, nn=self.nn, a=self.a_high, b=self.b_high)
-        self.truth_low_contrast_square = sd.single_square(n=self.n, nn=self.nn, a=self.a_low, b=self.b_low)
+        self.truth_high_contrast_square = sd.single_square(n=self.n, m=self.n, nn=self.nn, a=self.a_high, b=self.b_high)
+        self.truth_low_contrast_square = sd.single_square(n=self.n, m=self.n, nn=self.nn, a=self.a_low, b=self.b_low)
         self.sample_data_high = pg.Density.random_events_from_field( self.truth_high_contrast_square)
         self.sample_data_low = pg.Density.random_events_from_field( self.truth_low_contrast_square)
 
@@ -170,41 +170,52 @@ class PicturesForPaper:
         """
         
         """
-        f = np.linspace(-3, 10,  10000)
+        f = np.linspace(-5, 4,  10000)
 
         plt.figure()
         plt.title(title)
         lam = self.EXP_low.field_from_f(f)
-        pm = self.prior_mean_EXP_low_value
-        n = int(self.EXP_low.field_from_f(pm)/2)
+        pm = self.prior_mean_EXP_high_value
+        n = 0 #int(self.EXP_low.field_from_f(pm)/2)
+        print('n is ---------', n)
         pv2 = self.v2_EXP_low
         plm, vl2 = self.EXP_low.laplace_approximation_one_dimension(pm, pv2, n)
 
         posterior = n*np.log(lam) - lam - (f-pm)**2/(2*pv2)
         posterior -= posterior.max()
         posterior = np.exp(posterior)
-        plt.plot(f, posterior)
-        plt.plot(f, np.exp(-(f-plm)**2/(2*vl2)))
+        laplace = np.exp(-(f-plm)**2/(2*vl2))
+
+        plt.plot(f, posterior/np.sum(posterior), label='posterior')
+        plt.plot(f, laplace/np.sum(laplace), label='Laplace approximation')
+        plt.legend()
+
+        plt.savefig('laplace_0.pdf')
 
     def figure_14(self, title):
         """
         
         """
-        f = np.linspace(-3, 10,  10000)
+        f = np.linspace(-5, 5,  10000)
 
         plt.figure()
         plt.title(title)
         lam = self.EXP_high.field_from_f(f)
         pm = self.prior_mean_EXP_high_value
-        n = 0 #int(self.EXP_high.field_from_f(pm) / 2)
-        pv2 = self.v2_EXP_high*4
+        n = 10 #int(self.EXP_high.field_from_f(pm) / 2)
+        pv2 = self.v2_EXP_low
         plm, vl2 = self.EXP_high.laplace_approximation_one_dimension(pm, pv2, n)
 
         posterior = n*np.log(lam) - lam - (f-pm)**2/(2*pv2)
         posterior -= posterior.max()
         posterior = np.exp(posterior)
-        plt.plot(f, posterior)
-        plt.plot(f, np.exp(-(f-plm)**2/(2*vl2)))
+
+        laplace = np.exp(-(f-plm)**2/(2*vl2))
+
+        plt.plot(f, posterior/np.sum(posterior), label='posterior')
+        plt.plot(f, laplace/np.sum(laplace), label='Laplace approximation')
+        plt.legend()
+
 
     def figure_15(self, title, pm, n, pv2, CALC):
         """
@@ -346,9 +357,9 @@ if __name__ == '__main__':
     # P.figure_09()
     # P.figure_10()
     # P.figure_11()
-    # P.figure_12('posterior density for 1-observation')
-    # P.figure_13('posterior f for 1-observation')
-    # P.figure_14('posterior f for 1-observation')
+    # P.figure_12('posterior density for 1-observation sigmoid')
+    P.figure_13('posterior f for 1-observation')
+    P.figure_14('posterior f for 1-observation')
     # P.figure_15('posterior f for 1-observation', pm=1, n=1, pv2=1, CALC=pg.ExponentialDensity)
     #P.figure_16('prior distribtuion events exponential low', pm=1, pv2=4, n=np.arange(20), CALC=P.EXP_low)
     #P.figure_16('prior distribtuion events exponential high', pm=1, pv2=4, n=np.arange(20), CALC=P.EXP_high)
@@ -357,6 +368,6 @@ if __name__ == '__main__':
     #            pm=1, pv2=4, ncount=0, n=np.arange(20), CALC=P.PG_low)
     #P.figure_17('posterior single observation exponential low', 
     #            pm=1, pv2=4, ncount=0, n=np.arange(20), CALC=P.EXP_low)
-    P.figure_18('Matern precision')
+    # P.figure_18('Matern precision')
     # P.figure_19(EstimatorClass=pg.RampDensity2D, lam=5, softplus_k=2)
     plt.show()
