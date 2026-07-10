@@ -875,7 +875,7 @@ class SmoothRampMixin:
         lazy computation of property
         """
         if self._mix is None:
-            self._mix = gsm.load_or_build_mix(self.nmax_mix, self.cache_dir, self.softplus_k)
+            self._mix = gsm.load_or_build_mix(self.nmax_mix,  self.softplus_k)
         return self._mix
 
     def field_from_f(self, f):
@@ -1000,7 +1000,7 @@ class ExponentialMixin:
     def mix(self) -> dict:
         """Lazy construction of the exp-link Gaussian mixture approximation."""
         if self._mix is None:
-            self._mix = eme.load_or_build_exp_mix(self.nmax_mix, self.cache_dir)
+            self._mix = eme.load_or_build_exp_mix(self.nmax_mix)
         return self._mix
 
     def field_from_f(self, f):

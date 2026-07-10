@@ -1,9 +1,9 @@
-"""einfache synthetische Intensitätsmuster für BvaluePG.
+"""Simple synthetic intensity patterns for BvaluePG.
 
-Es werden zwei synthetische Bilder mit einer Größe von 64 × 64 erstellt
+Two synthetic images, each measuring 64 × 64, are created
 
-1. Ein Block mit hoher Intensität in der oberen linken Ecke.
-2. Drei horizontale Balken, wobei der mittlere Balken am stärksten ist.
+1. A block of high intensity in the top left-hand corner.
+2. Three horizontal bars, with the middle bar being the brightest.
 
 """
 
@@ -30,7 +30,7 @@ NY = 64
 NX = 64
 SEED = 20260707
 
-# Obergrenze Sigmoid-Modells für erwartete Anzahl pro Zelle.
+# Upper limit of the sigmoid model for the expected number per cell.
 LAM_MAX = 12.0
 
 # Pattern 1: upper-left block
@@ -67,14 +67,14 @@ def field_to_sigmoid_latent(lambda_true: np.ndarray, lam_max: float) -> np.ndarr
 
 
 def make_pattern_1_block() -> np.ndarray:
-    """Block mit hoher Intensität in der oberen linken Ecke"""
+    """Block with high intensity in the top left corner"""
     lambda_true = PATTERN_1_BACKGROUND * np.ones((NY, NX), dtype=float)
     lambda_true[PATTERN_1_ROWS, PATTERN_1_COLS] = PATTERN_1_HOT
     return lambda_true
 
 
 def make_pattern_2_bars() -> np.ndarray:
-    """Drei horizontale Aktivitätsbalken, mit mittlere Balken am stärksten ist"""
+    """Three horizontal bars, with the middle bar being the brightest"""
     lambda_true = PATTERN_2_BACKGROUND * np.ones((NY, NX), dtype=float)
     cols = slice(PATTERN_2_COL_START, PATTERN_2_COL_END)
     additions = (
@@ -92,7 +92,7 @@ def make_pattern_2_bars() -> np.ndarray:
 
 
 def sample_counts(lambda_true: np.ndarray, seed: int) -> np.ndarray:
-    """Ziehe unabhängige Poisson-counts aus Bild"""
+    """Draw independent Poisson counts from the image"""
     rng = np.random.default_rng(seed)
     return rng.poisson(lambda_true).astype(int)
 

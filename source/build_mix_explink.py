@@ -292,17 +292,21 @@ def precompute_exp_mixtures(
 
 def load_or_build_exp_mix(
     nmax_mix: int,
-    cache_dir: Path,
+    cache_dir: Path | None = None,
     *,
     force_rebuild: bool = False,
     **kwargs,
 ) -> dict:
-    cache_dir = Path(cache_dir)
+    if cache_dir is None:
+        HERE = Path(__file__).resolve().parent
+        cache_dir = HERE / ".mixture"
+
     cache_dir.mkdir(parents=True, exist_ok=True)
 
     tail_start = int(kwargs.get("tail_start", 60))
     zero_left = float(kwargs.get("zero_left", -25.0))
     zero_right = float(kwargs.get("zero_right", 8.0))
+
     cache_path = cache_dir / (
         f"exp_mix_L1_v3_nmax{int(nmax_mix)}_tail{tail_start}_"
         f"z{zero_left:g}_{zero_right:g}.pkl"
@@ -355,8 +359,7 @@ def plot_likelihood_mixture(
 ):
     mix = load_or_build_exp_mix(
         nmax_mix=nmax_mix,
-        cache_dir=cache_dir,
-        force_rebuild=force_rebuild,
+        force_rebuild=force_rebuild
     )
 
     n = int(n)
@@ -410,7 +413,8 @@ def main():
 
     n = 4
     nmax_mix = 10
-    cache_dir = Path(".mixture")
+    HERE = Path(__file__).resolve().parent
+    cache_dir = HERE / ".mixture"
     force_rebuild = True
 
     fig, ax = plt.subplots(1, 1, figsize=(10, 5.0))

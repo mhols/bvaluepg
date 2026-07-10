@@ -25,17 +25,17 @@ OUTPUT_META = SCRIPT_DIR / "italy_ingv_rotated_rect_meta.json"
 OUTPUT_PLOT = PLOTS_DIR / "italy_ingv_rotated_rect_cut.png"
 
 # Keep as None to compute the angle automatically from the point cloud.
-DEFAULT_ROTATION_DEGREES = -55.0
+DEFAULT_ROTATION_DEGREES = -45.0
 
 # Rectangle bounds in rotated kilometers. Keep all four as None to use an
 # automatic quantile box; set all four numbers to define your own cut.
-RECT_X_MIN_KM = None
-RECT_X_MAX_KM = None
-RECT_Y_MIN_KM = None
-RECT_Y_MAX_KM = None
+RECT_X_MIN_KM = -450. # insted of none
+RECT_X_MAX_KM = 220.
+RECT_Y_MIN_KM = -570.
+RECT_Y_MAX_KM = 500.
 
 AUTO_RECTANGLE_QUANTILE_LOW = 0.01
-AUTO_RECTANGLE_QUANTILE_HIGH = 0.99
+AUTO_RECTANGLE_QUANTILE_HIGH = 0.9
 AUTO_RECTANGLE_PADDING_KM = 55.0
 
 
