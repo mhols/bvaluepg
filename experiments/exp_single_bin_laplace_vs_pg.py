@@ -223,17 +223,16 @@ if __name__ == "__main__":
 # weil f dann tausende gekoppelte Komponenten hat. Genau dafuer brauchen wir
 # den Polya-Gamma-Sampler.
 #
-# Was man sieht:
 # - Die PG-Samples liegen gut auf der schwarzen Kurve. Der Sampler trifft also
 #   in diesem Test die richtige Zielverteilung.
 # - Laplace ist in dieser Einstellung auf der f-Skala gar nicht so schlecht.
 # - Auf der Rate-Skala sieht man besser, dass die Verteilung schief und durch
 #   lambda * sigmoid(f) nach oben begrenzt ist.
-# - Der Fall n=0 ist am spannendsten: keine Events druecken die Rate stark nach
+# - Fall n=0 ist spannend: keine Events druecken die Rate stark nach
 #   unten, und dort sieht man die Asymmetrie am deutlichsten.
-# - Die zusaetzliche Count-Histogramm-Figur zeigt nur die rohen Sample-Anzahlen.
+# - Count-Histogramm-Figur zeigt nur die rohen Sample-Anzahlen.
 #   Das ist hilfreich zum Bauchgefuehl, aber fuer den Vergleich mit Dichtekurven
-#   ist die normierte Dichteansicht die richtige Skala.
+#   ist die normierte Dichteansicht die richtige Skala fuers Paper
 #
-# Fuer eine staerkere Paper-Figur sollten wir Parameter waehlen, bei denen
-# Laplace sichtbarer danebenliegt.
+#  Fuer eine staerkere Paper-Figur sollten wir Parameter waehlen, bei denen
+#  Laplace sichtbarer danebenliegt.
