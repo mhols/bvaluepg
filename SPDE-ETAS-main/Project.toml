@@ -1,0 +1,9 @@
+[deps]
+Clustering = "aaaa29a8-35af-508c-8bc3-b662a17a0fe5"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
+LambertW = "984bce1d-4616-540c-a9ee-88d1112d94c9"
+NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
+Optim = "429524aa-4258-5aef-a3af-852621145aeb"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
+TriangleMesh = "e5719326-7e34-5a7d-b19a-3e86f2e9acf7"

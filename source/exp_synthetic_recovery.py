@@ -57,8 +57,8 @@ def main():
     rho = 4.0
     v2 = 0.5
 
-    n_iter = 5000
-    burn_in = 1000
+    n_iter = 500
+    burn_in = 100
     thin = 5
 
     # -------------------------
