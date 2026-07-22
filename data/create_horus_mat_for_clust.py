@@ -17,8 +17,8 @@ from scipy.io import savemat
 # PARAMETERS TO CHANGE
 # ============================================================
 
-INPUT_FILE = "italy_ingv_rotated_rect_events.csv"
-OUTPUT_FILE = "italy_ingv_rotated_rect_events.mat"
+INPUT_FILE = "italy_ingv_m2point5_2015-2026.txt" # "italy_ingv_rotated_rect_events.csv"
+OUTPUT_FILE = "italy_ingv_m2point5_2015-2026.mat"
 
 # Optional filter before saving.
 MIN_MAGNITUDE = None     # e.g. 3.0, or None
@@ -31,18 +31,18 @@ YEAR_MAX = None          # e.g. 2020, or None
 # ============================================================
 
 def load_horus(path):
-    df = pd.read_csv(path, low_memory=False)
+    df = pd.read_csv(path, low_memory=False, sep='|', skiprows=0)
     df.columns = [str(c).strip() for c in df.columns]
 
     # Rename INGV CSV columns to the names expected by the rest of the script.
     df = df.rename(
         columns={
-            "event_id": "event_id",
-            "time": "datetime",
-            "latitude": "lat",
-            "longitude": "lon",
-            "depth": "depth",
-            "mag": "mag",
+            "#EventID": "event_id",
+            "Time": "datetime",
+            "Latitude": "lat",
+            "Longitude": "lon",
+            "Depth/Km": "depth",
+            "Magnitude": "mag",
         }
     )
 

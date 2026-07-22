@@ -33,13 +33,13 @@ def load_original_ingv_with_matching_fields(path):
     Load the original INGV CSV catalogue, keep the original columns,
     and add helper columns for filtering/matching.
     """
-    df = pd.read_csv(path, low_memory=False)
+    df = pd.read_csv(path, low_memory=False, sep='|', skiprows=0)
     df.columns = [str(c).strip() for c in df.columns]
 
     original_columns = list(df.columns)
 
     # Required columns in italy_ingv_rotated_rect_events.csv
-    required = ["event_id", "time", "latitude", "longitude", "depth", "mag"]
+    required = ["#EventID", "Time", "Latitude", "Longitude", "Depth/Km", "Magnitude"]
     missing = [c for c in required if c not in df.columns]
     if missing:
         raise ValueError(
@@ -47,12 +47,12 @@ def load_original_ingv_with_matching_fields(path):
             f"Available columns: {df.columns.tolist()}"
         )
 
-    df["datetime"] = pd.to_datetime(df["time"], errors="coerce")
-    df["lat"] = pd.to_numeric(df["latitude"], errors="coerce")
-    df["lon"] = pd.to_numeric(df["longitude"], errors="coerce")
-    df["depth"] = pd.to_numeric(df["depth"], errors="coerce").fillna(0.0)
-    df["mag"] = pd.to_numeric(df["mag"], errors="coerce")
-    df["event_id_num"] = pd.to_numeric(df["event_id"], errors="coerce")
+    df["datetime"] = pd.to_datetime(df["Time"], errors="coerce")
+    df["lat"] = pd.to_numeric(df["Latitude"], errors="coerce")
+    df["lon"] = pd.to_numeric(df["Longitude"], errors="coerce")
+    df["depth"] = pd.to_numeric(df["Depth/Km"], errors="coerce").fillna(0.0)
+    df["mag"] = pd.to_numeric(df["Magnitude"], errors="coerce")
+    df["event_id_num"] = pd.to_numeric(df["#EventID"], errors="coerce")
 
     df = df.dropna(subset=["datetime", "lat", "lon", "mag"]).copy()
     df = df.sort_values("datetime").reset_index(drop=True)
@@ -117,7 +117,14 @@ def save_original_structure_csv(original_catalog_file, eqCat, is_keep, Mmin, Mma
     df["kept"] = df["kept"].astype(bool)
 
     # Preserve original CSV structure, with one new column at the end.
-    df[original_columns + ["kept"]].to_csv(out_csv, index=False)
+    I = df["kept"]
+    gamma = np.mean(df[I].Latitude)  # mean latitude of kept events
+    EarthRadius = 6371.0  # km
+    df["x_proj_km"] = EarthRadius * np.radians(df["Longitude"]) * np.cos(np.radians(gamma))
+    df["y_proj_km"] = EarthRadius * np.radians(df["Latitude"] - gamma)
+
+    df[original_columns + ["x_proj_km", "y_proj_km", "kept"]].to_csv(out_csv, index=False, sep="|")
+
 
     print("save original-structure CSV:", out_csv)
     print("CSV rows:", len(df))
@@ -134,7 +141,7 @@ file_in = "italy_ingv_rotated_rect_events.mat"
 Mmin, Mmax = 2.5, None
 tmin, tmax = 2015, 2026.5
 
-ORIGINAL_CATALOG_FILE = 'italy_ingv_rotated_rect_events.csv'
+ORIGINAL_CATALOG_FILE = "italy_ingv_m2point5_2015-2026.txt" # 'italy_ingv_rotated_rect_events.csv'
 
 
 
