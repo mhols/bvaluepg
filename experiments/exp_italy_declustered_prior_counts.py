@@ -24,6 +24,7 @@ import pandas as pd
 
 from polyagammadensity import PolyaGammaDensity, inv_sigmoid
 
+
 CATALOG_CSV = DATA_DIR / "italy_ingv_rotated_rect_events_declustered_Mc_2.5_eta_-4.60.csv"
 META_JSON = DATA_DIR / "italy_ingv_rotated_rect_meta.json"
 
@@ -246,6 +247,35 @@ def print_summary(df: pd.DataFrame, counts: np.ndarray, suggestions: dict[str, f
     print("Interpretation: lambda is a per-cell upper intensity scale, not a global event count.")
 
 
+def pg_samples(model: PolyaGammaDensity, nobs: int, random_seed: int) -> np.ndarray:
+    with contextlib.redirect_stdout(io.StringIO()), warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        samples = [
+            model.draw_pg_samples_one_dimension(
+                PRIOR_MEAN,
+                PRIOR_VARIANCE,
+                nobs,
+                random_seed=random_seed + i,
+            )
+            for i in range(3)
+        ]
+    return np.asarray(samples).ravel()
+
+def draw_pg_samples(model: PolyaGammaDensity, laplace_mean: float, random_seed: int) -> np.ndarray:
+    with contextlib.redirect_stdout(io.StringIO()), warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        samples = [
+            model.draw_pg_samples_one_dimension(
+                laplace_mean,
+                PRIOR_VARIANCE,
+                nobs=1,
+                random_seed=random_seed + i,
+            )
+            for i in range(3)
+        ]
+    return np.asarray(samples).ravel()
+ 
+
 def main() -> None:
     df = load_catalog(CATALOG_CSV)
     bounds = load_bounds(df)
@@ -257,6 +287,9 @@ def main() -> None:
     plot_count_histograms(counts, suggestions)
     plot_prior_predictive(counts, suggestions)
     plt.show()
+
+
+
 
 
 if __name__ == "__main__":

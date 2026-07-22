@@ -25,10 +25,10 @@ import numpy as np
 from polyagammadensity import PolyaGammaDensity, sigmoid
 
 
-LAM = 20.0
-PRIOR_MEAN = -2.0
-PRIOR_VARIANCE = 4.0
-COUNTS = [0, 5, 10, 100]
+LAM = 50.0
+PRIOR_MEAN = 0.0
+PRIOR_VARIANCE = 10.0
+COUNTS = [0, 5, 8, 10]
 
 F_MIN = -9.0
 F_MAX = 7.0
@@ -212,9 +212,16 @@ if __name__ == "__main__":
     main()
 
 
+# teste mal mit EXP Link, sollte mehr unterschied
+# beste parameter ?
+# rate oder f ? machen wir beides, aber rate ist besser fuer paper?
+# abgelich plot_for_paper fig 13
+
+
+
 # Ueberlegung
 # schwarze Kurve ist hier nur deshalb "exakt", weil wir nur ein einziges
-# Bin anschauen. In 1D kann man die Dichte einfach auf einem feinen f-Gitter
+# Bin anschauen. 1D kann man die Dichte einfach auf einem feinen f-Gitter
 # auswerten:
 #
 #     Posterior = Likelihood * Prior
