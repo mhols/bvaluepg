@@ -25,10 +25,10 @@ import numpy as np
 from polyagammadensity import PolyaGammaDensity, sigmoid
 
 
-LAM = 20.0
-PRIOR_MEAN = -2.0
-PRIOR_VARIANCE = 4.0
-COUNTS = [0, 5, 10, 100]
+LAM = 50.0
+PRIOR_MEAN = 0.0
+PRIOR_VARIANCE = 10.0
+COUNTS = [0, 3, 5, 10]
 
 F_MIN = -9.0
 F_MAX = 7.0

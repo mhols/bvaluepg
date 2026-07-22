@@ -166,7 +166,7 @@ class PicturesForPaper:
         plt.title(title)
         plt.plot(lams, self.PG_low.posterior_field_one_dimension(lams, self.prior_mean_PG_low_value, self.v2_PG_low, 1))
 
-    def figure_13(self, title):
+    def figure_13(self, title, calc=None):
         """
         
         """
@@ -174,12 +174,12 @@ class PicturesForPaper:
 
         plt.figure()
         plt.title(title)
-        lam = self.EXP_low.field_from_f(f)
-        pm = self.prior_mean_EXP_high_value
+        lam = calc.field_from_f(f)
+        pm = self.prior_mean_EXP_high_value  ## 2
         n = 0 #int(self.EXP_low.field_from_f(pm)/2)
         print('n is ---------', n)
-        pv2 = self.v2_EXP_low
-        plm, vl2 = self.EXP_low.laplace_approximation_one_dimension(pm, pv2, n)
+        pv2 = self.v2_EXP_low    ## 4
+        plm, vl2 = calc.laplace_approximation_one_dimension(pm, pv2, n)
 
         posterior = n*np.log(lam) - lam - (f-pm)**2/(2*pv2)
         posterior -= posterior.max()
@@ -358,8 +358,8 @@ if __name__ == '__main__':
     # P.figure_10()
     # P.figure_11()
     # P.figure_12('posterior density for 1-observation sigmoid')
-    P.figure_13('posterior f for 1-observation')
-    P.figure_14('posterior f for 1-observation')
+    P.figure_13('posterior f for 1-observation', calc=P.RD_low)
+    #P.figure_14('posterior f for 1-observation')
     # P.figure_15('posterior f for 1-observation', pm=1, n=1, pv2=1, CALC=pg.ExponentialDensity)
     #P.figure_16('prior distribtuion events exponential low', pm=1, pv2=4, n=np.arange(20), CALC=P.EXP_low)
     #P.figure_16('prior distribtuion events exponential high', pm=1, pv2=4, n=np.arange(20), CALC=P.EXP_high)
