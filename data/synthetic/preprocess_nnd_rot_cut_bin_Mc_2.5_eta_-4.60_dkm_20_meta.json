@@ -1,0 +1,73 @@
+{
+  "created_utc": "2026-07-28T14:42:22.327818+00:00",
+  "pipeline_order": [
+    "load",
+    "magnitude_time_filter",
+    "manual_lonlat_to_xy_km",
+    "NND_decluster",
+    "rotate",
+    "cut",
+    "regular_square_grid",
+    "counts"
+  ],
+  "source": {
+    "path": "/Users/toni/Library/Mobile Documents/com~apple~CloudDocs/UP/BvaluePG/bvaluepg/data/synthetic/2026-07-28_bars_synthetic_catalog_events.csv"
+  },
+  "outputs": {
+    "events": "/Users/toni/Library/Mobile Documents/com~apple~CloudDocs/UP/BvaluePG/bvaluepg/data/synthetic/preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20_events.csv",
+    "bins": "/Users/toni/Library/Mobile Documents/com~apple~CloudDocs/UP/BvaluePG/bvaluepg/data/synthetic/preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20_bins.csv",
+    "counts": "/Users/toni/Library/Mobile Documents/com~apple~CloudDocs/UP/BvaluePG/bvaluepg/data/synthetic/preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20_counts.npz",
+    "meta": "/Users/toni/Library/Mobile Documents/com~apple~CloudDocs/UP/BvaluePG/bvaluepg/data/synthetic/preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20_meta.json"
+  },
+  "selection": {
+    "min_magnitude": 2.5,
+    "max_magnitude": null,
+    "year_min": 2015.0,
+    "year_max": 2026.5
+  },
+  "nnd": {
+    "implementation": "data/src/clustering.py::NND_eta",
+    "D": 1.6,
+    "b": 1.0,
+    "eta_threshold_log10": -4.6,
+    "correct_co_located": true,
+    "random_seed": 0
+  },
+  "projection": {
+    "formula": "x = EarthRadius*radians(lon)*cos(radians(gamma)); y = EarthRadius*radians(lat-gamma)",
+    "EarthRadius": 6371.0,
+    "gamma_deg": 41.819526825064024,
+    "longitude_reference": "Greenwich"
+  },
+  "rotation": {
+    "rotation_degrees": -45.0
+  },
+  "grid": {
+    "shape_ny_nx": [
+      8,
+      8
+    ],
+    "scan_order": "C row-major; global_bin_id = iy * nx + ix",
+    "bounds_rotated_km": {
+      "x_min": -16.283143779811542,
+      "x_max_requested": 1445.2218673055054,
+      "x_max_grid": 1585.5520959614987,
+      "y_min": -1442.904917367824,
+      "y_max_requested": -31.099732882407466,
+      "y_max_grid": 159.38513827663928
+    },
+    "cell_size_km": 200.0,
+    "cell_area_km2": 40000.0,
+    "inside_mask": "all rectangular grid cells true",
+    "zero_cells_retained": true
+  },
+  "counts_definition": "events with inside_final_cut=True and decluster_kept=True",
+  "event_counts": {
+    "after_source_filters": 5204,
+    "nnd_triggered": 1923,
+    "decluster_kept": 3281,
+    "inside_final_cut": 5127,
+    "used_in_counts": 3218,
+    "count_grid_sum": 3218
+  }
+}

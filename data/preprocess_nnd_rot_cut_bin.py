@@ -13,7 +13,17 @@ Workflow:
 
 todo morgen:
 meta daten und plots schreiben
+synthetic catalogues generieren
+    ganzen Katalog fuer die pipeline generieren oder nur background events generieren :/
+    vielleicht gleich mit dummy zeit und so
+    1. Erzeuge ein wahres Feld, (Block, Balken oder Checkerboard)
+    2. Ziehe daraus Poisson-Counts
+    3. Wandle Counts in zufällige Eventpunkte pro Bin um
+    4. Skaliere diese Punkte auf ein kuenstilches x_proj_km/y_proj_km-Gebiet
+    5. Rechne daraus passende lon/lat zurück oder besser direkt synthetische lon/lat setzen
+    6. Ergänze Dummy-Zeit, Tiefe, Magnitude (und optional lambda_true, f_true, bin_ix, bin_iy)
 
+ok das wird zuviel fuer hier, besser in eigenem skript. ich muss nur aufpassen, dass die Spaltennamen und Formate passen
 """
 
 import json
@@ -42,8 +52,11 @@ from create_horus_mat_for_clust import add_time_fields
 # PARAMETERS TO CHANGE
 # ============================================================
 
-INPUT_FILE = SCRIPT_DIR / "italy_ingv_m2point5_2015-2026.txt"
-OUTPUT_PREFIX = SCRIPT_DIR / "preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20"
+# INPUT_FILE = SCRIPT_DIR / "italy_ingv_m2point5_2015-2026.txt"
+# OUTPUT_PREFIX = SCRIPT_DIR / "preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20"
+
+INPUT_FILE = SCRIPT_DIR / "synthetic/2026-07-28_bars_synthetic_catalog_events.csv"
+OUTPUT_PREFIX = SCRIPT_DIR / "synthetic/preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20"
 
 MIN_MAGNITUDE = 2.5
 MAX_MAGNITUDE = None
@@ -123,6 +136,19 @@ def create_synthetic_catalog() -> pd.DataFrame:
     Intended output columns:
     datetime, lat, lon, depth, mag, event_id, and optionally f_true/lambda_true.
     The returned dataframe can then be passed through the same pipeline below.
+
+synthetic catalogues generieren
+    ganzen Katalog fuer die pipeline generieren oder nur background events generieren :/
+    vielleicht gleich mit dummy zeit und so
+    1. Erzeuge ein wahres Feld, (Block, Balken oder Checkerboard)
+    2. Ziehe daraus Poisson-Counts
+    3. Wandle Counts in zufällige Eventpunkte pro Bin um
+    4. Skaliere diese Punkte auf ein kuenstilches x_proj_km/y_proj_km-Gebiet
+    5. Rechne daraus passende lon/lat zurück oder besser direkt synthetische lon/lat setzen
+    6. Ergänze Dummy-Zeit, Tiefe, Magnitude (und optional lambda_true, f_true, bin_ix, bin_iy)
+
+ok das wird zuviel fuer hier, besser in eigenem skript. ich muss nur aufpassen, dass die Spaltennamen und Formate passen
+
     """
     raise NotImplementedError("Synthetic catalogue generation will be added later.")
 

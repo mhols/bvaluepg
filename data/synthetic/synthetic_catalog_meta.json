@@ -1,0 +1,35 @@
+{
+  "created_at": "2026-07-28T14:31:52.282097+00:00",
+  "pattern": "bars",
+  "seed": 20260728,
+  "ny": 64,
+  "nx": 64,
+  "domain": {
+    "lon_min": 6.0,
+    "lon_max": 19.0,
+    "lat_min": 36.0,
+    "lat_max": 47.5
+  },
+  "time": {
+    "start": "2015-01-01T00:00:00",
+    "t_end_years": 10.0
+  },
+  "magnitude": {
+    "min_magnitude": 2.5,
+    "b_value": 1.0,
+    "max_magnitude": 7.5
+  },
+  "depth": {
+    "min_km": 2.0,
+    "max_km": 18.0
+  },
+  "n_events": 5204,
+  "count_sum": 5204,
+  "lambda_min": 0.6,
+  "lambda_max": 8.6,
+  "lambda_mean": 1.303125,
+  "files": {
+    "pipeline_events": "/Users/toni/Library/Mobile Documents/com~apple~CloudDocs/UP/BvaluePG/bvaluepg/data/synthetic/synthetic_catalog_events.csv",
+    "truth": "/Users/toni/Library/Mobile Documents/com~apple~CloudDocs/UP/BvaluePG/bvaluepg/data/synthetic/synthetic_catalog_truth.npz"
+  }
+}
