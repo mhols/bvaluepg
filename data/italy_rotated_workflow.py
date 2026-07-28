@@ -2,8 +2,6 @@ import json
 import os
 from pathlib import Path
 
-os.environ.setdefault("MPLCONFIGDIR", "/private/tmp/bvaluepg_mplconfig")
-
 import geodatasets
 import geopandas as gpd
 import matplotlib
@@ -235,6 +233,7 @@ def plot_cut(
     ax.set_title(f"Rotated rectangle cut, angle {rotation_degrees:.1f} degrees")
     fig.tight_layout()
     fig.savefig(output_path, dpi=220)
+    plt.show()
     plt.close(fig)
 
 
@@ -299,6 +298,8 @@ def main() -> None:
         json.dump(meta, f, indent=2)
 
     plot_cut(gdf, local_crs, rotation_degrees, bounds, inside_mask, OUTPUT_PLOT)
+    plt.show()
+
 
     print(f"Loaded events: {len(gdf)}")
     print(f"Selected events: {int(inside_mask.sum())}")

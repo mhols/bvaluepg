@@ -25,7 +25,7 @@ from polyagammadensity import PolyaGammaDensity2D, inv_sigmoid
 # Experiment parameters. Change values here before running the script.
 INPUT_PREFIX = REPO_ROOT / "data" / "italy_nnd_rotate_cut_grid_Mc_2.5_eta_-4.60"
 
-N_ITER = 100
+N_ITER = 30
 BURN_IN = 10
 THIN = 2
 RANDOM_SEED = 0
@@ -93,8 +93,20 @@ def main() -> None:
     if samples.size == 0:
         raise ValueError("No samples retained; adjust n-iter, burn-in, and thin")
     rate_samples = model.field_from_f(samples)
-    posterior_mean = rate_samples.mean(axis=0).reshape(ny, nx, order="C")
-    posterior_sd = rate_samples.std(axis=0).reshape(ny, nx, order="C")
+
+    
+
+    # f_from_field_samples = model.f_from_field(rate_samples)
+
+    
+
+
+    # posterior_mean = rate_samples.mean(axis=0).reshape(ny, nx, order="C")
+    # posterior_sd = rate_samples.std(axis=0).reshape(ny, nx, order="C")
+
+    posterior_mean = samples.mean(axis=0).reshape(ny, nx, order="C")
+    posterior_sd = samples.std(axis=0).reshape(ny, nx, order="C")
+
 
     extent = [x_edges[0], x_edges[-1], y_edges[0], y_edges[-1]]
     fig, axes = plt.subplots(1, 3, figsize=(15, 5), constrained_layout=True)
@@ -109,7 +121,7 @@ def main() -> None:
             extent=extent,
             aspect="auto",
             interpolation="nearest",
-            norm=norm,
+            # norm=norm,
         )
         ax.set_title(title)
         ax.set_xlabel("rotated x [km]")
@@ -117,7 +129,9 @@ def main() -> None:
         fig.colorbar(artist, ax=ax)
     print(f"grid: {nx} x {ny}; events: {counts.sum()}; lambda: {lam:g}; retained samples: {len(samples)}")
     plt.show()
+    print(samples[0:5])
 
 
 if __name__ == "__main__":
     main()
+    
