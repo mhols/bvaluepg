@@ -14,6 +14,7 @@ data/HORUS_Ita_*
 data/*.txt
 data/*.json
 data/*.csv
+data/*.zip
 
 
 # Local test/debug outputs

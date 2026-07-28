@@ -1,3 +1,10 @@
+'''
+Pipeline to bin the events in a rectangular grid of size dkm x dkm. The output is a csv file with the number of events in each bin and the coordinates of the bin center.
+1. create .mat file
+2. nnd
+
+'''
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt

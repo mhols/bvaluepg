@@ -257,8 +257,3 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-
-'''
-name als string eingebaut, damit plot title macht. wird in plot_patterns und plot_sparse_results verwendet, festgelegt in pattern_specs
-todo restl comments in englisch
-'''

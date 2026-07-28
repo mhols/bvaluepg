@@ -7,14 +7,7 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 
-# -----------------------------------------------------
-# 0) Im Script‑Ordner arbeiten
-# -----------------------------------------------------
-#
-# Analog zur Datei ``explore_earthquake_data.py`` arbeitet dieses
-# Skript zunächst immer im Verzeichnis, in dem es gespeichert ist.
-# Dadurch wird sichergestellt, dass relative Pfade zu den
-# Datenquellen (CSV/GeoJSON) korrekt aufgelöst werden können.
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 os.chdir(SCRIPT_DIR)
 
