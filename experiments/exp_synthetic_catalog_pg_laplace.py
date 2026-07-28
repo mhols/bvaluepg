@@ -13,6 +13,8 @@ das Bild sieht mir passt nicht. nochmal pruefen
 
 Bilder asu picture_for_paper vergleichen
 dann schick machen und einbauen
+warum sieht pg mean rate so komisch aus? checken, ob das an der visualisierung liegt oder an den samples
+das muss an den samples liegen
 """
 
 from pathlib import Path
@@ -47,7 +49,7 @@ MAP_NITER = 500
 
 N_LAPLACE_SAMPLES = 200
 
-PG_N_ITER = 80
+PG_N_ITER = 800
 PG_BURN_IN = 30
 PG_THIN = 5
 
@@ -157,12 +159,12 @@ def sample_pg(model: pgd.PolyaGammaDensity2D, f_map: np.ndarray) -> tuple[np.nda
     return samples_f, samples_lambda
 
 
-def summarize(samples_lambda: np.ndarray) -> dict[str, np.ndarray]:
+def summarize(samples: np.ndarray) -> dict[str, np.ndarray]:
     return {
-        "mean": samples_lambda.mean(axis=0),
-        "sd": samples_lambda.std(axis=0),
-        "q025": np.quantile(samples_lambda, 0.025, axis=0),
-        "q975": np.quantile(samples_lambda, 0.975, axis=0),
+        "mean": samples.mean(axis=0),
+        "sd": samples.std(axis=0),
+        "q025": np.quantile(samples, 0.025, axis=0),
+        "q975": np.quantile(samples, 0.975, axis=0),
     }
 
 
@@ -214,6 +216,32 @@ def plot_comparison(
     plt.show()
 
 
+def plot_f_comparison(
+    model: pgd.PolyaGammaDensity2D,
+    f_true: np.ndarray,
+    f_map: np.ndarray,
+    laplace_f: dict[str, np.ndarray],
+    pg_f: dict[str, np.ndarray],
+) -> None:
+    fig, axes = plt.subplots(2, 3, figsize=(12, 7), constrained_layout=True)
+    panels = (
+        (axes[0, 0], f_true, "f_true"),
+        (axes[0, 1], image(model, f_map), "MAP f"),
+        (axes[0, 2], image(model, laplace_f["mean"]), "Laplace mean f"),
+        (axes[1, 0], image(model, pg_f["mean"]), "PG mean f"),
+        (axes[1, 1], image(model, laplace_f["sd"]), "Laplace f SD"),
+        (axes[1, 2], image(model, pg_f["sd"]), "PG f SD"),
+    )
+
+    for ax, values, title in panels:
+        im = ax.imshow(values, origin="lower")
+        ax.set_title(title)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        fig.colorbar(im, ax=ax, fraction=0.046)
+    plt.show()
+
+
 def print_metrics(
     lambda_true: np.ndarray,
     counts: np.ndarray,
@@ -246,19 +274,21 @@ def print_metrics(
 
 def main() -> None:
     lambda_true, f_true, counts = load_truth()
-    del f_true
 
     model = make_model(counts, lambda_true)
     f_map, lambda_map = fit_map(model)
 
-    _, laplace_lambda = sample_laplace(model, f_map)
-    _, pg_lambda = sample_pg(model, f_map)
+    laplace_f_samples, laplace_lambda = sample_laplace(model, f_map)
+    pg_f_samples, pg_lambda = sample_pg(model, f_map)
 
     laplace = summarize(laplace_lambda)
     pg = summarize(pg_lambda)
+    laplace_f = summarize(laplace_f_samples)
+    pg_f = summarize(pg_f_samples)
 
     print_metrics(lambda_true, counts, lambda_map, laplace, pg)
     plot_comparison(model, lambda_true, counts, lambda_map, laplace, pg)
+    plot_f_comparison(model, f_true, f_map, laplace_f, pg_f)
 
 
 if __name__ == "__main__":
