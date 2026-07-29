@@ -80,3 +80,28 @@ Die Bedeutung der Spalten 5 bis 7 ist aus dem Zahlenmuster der Dateien
 abgeleitet: Background-Ereignisse haben `parent_id = 0` und `generation = 0`;
 getriggerte Ereignisse verweisen in `parent_id` auf ein frueheres Ereignis und
 behalten die zugehoerige `cluster_id`.
+
+## Italien-Daten in Sofianes Paper
+
+Im lokal vorliegenden Code `SPDE-ETAS-main/Main_script.jl` wird aktuell nur der
+synthetische Katalog geladen:
+
+```julia
+const DATA_FILE = "data/synthetic_data_case_01_patches.txt"
+```
+
+Im Paper wird die Italien-Anwendung aber beschrieben.
+Dort steht:
+
+- Quelle: HORUS-Katalog
+- Download: `https://horus.bo.ingv.it`
+- Referenz: Lolli et al. (2020), *The homogenized instrumental seismic catalog (HORUS) of Italy from 1960 to present*
+- Gesamtdatensatz: mehr als 514,465 Ereignisse
+- Zeitraum des Gesamtdatensatzes: 1960 bis 2025
+- Gebiet: `[37°N, 47°N] x [7°E, 18.5°E]`
+- Fuer den Fit verwendet: 14,802 Ereignisse
+- Auswahl fuer den Fit: `Mw >= 3.0`, Zeitraum 1980 bis 2025
+
+Damit nutzt Sofiane im Paper denselben HORUS/INGV-Datenkontext, aber
+mit einer staerkeren Magnitudenschwelle und einem laengeren Zeitraum als unsere
+aktuelle INGV-Mc-2.5-Anwendung.
