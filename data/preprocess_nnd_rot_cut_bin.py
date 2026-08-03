@@ -52,11 +52,11 @@ from create_horus_mat_for_clust import add_time_fields
 # PARAMETERS TO CHANGE
 # ============================================================
 
-# INPUT_FILE = SCRIPT_DIR / "italy_ingv_m2point5_2015-2026.txt"
-# OUTPUT_PREFIX = SCRIPT_DIR / "preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20"
+INPUT_FILE = SCRIPT_DIR / "italy_ingv_m2point5_2015-2026.txt"
+OUTPUT_PREFIX = SCRIPT_DIR / "preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20"
 
-INPUT_FILE = SCRIPT_DIR / "synthetic/2026-07-28_bars_synthetic_catalog_events.csv"
-OUTPUT_PREFIX = SCRIPT_DIR / "synthetic/preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20"
+# INPUT_FILE = SCRIPT_DIR / "synthetic/2026-07-28_bars_synthetic_catalog_events.csv"
+# OUTPUT_PREFIX = SCRIPT_DIR / "synthetic/preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20"
 
 MIN_MAGNITUDE = 2.5
 MAX_MAGNITUDE = None
@@ -86,7 +86,7 @@ AUTO_RECTANGLE_QUANTILE_HIGH = 0.99
 AUTO_RECTANGLE_PADDING_KM = 40.0
 
 # Square bin size in rotated kilometres.
-dkm = 200.0
+dkm = 20.0
 
 OUTPUT_SEPARATOR = "|"
 

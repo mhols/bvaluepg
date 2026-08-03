@@ -24,12 +24,12 @@ INPUT_FILES = [
 ]
 
 START_TIME = "2015-01-01T00:00:00"
-TIME_UNIT = "D"  # Sofianes time column is treated as days.
+TIME_UNIT = "D"  # Sofianes Zeitfeld wird als Tage interpretiert.
 
-# Sofiane's magnitudes are relative to a cutoff in his current setup. We keep
-# the original values in sofiane_mag_relative and create an absolute-like
-# Magnitude column so our default MIN_MAGNITUDE=2.5 filter does not remove all
-# events.
+# Sofianes Magnituden beziehen sich in seiner aktuellen Konfiguration auf einen Schwellenwert. Wir behalten
+# die ursprünglichen Werte in „sofiane_mag_relative“ bei und erstellen eine Spalte mit
+# absoluten Magnitudenwerten, damit unser Standardfilter „MIN_MAGNITUDE=2,5“ nicht alle
+# Ereignisse entfernt.
 MAGNITUDE_OFFSET = 2.5
 
 DEPTH_KM = 0.0
