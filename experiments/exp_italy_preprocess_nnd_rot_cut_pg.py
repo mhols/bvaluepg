@@ -14,6 +14,7 @@ import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
+import re
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -36,7 +37,7 @@ BURN_IN = 40
 THIN = 2
 RANDOM_SEED = 0
 
-RHO = 3.0
+RHO_KM = 60.0
 PRIOR_VARIANCE = 1.0
 BOUNDARY = "symmetric"
 
@@ -50,6 +51,33 @@ HIST_BIN_IX = None
 
 def related_path(prefix: Path, suffix: str) -> Path:
     return prefix.with_name(prefix.name + suffix)
+
+def get_cell_size_km_from_filename(prefix: Path) -> float:
+    """
+    Extract the grid-cell size from a filename containing `_dkm_<value>`.
+
+    Examples
+    --------
+    "..._dkm_20"   -> 20.0
+    "..._dkm_12.5" -> 12.5
+    """
+    match = re.search(
+        r"(?:^|_)dkm_([0-9]+(?:\.[0-9]+)?)(?:_|$)",
+        prefix.name,
+    )
+
+    if match is None:
+        raise ValueError(
+            "Could not determine the cell size from the input filename. "
+            "Expected a component such as '_dkm_20'."
+        )
+
+    cell_size_km = float(match.group(1))
+
+    if cell_size_km <= 0.0:
+        raise ValueError("Cell size extracted from filename must be positive.")
+
+    return cell_size_km
 
 
 def load_inputs() -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
@@ -80,10 +108,12 @@ def make_model(counts: np.ndarray) -> tuple[PolyaGammaDensity2D, float, float]:
     mean_count = float(counts.mean())
     prior_probability = float(np.clip(mean_count / lam, 1e-6, 1.0 - 1e-6))
     prior_mean_scalar = float(inv_sigmoid(prior_probability))
+    cell_size_km = get_cell_size_km_from_filename(INPUT_PREFIX)
+    rho_cells = RHO_KM / cell_size_km
     prior_precision = precision_matern(
         n=ny,
         m=nx,
-        rho=RHO,
+        rho=rho_cells,
         v2=PRIOR_VARIANCE,
         boundary=BOUNDARY,
     )

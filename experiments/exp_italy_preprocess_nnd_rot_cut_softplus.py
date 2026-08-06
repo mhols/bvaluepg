@@ -36,7 +36,7 @@ BURN_IN = 40
 THIN = 2
 RANDOM_SEED = 0
 
-RHO = 3.0
+RHO_KM = 60.0
 PRIOR_VARIANCE = 15.0
 BOUNDARY = "symmetric"
 SOFTPLUS_K = 1.0
@@ -50,6 +50,33 @@ HIST_BIN_IX = None
 
 def related_path(prefix: Path, suffix: str) -> Path:
     return prefix.with_name(prefix.name + suffix)
+
+def get_cell_size_km_from_filename(prefix: Path) -> float:
+    """
+    Extract the grid-cell size from a filename containing `_dkm_<value>`.
+
+    Examples
+    --------
+    "..._dkm_20"   -> 20.0
+    "..._dkm_12.5" -> 12.5
+    """
+    match = re.search(
+        r"(?:^|_)dkm_([0-9]+(?:\.[0-9]+)?)(?:_|$)",
+        prefix.name,
+    )
+
+    if match is None:
+        raise ValueError(
+            "Could not determine the cell size from the input filename. "
+            "Expected a component such as '_dkm_20'."
+        )
+
+    cell_size_km = float(match.group(1))
+
+    if cell_size_km <= 0.0:
+        raise ValueError("Cell size extracted from filename must be positive.")
+
+    return cell_size_km
 
 
 def load_inputs() -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
@@ -71,32 +98,13 @@ def load_inputs() -> tuple[np.ndarray, np.ndarray, np.ndarray, dict]:
 
 def make_model(counts: np.ndarray) -> tuple[RampDensity2D, float]:
     ny, nx = counts.shape
-
+    cell_size_km = get_cell_size_km_from_filename(INPUT_PREFIX)
+    rho_cells = RHO_KM / cell_size_km
+    prior_precision = precision_matern(n=ny, m=nx, rho=rho_cells, v2=PRIOR_VARIANCE, boundary=BOUNDARY)
     mean_count = float(counts.mean())
-
     prior_mean_scalar = float(inv_softplus(max(mean_count, 1e-6)))
-
-    prior_precision = precision_matern(
-        n=ny,
-        m=nx,
-        rho=RHO,
-        v2=PRIOR_VARIANCE,
-        boundary=BOUNDARY,
-    )
-
     nmax_mix = int(counts.max()) + NMAX_MIX_EXTRA
-
-    model = RampDensity2D(
-        prior_mean=np.full(ny * nx, prior_mean_scalar),
-        prior_precision=prior_precision,
-        sparse=True,
-        n=ny,
-        m=nx,
-        nmax_mix=nmax_mix,
-        softplus_k=SOFTPLUS_K,
-        cache_dir=None, 
-    )
-
+    model = RampDensity2D(prior_mean=np.full(ny * nx, prior_mean_scalar), prior_precision=prior_precision, sparse=True, n=ny, m=nx, nmax_mix=nmax_mix, softplus_k=SOFTPLUS_K, cache_dir=None)
     model.set_data(counts.ravel(order="C"))
     return model, prior_mean_scalar
 
