@@ -1,20 +1,10 @@
-"""Softplus-Experiment auf dem aktuellen Italy-Preprocessing-Output.
-
-Figures mit plt.show():
-- Beobachtete declustered Counts aus preprocess_nnd_rot_cut_bin.py.
-- Posterior mean rate und posterior rate SD.
-- Ein einzelnes f-Sample aus dem sampler.
-- Histogramm der f-Samples fuer eine ausgewaehlte Grid-Zelle.
-
-"""
-
 from pathlib import Path
 import json
 import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
-
+import re
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIR = REPO_ROOT / "source"
