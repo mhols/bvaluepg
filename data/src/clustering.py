@@ -63,7 +63,7 @@ def NND_eta( eqCat, dConst, verbose = False, **kwargs):
     #-----------------------------add small uncertainty to X in case events are colocated-------------------------- 
     if 'correct_co_located' in kwargs.keys() and kwargs['correct_co_located'] == True:
         vUncer = np.random.randn( eqCat.size())*1e-10
-        eqCat.data['Lon']    += vUncer
+        eqCat.data['Lon']    = +vUncer
     #------------------------------------------------------------------------------
     aNND     = np.zeros( eqCat.size())
     vID_p    = np.zeros( eqCat.size())

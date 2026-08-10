@@ -86,7 +86,7 @@ AUTO_RECTANGLE_QUANTILE_HIGH = 0.99
 AUTO_RECTANGLE_PADDING_KM = 40.0
 
 # Square bin size in rotated kilometres.
-dkm = 20.0
+dkm = 2.0
 
 OUTPUT_SEPARATOR = "|"
 

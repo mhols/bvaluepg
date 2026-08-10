@@ -218,6 +218,8 @@ def main() -> None:
 
     posterior_mean_rate = image(model, rate_samples.mean(axis=0))
     posterior_sd_rate = image(model, rate_samples.std(axis=0))
+    posterior_mean_f = image(model, samples_f.mean(axis=0))
+    posterior_sd_f = image(model, samples_f.std(axis=0))
 
     print("Italy PG experiment")
     print(f"input prefix: {INPUT_PREFIX}")
@@ -230,6 +232,7 @@ def main() -> None:
 
     plot_counts(counts, x_edges, y_edges)
     plot_pg_rate(posterior_mean_rate, posterior_sd_rate, x_edges, y_edges)
+    plot_pg_rate(posterior_mean_f, posterior_sd_f, x_edges, y_edges)
     plot_f_diagnostics(model, samples_f, x_edges, y_edges)
 
 
