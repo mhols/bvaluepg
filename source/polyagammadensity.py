@@ -55,6 +55,14 @@ def softplus(t):
 def inv_softplus(t):
     return np.log(np.expm1(t))
 
+def exponential(f):
+    return eme.safe_exp(f)
+
+
+def inv_exponential(field):
+    field = np.asarray(field, dtype=float)
+    return np.log(np.clip(field, 1e-300, None))
+
 def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
     """Ziehen aus PG(b, c) unter Verwendung des Pakets „polyagamma“.
 
@@ -875,7 +883,11 @@ class SmoothRampMixin:
         lazy computation of property
         """
         if self._mix is None:
-            self._mix = gsm.load_or_build_mix(self.nmax_mix,  self.softplus_k)
+            self._mix = gsm.load_or_build_mix(
+                self.nmax_mix,
+                cache_dir=self.cache_dir,
+                softplus_k=self.softplus_k,
+                )
         return self._mix
 
     def field_from_f(self, f):
@@ -1004,13 +1016,13 @@ class ExponentialMixin:
         return self._mix
 
     def field_from_f(self, f):
-        return eme.safe_exp(f)
+        return exponential(f)
 
     def f_from_field(self, field):
-        return np.log(np.clip(field, 1e-300, None))
+        return inv_exponential(field)
 
     def derivative_field_from_f(self, f):
-        return eme.safe_exp(f)
+        return exponential(f)
 
     def derivative_log_field_from_f(self, f):
         return np.ones_like(np.asarray(f, dtype=float))
@@ -1019,7 +1031,7 @@ class ExponentialMixin:
         return np.zeros_like(np.asarray(f, dtype=float))
 
     def second_derivate_field_from_f(self, f):
-        return eme.safe_exp(f)
+        return exponential(f)
     
     def first_guess_estimator(self):
         field = np.clip(self.nobs + 0.5, 1e-8, None)
