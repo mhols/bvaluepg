@@ -140,7 +140,7 @@ if __name__ == "__main__":
 
     plt.figure(figsize=(10, 8))
 
-    italy_data = ItalyData(BIN_SIZE_KM=10, Declusterd=True)
+    italy_data = ItalyData(BIN_SIZE_KM=5, rho=20, lam=1, var=1, Declusterd=True)
     italy_data.plot()
 
 
