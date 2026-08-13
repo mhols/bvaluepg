@@ -5,6 +5,7 @@ import geopandas as gpd
 
 import matplotlib.pyplot as plt
 from geodatasets import get_path
+import pickle
 
 import sys
 sys.path.append(str(Path(__file__).resolve().parent.parent / "source"))
@@ -36,6 +37,9 @@ class ItalyData:
         self.lam = lam
         self.var = var
         self.prior_mean = prior_mean
+        self.cache_file = REPO_ROOT / "data" / (
+            f"italy_preprocessed_bin_{BIN_SIZE_KM}_declustered_{Declusterd}.pkl"
+        )
         self.data = None
         self.polygons = None
         self._binn_data_in_rotated_coordinates()
@@ -76,21 +80,74 @@ class ItalyData:
         return self.polygons
 
 
+    #def _binn_data_in_rotated_coordinates(self):
+    #    data = pd.read_csv(PREPROCESSED_DATA, sep='|')
+    #
+        # if self.Declusterd:
+        #     I = data['decluster_kept'] & data['inside_final_cut']
+        # else:
+        #     I = data['inside_final_cut']   
+
+        # self.data = data.loc[I]
+
+
+        # self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent =  \
+        # IC.get_binned_data_in_rotated_coordinates(data['lon'].values, data['lat'].values, self.BIN_SIZE_KM)
+
+        # return self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent
+
+
     def _binn_data_in_rotated_coordinates(self):
+
+        if self.cache_file.exists():
+            with open(self.cache_file, "rb") as file:
+                cache = pickle.load(file)
+
+            self.data = cache["data"]
+            self.i = cache["i"]
+            self.j = cache["j"]
+            self.nbinx = cache["nbinx"]
+            self.nbiny = cache["nbiny"]
+            self.x_rot = cache["x_rot"]
+            self.y_rot = cache["y_rot"]
+            self.counts = cache["counts"]
+            self.extent = cache["extent"]
+
+            return self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent
+
+
         data = pd.read_csv(PREPROCESSED_DATA, sep='|')
 
         if self.Declusterd:
             I = data['decluster_kept'] & data['inside_final_cut']
         else:
-            I = data['inside_final_cut']   
+            I = data['inside_final_cut']
 
-        self.data = data.loc[I]
+        self.data = data.loc[I].copy()
 
+        self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent = \
+            IC.get_binned_data_in_rotated_coordinates(
+                self.data['lon'].values,
+                self.data['lat'].values,
+                self.BIN_SIZE_KM
+        )
 
-        self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent =  \
-        IC.get_binned_data_in_rotated_coordinates(data['lon'].values, data['lat'].values, self.BIN_SIZE_KM)
+        cache = {
+            "data": self.data,
+            "i": self.i,
+            "j": self.j,
+            "nbinx": self.nbinx,
+            "nbiny": self.nbiny,
+            "x_rot": self.x_rot,
+            "y_rot": self.y_rot,
+            "counts": self.counts,
+            "extent": self.extent,
+        }
 
-        return self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent
+        with open(self.cache_file, "wb") as file:
+            pickle.dump(cache, file)
+
+        return self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent   
 
 
     def _prepare_prior_kernels(self):
@@ -155,5 +212,69 @@ if __name__ == "__main__":
     italy_data.plot_coastlines()
     italy_data.sampler.imshow(italy_data.sampler.field_from_f(f), extent=italy_data.extent, origin="lower", cmap="viridis")
 
+    # posterior sampling
+    n_samples = 200
+    burn_in = 50
+    thin = 1
+
+    f_mean = np.zeros_like(f)
+    f_M2 = np.zeros_like(f)
+    rate_mean = np.zeros_like(f)
+
+    count = 0
+    samples_to_plot = []
+    plot_every = max(1, n_samples // 6)
+
+    for res in italy_data.sampler.sample_posterior(n_iter=n_samples, burn_in=burn_in, thin=thin, initial_f=f, random_seed=0):
+        count += 1
+
+        if count % plot_every == 0 and len(samples_to_plot) < 6:
+            samples_to_plot.append(res.copy())
+
+        delta = res - f_mean
+        f_mean += delta / count
+        f_M2 += delta * (res - f_mean)
+
+        rate = italy_data.sampler.field_from_f(res)
+        rate_mean += (rate - rate_mean) / count
+
+    f_sd = np.sqrt(f_M2 / (count - 1))
+
+    plt.figure(figsize=(15, 8))
+
+    for i, sample in enumerate(samples_to_plot):
+        plt.subplot(2, 3, i + 1)
+
+        italy_data.sampler.imshow( italy_data.sampler.field_from_f(sample), extent=italy_data.extent, origin="lower", cmap="viridis")
+
+        italy_data.plot_coastlines()
+        plt.title(f"Posterior rate sample {i + 1}")
+        plt.xticks([])
+        plt.yticks([])
+
+        plt.tight_layout()
+
+    plt.figure(figsize=(10, 8))
+    plt.title("Posterior mean of f")
+
+    italy_data.plot_coastlines()
+
+    italy_data.sampler.imshow(f_mean, extent=italy_data.extent, origin="lower", cmap="viridis")
+
+    plt.colorbar()
+
+    plt.figure(figsize=(10, 8))
+    plt.title("Posterior standard deviation of f")  
+
+    italy_data.plot_coastlines()
+    italy_data.sampler.imshow(f_sd, extent=italy_data.extent, origin="lower", cmap="viridis")
+
+    plt.colorbar()
+
+    plt.figure(figsize=(10, 8))
+    plt.title("Posterior mean of rate")
+    italy_data.plot_coastlines()
+    italy_data.sampler.imshow(rate_mean, extent=italy_data.extent, origin="lower", cmap="viridis")
+    plt.colorbar()
 
     plt.show()
