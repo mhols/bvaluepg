@@ -18,6 +18,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PREPROCESSED_DATA = REPO_ROOT / "data" / "preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_2_events.csv"
 ITALYCOASTLINE =  REPO_ROOT / "data" /  "coastlines/ne_10m_coastline.zip"
 EXTRACTED_COASTLINE_DIR = REPO_ROOT / "experiments" / "naturalearth" 
+PLOTS_DIR = REPO_ROOT / "Plots"
+
 
 import io
 import zipfile
@@ -71,7 +73,7 @@ class ItalyData:
 
             bbox = box(6, 35, 19, 48)
 
-            italy_coast = coast.clip(bbox)
+            italy_coast = coast
 
 
             polygons = []
@@ -218,6 +220,26 @@ class ItalyData:
         ax.set_xlim(self.extent[0], self.extent[1])
         ax.set_ylim(self.extent[2], self.extent[3])
 
+    def save_plot(self, plot_name):
+
+        catalog = "declustered" if self.Declusterd else "all"
+
+        filename = (
+            f"italy_{plot_name}"
+            f"_bin_{self.BIN_SIZE_KM}km"
+            f"_{catalog}.png"
+        )
+
+        path = PLOTS_DIR / filename
+
+        plt.savefig(
+            path,
+            dpi=300,
+            bbox_inches="tight"
+        )
+
+        print(f"Saved plot to {path}")
+
     def posterior_summary(
         self,
         initial_f,
@@ -289,6 +311,7 @@ class ItalyData:
 
         self.plot_coastlines()
         plt.colorbar()
+        self.save_plot("posterior_mean_f")
 
 
         plt.figure(figsize=(10, 8))
@@ -298,6 +321,7 @@ class ItalyData:
 
         self.plot_coastlines()
         plt.colorbar()
+        self.save_plot("posterior_sd_f")
 
 
         plt.figure(figsize=(10, 8))
@@ -307,15 +331,18 @@ class ItalyData:
 
         self.plot_coastlines()
         plt.colorbar()
+        self.save_plot("posterior_mean_rate")
 
 
 
 if __name__ == "__main__":
 
     plt.figure(figsize=(10, 8))
-    plt.title("Italy Earthquake Data (Declustered)" if True else "Italy Earthquake Data (All Events)")
-    italy_data = ItalyData(BIN_SIZE_KM=5, rho=20, lam=1, var=1, Declusterd=True)
+    
+    italy_data = ItalyData(BIN_SIZE_KM=5, rho=20, lam=1, var=1, Declusterd= True)
+    plt.title("Italy Earthquake Data (Declustered)" if italy_data.Declusterd else "Italy Earthquake Data (All Events)")
     italy_data.plot()
+    italy_data.save_plot("italy_earthquake_data")
 
 
     f = italy_data.sampler.max_logposterior_estimator()
@@ -324,6 +351,7 @@ if __name__ == "__main__":
     plt.title("MAP estimate of f")
     italy_data.plot_coastlines()
     italy_data.sampler.imshow(f, extent=italy_data.extent, origin="lower", cmap="viridis")
+    italy_data.save_plot("map_f")
 
 
     plt.figure(figsize=(10, 8))
@@ -334,6 +362,7 @@ if __name__ == "__main__":
     f_mean, f_sd, rate_mean, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=200, burn_in=50, thin=1)
 
     italy_data.plot_posterior_samples(samples_to_plot)
+    italy_data.save_plot("posterior_samples")
 
     italy_data.plot_posterior_summary(f_mean, f_sd, rate_mean)
 
