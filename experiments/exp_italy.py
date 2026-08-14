@@ -302,12 +302,12 @@ class ItalyData:
 
 
 
-    def plot_posterior_summary(self, f_mean, f_sd, rate_mean):
+    def plot_posterior_summary(self, f_mean, f_sd, rate_mean, f_map = None, rate_map = None, f_vmin=None, f_vmax=None, rate_vmin=None, rate_vmax=None):
 
         plt.figure(figsize=(10, 8))
         plt.title("Posterior mean of f")
 
-        self.sampler.imshow(f_mean, extent=self.extent, origin="lower", cmap="viridis")
+        self.sampler.imshow(f_mean, extent=self.extent, vmin=f_vmin, vmax=f_vmax, origin="lower", cmap="viridis")
 
         self.plot_coastlines()
         plt.colorbar()
@@ -327,43 +327,96 @@ class ItalyData:
         plt.figure(figsize=(10, 8))
         plt.title("Posterior mean of rate")
 
-        self.sampler.imshow(rate_mean, extent=self.extent, origin="lower", cmap="viridis")
+        self.sampler.imshow(rate_mean, extent=self.extent, vmin=rate_vmin, vmax=rate_vmax, origin="lower", cmap="viridis")
 
         self.plot_coastlines()
         plt.colorbar()
         self.save_plot("posterior_mean_rate")
 
+        if f_map is not None:
+
+            f_diff = f_mean - f_map
+
+            f_diff_absmax = np.max(
+                np.abs(f_diff)
+            )
+
+            plt.figure(figsize=(10, 8))
+            plt.title("Difference in f: posterior mean - MAP")
+
+            im = self.sampler.imshow( f_diff, extent=self.extent, origin="lower", cmap="RdBu_r", vmin=-f_diff_absmax,  vmax=f_diff_absmax)
+
+            self.plot_coastlines()
+            plt.colorbar(im)
+            self.save_plot("difference_f")
+
+        if rate_map is not None:
+
+            rate_diff = rate_mean - rate_map
+
+            rate_diff_absmax = np.max(np.abs(rate_diff))
+            
+
+            plt.figure(figsize=(10, 8))
+            plt.title("Difference in rate: posterior mean - MAP")
+
+            im = self.sampler.imshow( rate_diff, extent=self.extent, origin="lower", cmap="RdBu_r", vmin=-rate_diff_absmax,  vmax=rate_diff_absmax)
+
+            self.plot_coastlines()
+            plt.colorbar(im)
+            self.save_plot("difference_rate")    
+
 
 
 if __name__ == "__main__":
 
+    italy_data = ItalyData(BIN_SIZE_KM=5, rho=20, lam=25, var=4, prior_mean = -7.0 ,Declusterd= True)
+
+    f = italy_data.sampler.max_logposterior_estimator()
+
+    rate_map = italy_data.sampler.field_from_f(f)
+
+    f_mean, f_sd, rate_mean, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=200, burn_in=50, thin=1)
+
+
+    f_vmin = min(np.min(f), np.min(f_mean))
+
+    f_vmax = max( np.max(f), np.max(f_mean))
+
+
+
+    rate_vmin = min(np.min(rate_map), np.min(rate_mean))
+
+    rate_vmax = max(np.max(rate_map), np.max(rate_mean))
+
+
     plt.figure(figsize=(10, 8))
     
-    italy_data = ItalyData(BIN_SIZE_KM=5, rho=20, lam=1, var=1, Declusterd= True)
+
+
     plt.title("Italy Earthquake Data (Declustered)" if italy_data.Declusterd else "Italy Earthquake Data (All Events)")
     italy_data.plot()
     italy_data.save_plot("italy_earthquake_data")
 
+    counts = italy_data.counts.flatten()
 
-    f = italy_data.sampler.max_logposterior_estimator()
 
     plt.figure(figsize=(10, 8))
     plt.title("MAP estimate of f")
     italy_data.plot_coastlines()
-    italy_data.sampler.imshow(f, extent=italy_data.extent, origin="lower", cmap="viridis")
+    italy_data.sampler.imshow(f, extent=italy_data.extent, vmin=f_vmin, vmax=f_vmax, origin="lower", cmap="viridis")
     italy_data.save_plot("map_f")
 
 
     plt.figure(figsize=(10, 8))
     plt.title("MAP estimate of rate")
     italy_data.plot_coastlines()
-    italy_data.sampler.imshow(italy_data.sampler.field_from_f(f), extent=italy_data.extent, origin="lower", cmap="viridis")
-
-    f_mean, f_sd, rate_mean, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=200, burn_in=50, thin=1)
+    italy_data.sampler.imshow(rate_map, extent=italy_data.extent,  origin="lower", cmap="viridis")
+    italy_data.save_plot("map_rate")
 
     italy_data.plot_posterior_samples(samples_to_plot)
     italy_data.save_plot("posterior_samples")
 
-    italy_data.plot_posterior_summary(f_mean, f_sd, rate_mean)
+    italy_data.plot_posterior_summary(f_mean, f_sd, rate_mean, f_map=f, rate_map=rate_map, f_vmin=f_vmin, f_vmax=f_vmax, rate_vmin=rate_vmin, rate_vmax=rate_vmax)
 
     plt.show()

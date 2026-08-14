@@ -744,9 +744,6 @@ class SigmoidMixin(Density):
             if f.shape != mu0.shape:
                 raise ValueError("initial_f must have shape matching prior_mean")
 
-        # Samples speichern
-        n_keep = max(0, (n_iter - burn_in) // thin)
-        f_samples = np.zeros((n_keep, nbins))
 
 
         if self.mode == Density.COVARIANCE and not self.sparse:
