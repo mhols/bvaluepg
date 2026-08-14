@@ -5,6 +5,7 @@ import geopandas as gpd
 
 import matplotlib.pyplot as plt
 from geodatasets import get_path
+import pickle
 
 import sys
 sys.path.append(str(Path(__file__).resolve().parent.parent / "source"))
@@ -44,6 +45,9 @@ class ItalyData:
         self.var = var
         self.prior_mean = prior_mean
         self.saturation = saturation
+        self.cache_file = REPO_ROOT / "data" / (
+            f"italy_preprocessed_bin_{BIN_SIZE_KM}_declustered_{Declusterd}.pkl"
+        )
         self.data = None
         self.polygons = None
 
@@ -55,6 +59,15 @@ class ItalyData:
     @property
     def coastlines(self):
         if self.polygons is None:
+
+            if self.cache_file.exists():
+                print(f"Loading cached coastlines from {self.cache_file}")
+                with open(self.cache_file, "rb") as file:
+                    cache = pickle.load(file)
+
+                self.polygons = cache.get("polygons", None)
+                if self.polygons is not None:
+                    return self.polygons
 
             with zipfile.ZipFile(open(ITALYCOASTLINE, "rb")) as z:
                 z.extractall(EXTRACTED_COASTLINE_DIR)
@@ -69,8 +82,6 @@ class ItalyData:
             italy_coast = coast.clip(bbox)
 
 
-
-
             polygons = []
             for geom in italy_coast.geometry:
                 if geom.geom_type == "LineString":
@@ -82,24 +93,89 @@ class ItalyData:
 
             self.polygons = polygons
 
+            with open(self.cache_file, "rb") as file:
+                cache = pickle.load(file)
+
+            cache["polygons"] = self.polygons
+
+            with open(self.cache_file, "wb") as file:
+                pickle.dump(cache, file)
+
+
+
         return self.polygons
 
 
+    #def _binn_data_in_rotated_coordinates(self):
+    #    data = pd.read_csv(PREPROCESSED_DATA, sep='|')
+    #
+        # if self.Declusterd:
+        #     I = data['decluster_kept'] & data['inside_final_cut']
+        # else:
+        #     I = data['inside_final_cut']   
+
+        # self.data = data.loc[I]
+
+
+        # self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent =  \
+        # IC.get_binned_data_in_rotated_coordinates(data['lon'].values, data['lat'].values, self.BIN_SIZE_KM)
+
+        # return self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent
+
+
     def _binn_data_in_rotated_coordinates(self):
+
+        if self.cache_file.exists():
+            print(f"Loading cached data from {self.cache_file}")
+            with open(self.cache_file, "rb") as file:
+                cache = pickle.load(file)
+
+            self.data = cache["data"]
+            self.i = cache["i"]
+            self.j = cache["j"]
+            self.nbinx = cache["nbinx"]
+            self.nbiny = cache["nbiny"]
+            self.x_rot = cache["x_rot"]
+            self.y_rot = cache["y_rot"]
+            self.counts = cache["counts"]
+            self.extent = cache["extent"]
+
+            return self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent
+
+        print(f"Cache file {self.cache_file} not found. Processing data from {PREPROCESSED_DATA}")
+
         data = pd.read_csv(PREPROCESSED_DATA, sep='|')
 
         if self.Declusterd:
             I = data['decluster_kept'] & data['inside_final_cut']
         else:
-            I = data['inside_final_cut']   
+            I = data['inside_final_cut']
 
-        self.data = data.loc[I]
+        self.data = data.loc[I].copy()
 
+        self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent = \
+            IC.get_binned_data_in_rotated_coordinates(
+                self.data['lon'].values,
+                self.data['lat'].values,
+                self.BIN_SIZE_KM
+        )
 
-        self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent =  \
-        IC.get_binned_data_in_rotated_coordinates(data['lon'].values, data['lat'].values, self.BIN_SIZE_KM)
+        cache = {
+            "data": self.data,
+            "i": self.i,
+            "j": self.j,
+            "nbinx": self.nbinx,
+            "nbiny": self.nbiny,
+            "x_rot": self.x_rot,
+            "y_rot": self.y_rot,
+            "counts": self.counts,
+            "extent": self.extent,
+        }
 
-        return self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent
+        with open(self.cache_file, "wb") as file:
+            pickle.dump(cache, file)
+
+        return self.i, self.j, self.nbinx, self.nbiny, self.x_rot, self.y_rot, self.counts, self.extent   
 
 
     def _prepare_prior_kernels(self):
@@ -150,6 +226,93 @@ class ItalyData:
         ax.set_xlim(self.extent[0], self.extent[1])
         ax.set_ylim(self.extent[2], self.extent[3])
 
+    def posterior_summary(
+        self,
+        initial_f,
+        n_samples=200,
+        burn_in=50,
+        thin=1,
+        n_plot_samples=6,
+        random_seed=0,
+    ):
+    
+        f_mean = np.zeros_like(initial_f)
+        f_M2 = np.zeros_like(initial_f)
+        rate_mean = np.zeros_like(initial_f)
+
+        count = 0
+        samples_to_plot = []
+        plot_every = max(1, n_samples // n_plot_samples)
+
+        for res in self.sampler.sample_posterior(
+            n_iter=n_samples,
+            burn_in=burn_in,
+            thin=thin,
+            initial_f=initial_f,
+            random_seed=random_seed,
+        ):
+            count += 1
+
+            if count % plot_every == 0 and len(samples_to_plot) < n_plot_samples:
+                samples_to_plot.append(res.copy())
+
+            delta = res - f_mean
+            f_mean += delta / count
+            f_M2 += delta * (res - f_mean)
+
+            rate = self.sampler.field_from_f(res)
+            rate_mean += (rate - rate_mean) / count
+
+        f_sd = np.sqrt(f_M2 / (count - 1))
+
+        return f_mean, f_sd, rate_mean, samples_to_plot
+
+    def plot_posterior_samples(self, samples):
+
+        plt.figure(figsize=(15, 8))
+
+        for i, sample in enumerate(samples):
+            plt.subplot(2, 3, i + 1)
+
+            self.sampler.imshow( self.sampler.field_from_f(sample), extent=self.extent, origin="lower", cmap="viridis"
+            )
+
+        self.plot_coastlines()
+
+        plt.title(f"Posterior rate sample {i + 1}")
+        plt.xticks([])
+        plt.yticks([])
+
+        plt.tight_layout()
+
+
+    def plot_posterior_summary(self, f_mean, f_sd, rate_mean):
+
+        plt.figure(figsize=(10, 8))
+        plt.title("Posterior mean of f")
+
+        self.sampler.imshow(f_mean, extent=self.extent, origin="lower", cmap="viridis")
+
+        self.plot_coastlines()
+        plt.colorbar()
+
+
+        plt.figure(figsize=(10, 8))
+        plt.title("Posterior standard deviation of f")
+
+        self.sampler.imshow(f_sd, extent=self.extent, origin="lower", cmap="viridis")
+
+        self.plot_coastlines()
+        plt.colorbar()
+
+
+        plt.figure(figsize=(10, 8))
+        plt.title("Posterior mean of rate")
+
+        self.sampler.imshow(rate_mean, extent=self.extent, origin="lower", cmap="viridis")
+
+        self.plot_coastlines()
+        plt.colorbar()
 
 
 
@@ -173,5 +336,10 @@ if __name__ == "__main__":
     italy_data.plot_coastlines()
     italy_data.sampler.imshow(italy_data.sampler.field_from_f(f), extent=italy_data.extent, origin="lower", cmap="viridis")
 
+    f_mean, f_sd, rate_mean, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=200, burn_in=50, thin=1)
+
+    italy_data.plot_posterior_samples(samples_to_plot)
+
+    italy_data.plot_posterior_summary(f_mean, f_sd, rate_mean)
 
     plt.show()
