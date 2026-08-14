@@ -29,15 +29,24 @@ from shapely.geometry import box
 
 class ItalyData: 
 
-    def __init__(self, BIN_SIZE_KM=2, Declusterd=True, rho=5.0, lam=5, var=1.0, prior_mean=0.0):
+    def __init__(self, 
+                 BIN_SIZE_KM=2, 
+                 Declusterd=True, 
+                 rho=5.0, 
+                 lam=5, 
+                 var=1.0, 
+                 prior_mean=0.0,
+                 saturation=None):
         self.BIN_SIZE_KM = BIN_SIZE_KM
         self.Declusterd = Declusterd
         self.rho = rho
         self.lam = lam
         self.var = var
         self.prior_mean = prior_mean
+        self.saturation = saturation
         self.data = None
         self.polygons = None
+
         self._binn_data_in_rotated_coordinates()
         self._prepare_prior_kernels()
         self._prpare_sampler()
@@ -102,7 +111,15 @@ class ItalyData:
             prior_precision=self.prior_kernel, 
             prior_mean=self.prior_mean, lam=self.lam,  n=self.nbinx, m=self.nbiny, seed=42
         )
-        self.sampler.set_data(self.counts.flatten())
+        if self.saturation is not None:
+            if self.saturation <= 0:
+                counts_flat = np.clip(self.counts.flatten(), -self.saturation, None) + self.saturation
+            
+            else: ## if self.saturation > 0:
+                counts_flat = np.clip(self.counts.flatten(), 0, self.saturation)
+        else:
+            counts_flat = self.counts.flatten()
+        self.sampler.set_data(counts_flat)
 
 
     def plot_coastlines(self):
@@ -140,7 +157,8 @@ if __name__ == "__main__":
 
     plt.figure(figsize=(10, 8))
 
-    italy_data = ItalyData(BIN_SIZE_KM=5, rho=20, lam=1, var=1, Declusterd=True)
+    italy_data = ItalyData(
+        BIN_SIZE_KM=5, rho=4, lam=4, var=1, Declusterd=False, saturation=4)
     italy_data.plot()
 
 
