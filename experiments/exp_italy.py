@@ -19,7 +19,6 @@ PREPROCESSED_DATA = REPO_ROOT / "data" / "preprocess_nnd_rot_cut_bin_Mc_2.5_eta_
 ITALYCOASTLINE =  REPO_ROOT / "data" /  "coastlines/ne_10m_coastline.zip"
 EXTRACTED_COASTLINE_DIR = REPO_ROOT / "experiments" / "naturalearth" 
 
-DKM = 20
 import io
 import zipfile
 import requests
@@ -30,14 +29,7 @@ from shapely.geometry import box
 
 class ItalyData: 
 
-    def __init__(self, 
-                 BIN_SIZE_KM=2, 
-                 Declusterd=True, 
-                 rho=5.0, 
-                 lam=5, 
-                 var=1.0, 
-                 prior_mean=0.0,
-                 saturation=None):
+    def __init__(self, BIN_SIZE_KM=2, Declusterd=False, rho=5.0, lam=5, var=1.0, prior_mean=0.0, saturation = 1e6):
         self.BIN_SIZE_KM = BIN_SIZE_KM
         self.Declusterd = Declusterd
         self.rho = rho
@@ -242,7 +234,8 @@ class ItalyData:
 
         count = 0
         samples_to_plot = []
-        plot_every = max(1, n_samples // n_plot_samples)
+        n_kept = (n_samples - burn_in) // thin
+        plot_every = max(1, n_kept // n_plot_samples)
 
         for res in self.sampler.sample_posterior(
             n_iter=n_samples,
@@ -270,20 +263,21 @@ class ItalyData:
     def plot_posterior_samples(self, samples):
 
         plt.figure(figsize=(15, 8))
+        plt.suptitle("Posterior Samples of f")
+        print("Number of samples to plot:", len(samples))   
 
         for i, sample in enumerate(samples):
             plt.subplot(2, 3, i + 1)
-
-            self.sampler.imshow( self.sampler.field_from_f(sample), extent=self.extent, origin="lower", cmap="viridis"
+            self.plot_coastlines()
+            self.sampler.imshow( sample, extent=self.extent, origin="lower", cmap="viridis"
             )
-
-        self.plot_coastlines()
-
-        plt.title(f"Posterior rate sample {i + 1}")
+        
         plt.xticks([])
         plt.yticks([])
 
         plt.tight_layout()
+
+
 
 
     def plot_posterior_summary(self, f_mean, f_sd, rate_mean):
@@ -319,20 +313,21 @@ class ItalyData:
 if __name__ == "__main__":
 
     plt.figure(figsize=(10, 8))
-
-    italy_data = ItalyData(
-        BIN_SIZE_KM=5, rho=4, lam=4, var=1, Declusterd=False, saturation=4)
+    plt.title("Italy Earthquake Data (Declustered)" if True else "Italy Earthquake Data (All Events)")
+    italy_data = ItalyData(BIN_SIZE_KM=5, rho=20, lam=1, var=1, Declusterd=True)
     italy_data.plot()
 
 
     f = italy_data.sampler.max_logposterior_estimator()
 
     plt.figure(figsize=(10, 8))
+    plt.title("MAP estimate of f")
     italy_data.plot_coastlines()
     italy_data.sampler.imshow(f, extent=italy_data.extent, origin="lower", cmap="viridis")
 
 
     plt.figure(figsize=(10, 8))
+    plt.title("MAP estimate of rate")
     italy_data.plot_coastlines()
     italy_data.sampler.imshow(italy_data.sampler.field_from_f(f), extent=italy_data.extent, origin="lower", cmap="viridis")
 
