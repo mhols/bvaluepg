@@ -14,6 +14,8 @@
 \usepackage{array}
 \usepackage{graphicx}
 \usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
 
 \newcommand{\sigmoid}{\sigma}
 \newcommand{\E}{\mathbb{E}}
@@ -31,16 +33,124 @@
 \end{frame}
 
 % -----------------------------------------------------------
+\begin{frame}{Bayesian spatial Poisson model}
+
+\textbf{Likelihood}
+
+
+$$ n_i \mid f_i \sim \mathrm{Poisson}\!\left(\lambda\,\sigma(f_i)\right),
+\qquad
+\sigma(f_i)=\frac{1}{1+e^{-f_i}} .$$
+
+
+\textbf{Spatial prior}
+
+$$f \sim \mathcal{N}(\mu,Q^{-1}),$$
+
+\textbf{Posterior}
+
+$$p(f\mid n) \propto p(n\mid f)\,p(f).$$
+
+\begin{block}{The computational problem}
+The posterior is not Gaussian, so we cannot directly sample from it.
+\end{block}
+
+\end{frame}
+
+% -----------------------------------------------------------------------------------------
+\begin{frame}{Sampling from the posterior}
+
+$$\boxed{
+\substack{
+\text{Current field}\\
+f^{(t)}
+}}
+\;\longrightarrow\;
+\boxed{
+\substack{
+\text{Auxiliary counts}\\
+k
+}}
+\;\longrightarrow\;
+\boxed{
+\substack{
+\text{Pólya--Gamma}\\
+\omega
+}}
+\;\longrightarrow\;
+\boxed{
+\substack{
+\text{New field}\\
+f^{(t+1)}
+}}
+\]
+
+\vspace{0.6cm}
+
+
+$$\begin{gathered}
+k_i \sim \mathrm{Poisson}\!\left(\lambda\sigma(-f_i)\right)
+\\[0.4cm]
+\omega_i \sim \mathrm{PG}(n_i+k_i,f_i)
+\\[0.4cm]
+f\mid n,k,\omega \sim \mathcal{N}(m_{\mathrm{post}},Q_{\mathrm{post}}^{-1})
+\end{gathered}$$
+
+\end{frame}
+
+% ---------------------------------------------------------------------
+\begin{frame}{Conditional posterior after augmentation}
+
+With the augmented variables \(k\) and \(\omega\), the latent field has a Gaussian conditional posterior
+
+
+$$f \mid n,k,\omega
+\sim
+\mathcal N\!\left(m_{\mathrm{post}},\,Q_{\mathrm{post}}^{-1}\right).$$
+
+\vspace{0.3cm}
+
+\textbf{Posterior precision}
+
+
+$$Q_{\mathrm{post}} = Q + \Omega,
+\qquad
+\Omega = \mathrm{diag}(\omega_1,\dots,\omega_N).$$
+
+\vspace{0.3cm}
+
+\textbf{Posterior mean}
+
+
+$$m_{\mathrm{post}} = Q_{\mathrm{post}}^{-1} \left( Q\mu_0 + \kappa\right),$$
+
+with
+
+$$\kappa_i = \frac{1}{2}(n_i-k_i).$$
+
+\vspace{0.4cm}
+
+\begin{block}{Interpretation}
+The prior contributes the spatial structure through \(Q\), and the data enter
+through the augmented terms \(\kappa\) and \(\Omega\).
+\end{block}
+
+\end{frame}
+
+% -----------------------------------------------------------
+
+
+
+
 \begin{frame}{Current model configuration}
 
 We model the declustered earthquake counts on a 5 km grid as
-\[
- n_i \mid f_i \sim \operatorname{Poisson}(\lambda_i),
+
+$$ n_i \mid f_i \sim \operatorname{Poisson}(\lambda_i),
  \qquad
  \lambda_i = \lambda\,\sigmoid(f_i),
  \qquad
- \sigmoid(f)=\frac{1}{1+e^{-f}}.
-\]
+ \sigmoid(f)=\frac{1}{1+e^{-f}}.$$
 
 \medskip
 Current parameter choice:
@@ -154,14 +264,12 @@ $\E[\lambda\mid n]-\lambda(f_{\mathrm{MAP}})$\par\medskip
 \begin{columns}[T,onlytextwidth]
 \column{0.49\textwidth}
 \centering
-\textbf{Posterior sd of latent field}\par
-$\sqrt{\E[(f-\E[f\mid n])^2\mid n]}$\par\medskip
+
 \includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_posterior_sd_f_bin_5km_declustered.png}
 
 \column{0.49\textwidth}
 \centering
-\textbf{Posterior sd of rate}\par
-$\sqrt{\E[(\lambda-\E[\lambda\mid n])^2\mid n]}$\par\medskip
+
 \includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_posterior_sd_rate_bin_5km_declustered.png}
 \end{columns}
 
