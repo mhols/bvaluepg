@@ -1,0 +1,152 @@
+\documentclass[11pt]{beamer}
+
+
+\usetheme{Madrid}
+\usecolortheme{seahorse}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{caption}[numbered]
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{bm}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{graphicx}
+\usepackage{xcolor}
+
+\newcommand{\sigmoid}{\sigma}
+\newcommand{\E}{\mathbb{E}}
+
+
+
+\title[Italy earthquake model]{Spatial Poisson Model for the Italian Earthquake Catalogue}
+
+
+\begin{document}
+
+% -----------------------------------------------------------
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% -----------------------------------------------------------
+\begin{frame}{Current model configuration}
+
+We model the declustered earthquake counts on a 5 km grid as
+\[
+ n_i \mid f_i \sim \operatorname{Poisson}(\lambda_i),
+ \qquad
+ \lambda_i = \lambda\,\sigmoid(f_i),
+ \qquad
+ \sigmoid(f)=\frac{1}{1+e^{-f}}.
+\]
+
+\medskip
+Current parameter choice:
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Grid size & 5 km \\
+Catalogue & declustered \\
+Spatial scale & $\rho=20$ km \\
+Global intensity ceiling & $\lambda=25$ \\
+Prior variance parameter & $v^2=4$ \\
+Prior latent mean & $\mu_0 = -7.5$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+
+\end{frame}
+
+% -----------------------------------------------------------
+\begin{frame}{Declustered binned earthquake catalogue}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.64\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_italy_earthquake_data_bin_5km_declustered.png}
+
+\column{0.34\textwidth}
+\small
+\begin{tabular}{lr}
+\toprule
+Statistic & Observed \\
+\midrule
+Events & 4,943 \\
+Grid cells & 54,800 \\
+Zero cells & 51,570 \\
+One-event cells & 2,385 \\
+Cells $\geq 2$ & 845 \\
+Cells $\geq 5$ & 105 \\
+Cells $\geq 10$ & 16 \\
+Cells $\geq 15$ & 5 \\
+Maximum count & 23 \\
+\bottomrule
+\end{tabular}
+\end{columns}
+
+\end{frame}
+
+% -----------------------------------------------------------
+\begin{frame}{Latent field: MAP versus posterior mean}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.49\textwidth}
+\centering
+\textbf{MAP estimate}\par\medskip
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_map_f_bin_5km_declustered.png}
+
+\column{0.49\textwidth}
+\centering
+\textbf{Posterior mean}\par\medskip
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_posterior_mean_f_bin_5km_declustered.png}
+\end{columns}
+
+\vspace{-0.2em}
+\small
+
+\end{frame}
+
+% -----------------------------------------------------------
+\begin{frame}{Posterior mean versus MAP: where do they differ?}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.49\textwidth}
+\centering
+\textbf{Difference in latent field}\par
+$\E[f\mid n]-f_{\mathrm{MAP}}$\par\medskip
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_difference_f_bin_5km_declustered.png}
+
+\column{0.49\textwidth}
+\centering
+\textbf{Difference in Poisson rate}\par
+$\E[\lambda\mid n]-\lambda(f_{\mathrm{MAP}})$\par\medskip
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_difference_rate_bin_5km_declustered.png}
+\end{columns}
+
+\small
+
+
+\end{frame}
+
+% -----------------------------------------------------------
+\begin{frame}{Posterior samples}
+
+
+
+\centering
+
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_posterior_samples_bin_5km_declustered.png}
+
+
+
+\end{frame}
+
+
+
+
+
+\end{document}
