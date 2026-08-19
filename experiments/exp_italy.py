@@ -14,6 +14,9 @@ from coordinates import Italy_Coordinates as IC
 import polyagammadensity as pgd
 import covariance_kernels as ck
 
+# the coastline files are assumed to be in the "data" directory at the root of the repository, they can be downloaded from the following link:
+# https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_coastline.zip
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PREPROCESSED_DATA = REPO_ROOT / "data" / "preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_2_events.csv"
 ITALYCOASTLINE =  REPO_ROOT / "data" /  "coastlines/ne_10m_coastline.zip"

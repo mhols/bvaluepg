@@ -91,6 +91,21 @@ Maximum count & 23 \\
 \end{frame}
 
 % -----------------------------------------------------------
+\begin{frame}{Posterior samples}
+
+
+
+\centering
+
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_posterior_samples_bin_5km_declustered.png}
+
+
+
+\end{frame}
+
+% -----------------------------------------------------------
+
+
 \begin{frame}{Latent field: MAP versus posterior mean}
 
 \begin{columns}[T,onlytextwidth]
@@ -132,18 +147,29 @@ $\E[\lambda\mid n]-\lambda(f_{\mathrm{MAP}})$\par\medskip
 
 \end{frame}
 
+
 % -----------------------------------------------------------
-\begin{frame}{Posterior samples}
+\begin{frame}{Posterior sd}
 
-
-
+\begin{columns}[T,onlytextwidth]
+\column{0.49\textwidth}
 \centering
+\textbf{Posterior sd of latent field}\par
+$\sqrt{\E[(f-\E[f\mid n])^2\mid n]}$\par\medskip
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_posterior_sd_f_bin_5km_declustered.png}
 
-\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_posterior_samples_bin_5km_declustered.png}
+\column{0.49\textwidth}
+\centering
+\textbf{Posterior sd of rate}\par
+$\sqrt{\E[(\lambda-\E[\lambda\mid n])^2\mid n]}$\par\medskip
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_posterior_sd_rate_bin_5km_declustered.png}
+\end{columns}
 
+\small
 
 
 \end{frame}
+
 
 
 
