@@ -243,13 +243,13 @@ from noisy count data.
 \column{0.50\textwidth}
 
 \centering
-\textbf{Posterior mean - MAP estimate}\par\medskip
+\textbf{Posterior mean - Truth}\par\medskip
 
 \includegraphics[
     width=\linewidth,
     height=\textheight,
     keepaspectratio
-]{figures/synthetic_bars_posterior_mean_minus_map_rho_3_lam_12_var_4.png}
+]{figures/synthetic_bars_posterior_mean_minus_truth_rho_3_lam_12_var_4.png}
 
 \end{columns}
 
@@ -333,13 +333,13 @@ while preserving the spatial contrast.
 \column{0.50\textwidth}
 
 \centering
-\textbf{Posterior mean - MAP estimate}\par\medskip
+\textbf{Posterior mean - Truth}\par\medskip
 
 \includegraphics[
     width=\linewidth,
     height=\textheight,
     keepaspectratio
-]{figures/synthetic_block_posterior_mean_minus_map_rho_2_lam_12_var_4.png}
+]{figures/synthetic_block_posterior_mean_minus_truth_rho_2_lam_12_var_4.png}
 
 \end{columns}
 
@@ -370,7 +370,7 @@ $$ n_i \mid f_i \sim \operatorname{Poisson}(\lambda_i),
  \qquad
  \lambda_i = \lambda\,\sigmoid(f_i),
  \qquad
- \sigmoid(f)=\frac{1}{1+e^{-f}}.$$
+f \sim \mathcal{N}(\mu,Q^{-1}).$$
 
 \medskip
 Current parameter choice:
@@ -380,9 +380,9 @@ Current parameter choice:
 Grid size & 5 km \\
 Catalogue & declustered \\
 Spatial scale & $\rho=20$ km \\
-Global intensity ceiling & $\lambda=250$ \\
+Global intensity ceiling & $\lambda=25$ \\
 Prior variance parameter & $v^2=4$ \\
-Prior latent mean & $\mu_0 = -7.5$ \\
+Prior latent mean & $\mu_0 = -7.0$ \\
 \bottomrule
 \end{tabular}
 \end{center}
