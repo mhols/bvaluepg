@@ -21,7 +21,6 @@
 \newcommand{\E}{\mathbb{E}}
 
 
-
 \title[Italy earthquake model]{Spatial Poisson Model for the Italian Earthquake Catalogue}
 
 
@@ -33,14 +32,46 @@
 \end{frame}
 
 % -----------------------------------------------------------
+
+\begin{frame}{Spatial Poisson model for earthquake counts}
+
+\begin{columns}[T,onlytextwidth]
+\column{0.64\textwidth}
+\centering
+\includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{figures/italy_binned_zoom.png}
+
+\column{0.34\textwidth}
+
+\vspace{0.7cm}
+
+$$\begin{gathered}
+ n_i \mid f_i \sim \operatorname{Poisson}(\lambda_i)
+\\[0.4cm]
+f \sim \mathcal{N}(\mu,Q^{-1})
+\\[0.4cm]
+ \lambda_i = \lambda\,\sigmoid(f_i),
+ \\[0.4cm]
+ \sigmoid(f)=\frac{1}{1+e^{-f}}.
+\end{gathered}$$
+
+
+
+
+
+\end{columns}
+
+ \end{frame}
+
+% -----------------------------------------------------------
 \begin{frame}{Bayesian spatial Poisson model}
 
 \textbf{Likelihood}
 
-
-$$ n_i \mid f_i \sim \mathrm{Poisson}\!\left(\lambda\,\sigma(f_i)\right),
+\small
+$$ n_i \mid f_i \sim \mathrm{Poi}\!\left(\lambda\,\sigma(f_i)\right),
 \qquad
-\sigma(f_i)=\frac{1}{1+e^{-f_i}} .$$
+\sigma(f_i)=\frac{1}{1+e^{-f_i}}, $$
+$$\mathcal{L}(f \mid n)=\prod_{i=1}^N \frac{(\lambda\sigma(f_i))^{n_i}}{n_i!} e^{-\lambda\sigma(f_i)}.$$
 
 
 \textbf{Spatial prior}
@@ -49,7 +80,13 @@ $$f \sim \mathcal{N}(\mu,Q^{-1}),$$
 
 \textbf{Posterior}
 
-$$p(f\mid n) \propto p(n\mid f)\,p(f).$$
+$$\log \mathbb{P}(f\mid n)
+= \sum_{i=1}^N
+\left(
+n_i\log\{\lambda\sigma(f_i)\}
+-\lambda\sigma(f_i)
+\right)-\frac12(f-\mu)^\top Q(f-\mu)+c .$$
+
 
 \begin{block}{The computational problem}
 The posterior is not Gaussian, so we cannot directly sample from it.
@@ -83,7 +120,7 @@ k
 \text{New field}\\
 f^{(t+1)}
 }}
-\]
+$$
 
 \vspace{0.6cm}
 
@@ -140,6 +177,189 @@ through the augmented terms \(\kappa\) and \(\Omega\).
 % -----------------------------------------------------------
 
 
+\begin{frame}{Synthetic experiment: bars setup}
+
+\begin{columns}[T,onlytextwidth]
+
+\column{0.49\textwidth}
+\centering
+\textbf{True intensity field}\par\medskip
+
+\includegraphics[
+    width=\linewidth,
+    height=0.45\textheight,
+    keepaspectratio
+]{figures/synthetic_bars_true_rate_rho_3_lam_12_var_4.png}
+
+
+\column{0.49\textwidth}
+\centering
+\textbf{Observed Poisson counts}\par\medskip
+
+\includegraphics[
+    width=\linewidth,
+    height=0.45\textheight,
+    keepaspectratio
+]{figures/synthetic_bars_observed_counts_rho_3_lam_12_var_4.png}
+
+\end{columns}
+
+\vspace{0.25cm}
+
+\small
+\textbf{Purpose:}
+Check whether the inference recovers elongated high-rate structures
+from noisy count data.
+
+\vspace{0.35cm}
+
+
+
+\end{frame}
+
+
+%--------------------------------------------
+\begin{frame}{Synthetic experiment: bars inference}
+
+\begin{columns}[T,onlytextwidth]
+
+\column{0.5\textwidth}
+
+\centering
+\textbf{Posterior rate mean}\par\medskip
+
+\includegraphics[
+    width=\linewidth,
+    height=\textheight,
+    keepaspectratio
+]{figures/synthetic_bars_posterior_mean_rate_rho_3_lam_12_var_4.png}
+
+
+
+
+
+
+
+\column{0.50\textwidth}
+
+\centering
+\textbf{Posterior mean - MAP estimate}\par\medskip
+
+\includegraphics[
+    width=\linewidth,
+    height=\textheight,
+    keepaspectratio
+]{figures/synthetic_bars_posterior_mean_minus_map_rho_3_lam_12_var_4.png}
+
+\end{columns}
+
+\end{frame}
+
+
+% ---------------------------
+\begin{frame}{Synthetic experiment}
+\centering
+    \textbf{Posterior samples}\par\medskip
+
+\includegraphics[
+    width=\linewidth,
+    height=0.66\textheight,
+    keepaspectratio
+]{figures/synthetic_bars_posterior_samples_rho_3_lam_12_var_4.png}
+\end{frame}
+
+%---------------------------------------
+
+\begin{frame}{Synthetic experiment: block setup}
+
+\begin{columns}[T,onlytextwidth]
+
+\column{0.49\textwidth}
+\centering
+\textbf{True intensity field}\par\medskip
+
+\includegraphics[
+    width=\linewidth,
+    height=0.45\textheight,
+    keepaspectratio
+]{figures/synthetic_block_true_rate_rho_2_lam_12_var_4.png}
+
+
+\column{0.49\textwidth}
+\centering
+\textbf{Observed Poisson counts}\par\medskip
+
+\includegraphics[
+    width=\linewidth,
+    height=0.45\textheight,
+    keepaspectratio
+]{figures/synthetic_block_observed_counts_rho_2_lam_12_var_4.png}
+
+\end{columns}
+
+\vspace{0.25cm}
+
+\small
+\textbf{Purpose:}
+Check whether the inference recovers a compact high-rate region
+while preserving the spatial contrast.
+
+\vspace{0.35cm}
+
+
+
+\end{frame}
+
+
+% -----------------------------------------------------------
+\begin{frame}{Synthetic experiment: block inference}
+
+\begin{columns}[T,onlytextwidth]
+
+\column{0.48\textwidth}
+
+\centering
+\textbf{Posterior mean}\par\medskip
+
+\includegraphics[
+    width=\linewidth,
+    height=\textheight,
+    keepaspectratio
+]{figures/synthetic_block_posterior_mean_rate_rho_2_lam_12_var_4.png}
+
+
+
+
+\column{0.50\textwidth}
+
+\centering
+\textbf{Posterior mean - MAP estimate}\par\medskip
+
+\includegraphics[
+    width=\linewidth,
+    height=\textheight,
+    keepaspectratio
+]{figures/synthetic_block_posterior_mean_minus_map_rho_2_lam_12_var_4.png}
+
+\end{columns}
+
+\end{frame}
+
+%--------------------------------
+\begin{frame}{Synthetic experiment}
+   \centering
+\textbf{Posterior samples}\par\medskip
+
+\includegraphics[
+    width=\linewidth,
+    height=0.66\textheight,
+    keepaspectratio
+]{figures/synthetic_block_posterior_samples_rho_2_lam_12_var_4.png} 
+\end{frame}
+
+
+
+%-----------------------------------------------------------
 
 
 \begin{frame}{Current model configuration}
@@ -160,7 +380,7 @@ Current parameter choice:
 Grid size & 5 km \\
 Catalogue & declustered \\
 Spatial scale & $\rho=20$ km \\
-Global intensity ceiling & $\lambda=25$ \\
+Global intensity ceiling & $\lambda=250$ \\
 Prior variance parameter & $v^2=4$ \\
 Prior latent mean & $\mu_0 = -7.5$ \\
 \bottomrule
@@ -201,6 +421,41 @@ Maximum count & 23 \\
 \end{frame}
 
 % -----------------------------------------------------------
+\begin{frame}{Effect of NND declustering}
+
+\begin{center}
+\small
+
+\begin{tabular}{lrr}
+\toprule
+Statistic & Original catalogue & NND declustered \\
+\midrule
+Events                 & 11,327 & 4,943 \\
+Grid cells             & 54,800 & 54,800 \\
+Occupied cells         & 3,518  & 3,230 \\
+Zero cells             & 51,282 & 51,570 \\
+One-event cells        & 2,319  & 2,385 \\
+Cells $\geq 2$         & 1,199  & 845 \\
+Cells $\geq 5$         & 298    & 105 \\
+Cells $\geq 10$        & 135    & 16 \\
+Cells $\geq 15$        & 89     & 5 \\
+Maximum count          & 279    & 23 \\
+\midrule
+Mean count / cell      & 0.2067 & 0.0902 \\
+Variance / cell        & 10.1819 & 0.2401 \\
+Variance / mean        & 49.26  & 2.66 \\
+\bottomrule
+\end{tabular}
+
+\end{center}
+
+
+
+\end{frame}
+
+% -----------------------------------------------------------
+
+
 \begin{frame}{Posterior samples}
 
 
