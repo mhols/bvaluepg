@@ -34,8 +34,10 @@ import syntheticdata as sd
 # PARAMETERS TO CHANGE
 # ============================================================
 
-OUTPUT_PREFIX = SYNTHETIC_DIR / "2026-07-28_bars_synthetic_catalog"
+
 PATTERN = "bars"  # "block", "bars", "checkerboard"
+
+OUTPUT_PREFIX = SYNTHETIC_DIR / f"{PATTERN}_synthetic_catalog"
 
 SEED = 20260728
 NY = 64
@@ -51,17 +53,17 @@ LAT_MAX = 47.5
 LAM_MAX = 12.0
 
 # Pattern 1: upper-left block.
-PATTERN_1_BACKGROUND = 0.8
-PATTERN_1_HOT = 8.0
+PATTERN_1_BACKGROUND = 0.3
+PATTERN_1_HOT = 3.0
 PATTERN_1_ROWS = slice(0, 26)
 PATTERN_1_COLS = slice(0, 26)
 
 # Pattern 2: three horizontal bars, with the middle bar strongest.
-PATTERN_2_BACKGROUND = 0.6
-PATTERN_2_BAR_TOP_ADD = 4.0
-PATTERN_2_BAR_MIDDLE_ADD = 8.0
-PATTERN_2_BAR_BOTTOM_ADD = 4.0
-PATTERN_2_BAR_WIDTH = 5
+PATTERN_2_BACKGROUND = 0.3
+PATTERN_2_BAR_TOP_ADD = 1.7
+PATTERN_2_BAR_MIDDLE_ADD = 3.7
+PATTERN_2_BAR_BOTTOM_ADD = 1.7
+PATTERN_2_BAR_WIDTH = 1
 PATTERN_2_COL_START = 14
 PATTERN_2_COL_END = 50
 PATTERN_2_BAR_CENTERS_Y = (24, 32, 40)
