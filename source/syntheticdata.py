@@ -566,6 +566,71 @@ def experiment_2(nn=5, ncheck=5, a=1, b=2):
     plt.imshow(tmp)
 
 
+def experiment_subpixel():
+    N = 64
+    kwargs = dict(
+        n = N,
+        m = N,
+        rho = 4,
+        v2 = 0.5,
+        lam = 5,
+        vmin_f = -3,
+        vmax_f = 1,
+        vmin_field = 0,
+        vmax_field = 3.5,
+    )
+
+    def ij_2_k(i,j):
+        return i*N + j
+
+    grouping = {}
+
+    prior_mean = np.zeros((N, N))
+    prior_precision = ck.precision_matern(**kwargs)
+
+    k = 0
+    for i in range(8):
+        for j in range(8):
+            grouping[k] = []
+            k += 1
+
+    k = 0
+    for i in range(8):
+        for j in range(8):
+            for ii in range(8):
+                for jj in range(8):
+                    grouping[k].append( ij_2_k(i+ii, j+jj))
+
+    estim = pgd.PolyaGammaDensitySubPixel2D( prior_mean=prior_mean, prior_precision=prior_precision, sparse=True, grouping=grouping, lam=6, n=N, m=N)
+
+    estim.set_data(np.ones( (N,N) ))
+
+
+    plt.figure()
+    np.random.seed(0)
+
+    print('sampling 130 posterior with sparse precision')
+    sres = 0
+    count = 0
+
+    for i, res in enumerate(estim.sample_posterior(initial_f=np.ones(N*N), n_iter=26)):
+        #field = estim.field_from_f(res)
+        sres += res #field
+        
+        if i % 2 == 1 and count < 12:
+            plt.subplot(3, 4, count + 1)
+            plt.xticks([])
+            plt.yticks([])
+            estim.imshow(res)
+            count += 1
+
+    plt.figure()
+    plt.title('posterior mean')
+    plt.xticks([])
+    plt.yticks([])
+    estim.imshow(sres / 26)
+    print('...done')
+
 if __name__ == "__main__":
 
     # experiment_1(EstimatorClass=pgd.ExponentialDensity2D, nmax_mix=60 )
@@ -638,18 +703,20 @@ if __name__ == "__main__":
     prior_covar = Cov_one_matern_2_sparse() ###Cov_one_matern_2_3() ###Cov_one_matern_2_sparse()
 
 
-    A = Experiment(type='A', EstimatorClass=EstimatorClass, 
-                    random_seed=1, **prior_covar, **kwargs)
+    #A = Experiment(type='A', EstimatorClass=EstimatorClass, 
+    #                random_seed=1, **prior_covar, **kwargs)
+    # 
+    #B = Experiment(type='B', EstimatorClass=EstimatorClass, 
+    #                random_seed=1, **prior_covar,  **kwargs)
+    # 
+    #C = Experiment(type='C',  EstimatorClass=EstimatorClass, 
+    #                random_seed=1, **prior_covar, **kwargs)
     
-    B = Experiment(type='B', EstimatorClass=EstimatorClass, 
-                    random_seed=1, **prior_covar,  **kwargs)
-    
-    C = Experiment(type='C',  EstimatorClass=EstimatorClass, 
-                    random_seed=1, **prior_covar, **kwargs)
-    
-    for E, T in zip([A, B, C], ['A', 'B', 'C']):     
-        E.plot_map_estimator_field(f"map estimator exp {T}")
-        E.plot_posterior_field(f"posterior exp {T}")
-        E.plot_true_field(f"field exp {T}")
+    #for E, T in zip([A, B, C], ['A', 'B', 'C']):     
+    #    E.plot_map_estimator_field(f"map estimator exp {T}")
+    #    E.plot_posterior_field(f"posterior exp {T}")
+    #    E.plot_true_field(f"field exp {T}")
+
+    experiment_subpixel()
 
     plt.show()

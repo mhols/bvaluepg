@@ -227,8 +227,27 @@ class Density:
         """
         if not self.prior_mean is None:
             assert len(nobs.ravel()) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
-        self.nobs = nobs.ravel()
+        self._nobs = nobs.ravel()
         self.ndata = sum(self.nobs)
+        print('deprecated methods, use set_nobs instead')
+
+
+    def set_nobs(self, nobs):
+        """
+        Docstring for set_data
+        
+        :param self: Description
+        :param nobs: array like the observed number of events in the bins
+        """
+        if not self.prior_mean is None:
+            assert len(nobs.ravel()) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
+        self._nobs = nobs.ravel()
+        self.ndata = sum(self.nobs)
+
+
+    @property
+    def nobs(self):
+        return self._nobs
 
     @staticmethod
     def apply_cholesky_sparse_inverse(factor, v):
@@ -645,6 +664,8 @@ class Density:
         print(res)
         return res['x']
 
+
+
 class SigmoidMixin(Density):
 
     def __init__(self, prior_mean, prior_covariance, **kwargs):
@@ -704,7 +725,8 @@ class SigmoidMixin(Density):
         burn_in: int = 0,
         thin: int = 1,
         initial_f: np.ndarray | None = None,
-        random_seed: int | None = None
+        random_seed: int | None = None,
+        after_cycle_method=None
     ):
         if random_seed is not None:
             np.random.seed(random_seed)
@@ -744,6 +766,9 @@ class SigmoidMixin(Density):
             if f.shape != mu0.shape:
                 raise ValueError("initial_f must have shape matching prior_mean")
 
+        # Samples speichern
+        n_keep = max(0, (n_iter - burn_in) // thin)
+        f_samples = np.zeros((n_keep, nbins))
 
 
         if self.mode == Density.COVARIANCE and not self.sparse:
@@ -846,6 +871,9 @@ class SigmoidMixin(Density):
             if it >= burn_in and ((it - burn_in) % thin == 0):
                 self.last_sample = f
                 yield f
+
+            if after_cycle_method:
+                self.after_cycle_method(f)
         return
 
 
@@ -926,7 +954,10 @@ class SmoothRampMixin:
         burn_in: int = 0,
         thin: int = 1,
         initial_f: np.ndarray | None = None,
-        random_seed: int | None = None):
+        random_seed: int | None = None,
+        after_cycle_method = None
+        ):
+
 
         """
         TODO: introduce one more layer of classes to make this a generic mixin
@@ -977,6 +1008,9 @@ class SmoothRampMixin:
                 #f_samples[idx] = f
                 idx += 1
                 yield f
+
+            if after_cycle_method:
+                after_cycle_method(f)
 
         return
  
@@ -1044,6 +1078,7 @@ class ExponentialMixin:
         thin: int = 1,
         initial_f: np.ndarray | None = None,
         random_seed: int | None = None,
+        after_cycle_method=None
     ):
         
         if random_seed is not None:
@@ -1074,6 +1109,9 @@ class ExponentialMixin:
 
             if it >= burn_in and ((it - burn_in) % thin == 0):
                 yield f
+
+            if after_cycle_method:
+                after_cycle_method(f)
     
 class PolyaGammaDensity(SigmoidMixin, Density):
 
@@ -1165,6 +1203,50 @@ class Density2D(Mixin2D, Density):
     pass
 
 
+class SubPixelMixin:
+
+    @property
+    def grouping(self):
+        return self.kwargs['grouping']
+
+    
+
+    def set_grouped_data(self, gdata, grouping, f=None):
+        nsubp = sum( [len(g) for g in grouping.values() ] )
+        nobs = np.zeros(nsubp)
+        if f:
+            field = self.field_from_f(f)
+        for i, g in gdata.items():
+            if f:
+                p = field[g]
+                p /= np.sum(p)
+            else:
+                p = 1/len(g)
+            nobs[i] = np.random.multinomial(gdata[i], p)
+
+        super().set_data(nobs)
+        self.gdata=gdata
+
+    def gdata(self):
+        if not hasattr(self, '_gdata'):
+            self._gdata=[sum( self._nobs[self.groupings[i]]) for i in range(len(self.groupings))]
+        return self._gdata
+
+
+    def after_cycle_method(self, f):
+        field = self.field_from_f(f)
+        for i, g in self.grouing.items():
+            N = self.gdata[i]
+            p = field[g]
+            p /= p.sum()
+
+            self._nobs = p.random.multinomial(N, p)
+            
+    
+
+
+
+
 class PolyaGammaDensity2D(Mixin2D, PolyaGammaDensity):
     """
     Docstring for PolyGammaDensity2D
@@ -1201,6 +1283,16 @@ class ExponentialDensity2D(Mixin2D, ExponentialDensity):
             **kwargs,
         )
 
+
+class PolyaGammaDensitySubPixel2D(SubPixelMixin, Mixin2D, PolyaGammaDensity):
+    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+        super().__init__(
+            prior_mean,
+            prior_covariance,
+            prior_precision=prior_precision,
+            sparse=sparse,
+            **kwargs,
+        )
 
     
 
