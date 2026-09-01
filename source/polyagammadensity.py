@@ -1207,6 +1207,7 @@ class Density2D(Mixin2D, Density):
     pass
 
 
+
 class SubPixelMixin:
 
     @property
@@ -1233,7 +1234,7 @@ class SubPixelMixin:
 
         nobs = np.zeros(self.nbins, dtype=int)
 
-        if f is not None:
+        if not f is None:
             field = self.field_from_f(f)
 
         for i, g in grouping.items():
@@ -1283,7 +1284,36 @@ class SubPixelMixin:
         return self._nobs
             
     
+class MixinSubPixel2D(Mixin2D, SubPixelMixin):
 
+    @property
+    def block_size(self):
+        return self.kwargs['block_size']
+
+    def get_grouping_mapping(self):
+
+        def ij_2_k(i,j):
+            return i*self.m + j
+
+        n = self.n
+        m = self.m
+        block_size = self.block_size 
+
+
+        grouping = {}
+        k = 0
+        for i in range(0, n, block_size):
+            for j in range(0, m, block_size):
+                grouping[k] = []
+                for ii in range(block_size):
+                    for jj in range(block_size):
+                        grouping[k].append(ij_2_k(i+ii, j+jj))
+                k += 1
+        return grouping
+
+    def set_grouped_data(self, gdata, f=None):
+        super(MixinSubPixel2D, self).set_grouped_data(gdata=gdata, grouping=self.get_grouping_mapping(), f=f)
+        
 
 
 
@@ -1324,7 +1354,8 @@ class ExponentialDensity2D(Mixin2D, ExponentialDensity):
         )
 
 
-class PolyaGammaDensitySubPixel2D(SubPixelMixin, Mixin2D, PolyaGammaDensity):
+
+class PolyaGammaDensitySubPixel2D(MixinSubPixel2D, PolyaGammaDensity):
     def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
         super().__init__(
             prior_mean,
@@ -1333,8 +1364,7 @@ class PolyaGammaDensitySubPixel2D(SubPixelMixin, Mixin2D, PolyaGammaDensity):
             sparse=sparse,
             **kwargs,
         )
-
-    
+ 
 
 if __name__ == '__main__':
     pass

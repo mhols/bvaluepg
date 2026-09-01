@@ -572,9 +572,9 @@ def experiment_subpixel():
     n = 16
     m = 16
     N = n * m
-    rho = 1
+    rho = 3
     v2 = 0.5
-    lam = 8
+    lam = 100
 
 
     block_size = 4
@@ -614,6 +614,12 @@ def experiment_subpixel():
     true_field_image = np.ones((n, m))
     true_field_image[4:10, 4:10] = 3.0
     true_field_image[10:14, 2:7] = 5.0 
+
+    x = np.arange(0,16)[None, :]
+    y = np.arange(0,16)[:, None]
+
+
+    true_field_image = 50 + 25 * np.sin( 2*np.pi * (x+y) / 32)
     true_field = true_field_image.ravel(order='C')
 
     #Prior mean and precision for the latent field f
