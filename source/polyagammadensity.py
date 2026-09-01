@@ -792,6 +792,9 @@ class SigmoidMixin(Density):
         # Gibbs loop
         for it in range(n_iter):
             print('iteration ', it)
+            if after_cycle_method is not None:
+                self.after_cycle_method(f)
+
             # --- Step 1: sample k gegenben f ---
             # Die Rate für die latenten „negativen“ Zählungen ist lam * sigmoid(-f)
             rate_neg = self.field_from_f(-f)
@@ -872,8 +875,7 @@ class SigmoidMixin(Density):
                 self.last_sample = f
                 yield f
 
-            if after_cycle_method:
-                self.after_cycle_method(f)
+
         return
 
 
@@ -999,6 +1001,8 @@ class SmoothRampMixin:
 
         idx = 0
         for it in range(total_iter):
+            if after_cycle_method is not None:
+                after_cycle_method(f)
             print('samplilng z | f', it)
             z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
             #f = gsm.sample_f_cond_z(z, self.nobs, self.prior_mean, self.Lprior, self.mix)
@@ -1009,8 +1013,7 @@ class SmoothRampMixin:
                 idx += 1
                 yield f
 
-            if after_cycle_method:
-                after_cycle_method(f)
+            
 
         return
  
@@ -1104,14 +1107,15 @@ class ExponentialMixin:
         fz_cache = gsm.prepare_f_cond_z(self)
 
         for it in range(total_iter):
+            if after_cycle_method:
+                after_cycle_method(f)
             z = gsm.sample_z_cond_f(f, self.nobs, self.mix)
             f = gsm.sample_f_cond_z_cache(z, self, fz_cache)
 
             if it >= burn_in and ((it - burn_in) % thin == 0):
                 yield f
 
-            if after_cycle_method:
-                after_cycle_method(f)
+ 
     
 class PolyaGammaDensity(SigmoidMixin, Density):
 
@@ -1207,40 +1211,76 @@ class SubPixelMixin:
 
     @property
     def grouping(self):
-        return self.kwargs['grouping']
+        return self._grouping
+
+    @property
+    def gdata(self):
+        return self._gdata
 
     
 
     def set_grouped_data(self, gdata, grouping, f=None):
-        nsubp = sum( [len(g) for g in grouping.values() ] )
-        nobs = np.zeros(nsubp)
-        if f:
+
+        self._grouping = {
+        i: np.asarray(g, dtype=int)
+        for i, g in grouping.items()
+        }
+
+        self._gdata = {
+            i: int(gdata[i])
+            for i in grouping
+        }
+
+        nobs = np.zeros(self.nbins, dtype=int)
+
+        if f is not None:
             field = self.field_from_f(f)
-        for i, g in gdata.items():
-            if f:
-                p = field[g]
+
+        for i, g in grouping.items():
+            g = np.asarray(g, dtype=int)
+
+            if f is not None:
+                p = field[g].copy()
                 p /= np.sum(p)
             else:
-                p = 1/len(g)
-            nobs[i] = np.random.multinomial(gdata[i], p)
+                p = np.full(len(g), 1.0 / len(g))
 
-        super().set_data(nobs)
-        self.gdata=gdata
+            nobs[g] = np.random.multinomial(
+                int(gdata[i]),
+                p
+            )
+        self.set_nobs(nobs)
 
-    def gdata(self):
-        if not hasattr(self, '_gdata'):
-            self._gdata=[sum( self._nobs[self.groupings[i]]) for i in range(len(self.groupings))]
-        return self._gdata
+        return nobs
+
+    def _sample_subpixel_counts(self, N, indices, field):
+
+        indices = np.asarray(indices, dtype=int)
+
+        if len(indices) == 1:
+            return np.array([int(N)], dtype=int)
+
+        if field is None:
+            p = np.full(
+                len(indices),
+                1.0 / len(indices),
+                dtype=float
+            )
+        else:
+            rates = np.asarray(field[indices], dtype=float)
+            total = rates.sum()
+            p = rates / total
+
+        return np.random.multinomial(int(N), p)
+
 
 
     def after_cycle_method(self, f):
         field = self.field_from_f(f)
-        for i, g in self.grouing.items():
-            N = self.gdata[i]
-            p = field[g]
-            p /= p.sum()
-
-            self._nobs = p.random.multinomial(N, p)
+        for i, g in self._grouping.items():
+            N = self._gdata[i]
+            self._nobs[g] = self._sample_subpixel_counts(N, g, field)
+        return self._nobs
             
     
 
