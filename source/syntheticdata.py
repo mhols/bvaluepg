@@ -654,7 +654,7 @@ def experiment_subpixel():
     prior_precision = ck.precision_matern(n, m, rho=1, v2=v2, boundary="symmetric")
     estim = pgd.PolyaGammaDensitySubPixel2D( prior_mean=prior_mean, prior_precision=prior_precision, sparse=True, grouping=grouping, lam=lam, n=n, m=m)
 
-    estim.set_grouped_data(gdata, grouping, f=prior_mean)
+    estim.set_grouped_data(gdata, f=prior_mean)
 
     print("\nChecking initial multinomial allocation")
 
@@ -734,7 +734,7 @@ def experiment_subpixel():
     snapshots = {}
 
     for i, f in enumerate(
-        estim.sample_posterior(initial_f= prior_mean.copy(), n_iter = n_iter, burn_in = burn_in, thin = thin, random_seed=1, after_cycle_method=estim.after_cycle_method)
+        estim.sample_posterior(initial_f= prior_mean.copy(), n_iter = n_iter, burn_in = burn_in, thin = thin, random_seed=1, after_cycle_method=estim.after_cycle_method, block_size=block_size)
     ):
 
         for k, indices in grouping.items():
@@ -792,6 +792,299 @@ def experiment_subpixel():
         origin="lower",
         vmin=0,
         vmax=lam
+    )
+
+    axes[2].set_title("Posterior mean intensity")
+
+    for ax in axes:
+
+        for x in range(
+            0,
+            n + 1,
+            block_size
+        ):
+            ax.axvline(
+                x - 0.5,
+                color="white",
+                linewidth=0.8
+            )
+
+        for y in range(
+            0,
+            m + 1,
+            block_size
+        ):
+            ax.axhline(
+                y - 0.5,
+                color="white",
+                linewidth=0.8
+            )
+
+    plt.colorbar(im0, ax=axes[0])
+
+    plt.colorbar( im1, ax=axes[1] )
+
+    plt.colorbar( im2,ax=axes[2])
+
+    plt.tight_layout()
+
+
+
+
+def experiment_subpixel_lambda():
+    np.random.seed(0)
+
+    n = 16
+    m = 16
+    N = n * m
+    rho = 3
+    v2 = 0.5
+    true_lam = 100
+
+    initial_lam = 50    
+
+    lam_prior_shape = 1.0
+    lam_prior_rate = 0.01
+
+
+    block_size = 4
+
+    assert n % block_size == 0, 'n must be divisible by block_size for subpixel experiment'
+    assert m % block_size == 0, 'm must be divisible by block_size for subpixel experiment'
+
+
+
+    def ij_2_k(i,j):
+        return i*m + j
+
+    def make_grouping(n, m, block_size):
+        grouping = {}
+        k = 0
+        for i in range(0, n, block_size):
+            for j in range(0, m, block_size):
+                grouping[k] = []
+                for ii in range(block_size):
+                    for jj in range(block_size):
+                        grouping[k].append(ij_2_k(i+ii, j+jj))
+                k += 1
+        return grouping
+
+    grouping = make_grouping(n, m, block_size)
+    n_coarse_x = n // block_size
+    n_coarse_y = m // block_size
+
+    print( 'fine grid size: ', n, m)
+    print( 'coarse grid size: ', n_coarse_x, n_coarse_y)
+    print( 'number of groups: ', len(grouping))
+    print('number of elements per group: ', block_size*block_size)
+
+   
+
+   # Construct a true fine-scale field 
+    true_field_image = np.ones((n, m))
+    true_field_image[4:10, 4:10] = 3.0
+    true_field_image[10:14, 2:7] = 5.0 
+
+    x = np.arange(0,16)[None, :]
+    y = np.arange(0,16)[:, None]
+
+
+    true_field_image = 50 + 25 * np.sin( 2*np.pi * (x+y) / 32)
+    true_field = true_field_image.ravel(order='C')
+
+    #Prior mean and precision for the latent field f
+    true_p = true_field / true_lam
+    prior_f_value = np.log(true_p/(1-true_p))
+    prior_mean = np.zeros(N)
+    prior_precision = ck.precision_matern(n, m, rho=rho, v2=v2, boundary="symmetric")
+
+    generator = pgd.PolyaGammaDensity2D(prior_mean=prior_mean, prior_precision=prior_precision, sparse=True, grouping=grouping, lam=true_lam, n=n, m=m)
+
+    np.random.seed(0)
+    data = generator.random_events_from_field(true_field)
+    print('Total number of events in the catalog: ', np.sum(data))
+
+    # Aggregate the data into coarse bins according to the grouping
+    gdata = {}
+    for k, indices in grouping.items():
+        gdata[k] = np.sum(data[indices])    
+
+    # total count must be preserved
+    assert np.sum(data) == np.sum(list(gdata.values())), "Total count mismatch between fine and coarse data"    
+
+    coarse_data = np.zeros((n_coarse_x, n_coarse_y))
+
+    k=0
+
+    for i in range(n_coarse_x):
+        for j in range(n_coarse_y):
+            coarse_data[i,j] = gdata[k]
+            k += 1
+
+    prior_precision = ck.precision_matern(n, m, rho=1, v2=v2, boundary="symmetric")
+    estim = pgd.PolyaGammaDensitySubPixel2D( prior_mean=prior_mean,
+                            prior_precision=prior_precision, 
+                            sparse=True, 
+                            grouping=grouping, 
+                            lam=initial_lam, 
+                            lam_prior_rate=lam_prior_rate, 
+                            lam_prior_shape=lam_prior_shape, 
+                            block_size=block_size,
+                            n=n, 
+                            m=m)
+
+    estim.set_grouped_data(gdata, f=prior_mean)
+    print("\nChecking initial multinomial allocation")
+
+    for k, indices in grouping.items():
+        assert ( estim.nobs[indices].sum()==gdata[k])
+    print("All coarse totals preserved")
+
+
+    def plot_subpixel_image(values, title):
+        values = np.asarray(values)
+
+        image = values.reshape(n, m, order = "C")
+
+        plt.figure(figsize=(7,7))
+
+        plt.imshow(image.T, origin="lower")
+
+        for x in range(0, n+1, block_size):
+            plt.axvline(x-0.5, color="white", linewidth=1.0)
+
+        for y in range(0, m+1, block_size):
+            plt.axhline(y-0.5, color = "white", linewidth=1.0)
+
+
+        plt.title(title)
+
+        plt.xlabel("Fine-grid x")
+
+        plt.ylabel("Fine-grid y")
+
+        plt.tight_layout()
+
+    plt.figure(figsize=(6,6))
+
+    plt.title("True fine-scale intensity")
+
+    plt.imshow(true_field_image.T, origin ="lower", vmin=0, vmax=true_lam)
+
+    plt.colorbar(label="Poisson intensity")
+
+    plt.tight_layout()
+
+    
+    plt.figure(figsize=(6,6))
+
+    plt.title("Simulated fine counts")
+
+    plt.imshow(data.reshape(n,m).T, origin ="lower")
+
+    plt.colorbar(label="Count")
+
+    plt.tight_layout()
+
+    
+    
+    plt.figure(figsize=(6,6))
+
+    plt.title("Observed coarse counts")
+
+    plt.imshow(coarse_data.T, origin ="lower")
+
+    plt.colorbar(label="Observed count")
+
+
+    plot_subpixel_image(estim.nobs, title="Initial latent subpixel allocation")
+
+    n_iter = 300
+    burn_in = 100
+    thin = 1
+
+    posterior_field_sum = np.zeros(N)
+
+    posterior_nobs_sum = np.zeros(N)
+
+    lam_posterior_sum = 0.0
+
+    nsamples = 0
+
+    snapshots = {}
+
+    for i, (f, lam_sample) in enumerate(
+        estim.sample_posterior(initial_f= prior_mean.copy(), 
+        n_iter = n_iter, 
+        burn_in = burn_in, 
+        thin = thin, 
+        random_seed=1, 
+        after_cycle_method=estim.after_cycle_method,
+        sample_lam=True,
+        return_lam=True)
+    ):
+
+        for k, indices in grouping.items():
+
+            assert (estim.nobs[indices].sum() == gdata[k])
+
+        field = estim.field_from_f(f)
+
+        posterior_field_sum += field
+        posterior_nobs_sum += estim.nobs
+        lam_posterior_sum += lam_sample
+
+        nsamples += 1
+
+        if i in [0, 1, 5, 20, 50, 100]:
+            snapshots[i] = estim.nobs.copy()
+
+    
+    posterior_mean_field = ( posterior_field_sum / nsamples)
+
+    posterior_mean_nobs = (posterior_nobs_sum / nsamples)
+
+    posterior_mean_lam = (lam_posterior_sum / nsamples)
+
+    for i, allocation in snapshots.items():
+        plot_subpixel_image(
+            allocation,
+            title=f"Latent subpixel allocation — sample {i}"
+        )
+
+    plot_subpixel_image( posterior_mean_nobs, title ="Posterior mean subpixel allocation")
+
+    plot_subpixel_image( posterior_mean_field, title ="Posterior mean fine-scale intensity")
+
+    fig, axes = plt.subplots( 1, 3, figsize=(15, 5) )
+    print("True lambda:", true_lam)
+    print("Initial lambda:", initial_lam)
+    print("Posterior mean lambda:", posterior_mean_lam)
+
+    # Truth
+    im0 = axes[0].imshow(
+        true_field_image.T,
+        origin="lower",
+        vmin=0,
+        vmax=true_lam
+    )
+
+    axes[0].set_title("True fine intensity")
+
+    # Mean latent allocation
+    im1 = axes[1].imshow(
+        posterior_mean_nobs.reshape(n, m).T,
+        origin="lower"
+    )
+
+    axes[1].set_title( "Mean latent allocation")
+
+    # Posterior intensity
+    im2 = axes[2].imshow(
+        posterior_mean_field.reshape(n, m).T,
+        origin="lower",
+        vmin=0,
+        vmax=true_lam
     )
 
     axes[2].set_title("Posterior mean intensity")
@@ -919,6 +1212,6 @@ if __name__ == "__main__":
 
     #experiment_subpixel()
 
-    experiment_subpixel()
+    experiment_subpixel_lambda()
 
     plt.show()

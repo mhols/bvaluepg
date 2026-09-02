@@ -676,6 +676,20 @@ class SigmoidMixin(Density):
     def lam(self):
         return self.kwargs['lam']
 
+    @lam.setter
+    def lam(self, value):
+        value = float(value)
+
+        self.kwargs['lam'] = value
+
+    @property
+    def lam_prior_shape(self): 
+        return self.kwargs.get('lam_prior_shape', 1.0)
+
+    @property
+    def lam_prior_rate(self):
+        return self.kwargs.get('lam_prior_rate', 1.0)
+
     def derivative_field_from_f(self, f):
         return self.lam * sigmoid(f) * sigmoid(-f)
     
@@ -686,6 +700,12 @@ class SigmoidMixin(Density):
 
         field = self.field_from_f(-self.f)
         kk = self.random_events_from_field(field)  ### the random events k given f
+
+    def sample_lam_cond_f(self, f):
+        f = np.array(f, dtype=float)
+        shape = self.lam_prior_shape + np.sum(self.nobs)
+        rate = self.lam_prior_rate + np.sum(sigmoid(f))
+        return np.random.gamma(shape, 1/rate)
     
     def field_from_f(self, f):
 
@@ -726,7 +746,9 @@ class SigmoidMixin(Density):
         thin: int = 1,
         initial_f: np.ndarray | None = None,
         random_seed: int | None = None,
-        after_cycle_method=None
+        after_cycle_method=None,
+        sample_lam: bool = False,
+        return_lam: bool = False
     ):
         if random_seed is not None:
             np.random.seed(random_seed)
@@ -792,6 +814,9 @@ class SigmoidMixin(Density):
         # Gibbs loop
         for it in range(n_iter):
             print('iteration ', it)
+            if sample_lam:
+                self.lam = self.sample_lam_cond_f(f)
+
             if after_cycle_method is not None:
                 self.after_cycle_method(f)
 
@@ -873,7 +898,11 @@ class SigmoidMixin(Density):
         # Speichern, wenn burn_in abgeschlossen ist und bei Ausdünnungsintervall
             if it >= burn_in and ((it - burn_in) % thin == 0):
                 self.last_sample = f
-                yield f
+
+                if return_lam:
+                    yield f, self.lam
+                else:
+                    yield f
 
 
         return
