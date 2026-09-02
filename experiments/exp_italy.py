@@ -394,7 +394,7 @@ if __name__ == "__main__":
 
     rate_map = italy_data.sampler.field_from_f(f)
 
-    f_mean, f_sd, rate_mean, rate_sd, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=550, burn_in=50, thin=1)
+    f_mean, f_sd, rate_mean, rate_sd, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=110, burn_in=10, thin=10)
 
 
     f_vmin = min(np.min(f), np.min(f_mean))
@@ -446,7 +446,7 @@ if __name__ == "__main__":
 
     rate_map = italy_data.sampler.field_from_f(f)
 
-    f_mean, f_sd, rate_mean, rate_sd, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=550, burn_in=50, thin=1)
+    f_mean, f_sd, rate_mean, rate_sd, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=110, burn_in=10, thin=10)
 
 
     f_vmin = min(np.min(f), np.min(f_mean))
