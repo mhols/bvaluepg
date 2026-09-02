@@ -702,7 +702,7 @@ class SigmoidMixin(Density):
         kk = self.random_events_from_field(field)  ### the random events k given f
 
     def sample_lam_cond_f(self, f):
-        f = np.array(f, dtype=float)
+        #f = np.array(f, dtype=float)
         shape = self.lam_prior_shape + np.sum(self.nobs)
         rate = self.lam_prior_rate + np.sum(sigmoid(f))
         return np.random.gamma(shape, 1/rate)
@@ -778,7 +778,7 @@ class SigmoidMixin(Density):
         #Sigma0_inv_mu0 = self.apply_prior_precision(mu0)
 
 
-            
+        sample_lam = sample_lam if sample_lam else self.kwargs.get('sample_lam', False)    
 
         # Initialiesieren
         if initial_f is None:
