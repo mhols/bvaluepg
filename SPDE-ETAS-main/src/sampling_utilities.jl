@@ -6,6 +6,7 @@
 using LinearAlgebra
 using SparseArrays
 using Optim
+using NLSolversBase
 using LambertW
 using NearestNeighbors
 using TriangleMesh
@@ -177,17 +178,30 @@ end
 # 4. Optim / Cholesky wrapper
 # ============================================================
 
-struct OptimCholWrapper{T} <: SparseArrays.AbstractSparseMatrix{Float64,Int}
+mutable struct OptimCholWrapper{T} <: SparseArrays.AbstractSparseMatrix{Float64,Int}
     data::T
 end
 
-function Base.similar(::OptimCholWrapper, ::Type{T}, n::Int, m::Int) where {T}
-    @assert n == 0 == m
-    return zeros(0, 0)
+Base.size(x::OptimCholWrapper) = size(x.data)
+Base.size(x::OptimCholWrapper, dim::Integer) = size(x.data, dim)
+Base.similar(x::OptimCholWrapper) = OptimCholWrapper(copy(x.data))
+Base.similar(x::OptimCholWrapper, ::Type{T}) where {T} = OptimCholWrapper(copy(x.data))
+
+function Base.similar(x::OptimCholWrapper, ::Type{T}, n::Int, m::Int) where {T}
+    if n == 0 && m == 0
+        return zeros(T, 0, 0)
+    end
+
+    @assert (n, m) == size(x)
+    return OptimCholWrapper(copy(x.data))
 end
 
 Base.:\(x::OptimCholWrapper, y::Vector{T}) where {T} = x.data \ y
-Base.copy(x::OptimCholWrapper) = x
+Base.copy(x::OptimCholWrapper) = OptimCholWrapper(copy(x.data))
+function Base.copyto!(dest::OptimCholWrapper, src::OptimCholWrapper)
+    dest.data = copy(src.data)
+    return dest
+end
 Base.show(io::IO, x::OptimCholWrapper) = show(io, x.data)
 LinearAlgebra.logdet(x::OptimCholWrapper) = logdet(x.data)
 Base._all(::typeof(isfinite), itr::OptimCholWrapper, ::Colon) = true
@@ -431,7 +445,7 @@ function LA_poisson_objective_chol(
     initial = vec(zero(fixed_field))
 
     return Optim.TwiceDifferentiable(
-        Optim.only_fgh!(fgh!),
+        NLSolversBase.only_fgh!(fgh!),
         initial,
         0.0,
         copy(initial),
@@ -559,4 +573,3 @@ function dual_mesh(mesh)
 
     return polygons
 end
-
