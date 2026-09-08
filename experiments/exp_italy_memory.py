@@ -6,6 +6,7 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 from geodatasets import get_path
 import pickle
+import psutil
 
 import sys
 sys.path.append(str(Path(__file__).resolve().parent.parent / "source"))
@@ -21,7 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 PREPROCESSED_DATA = REPO_ROOT / "data" / "preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_2_events.csv"
 ITALYCOASTLINE =  REPO_ROOT / "data" /  "coastlines/ne_10m_coastline.zip"
 EXTRACTED_COASTLINE_DIR = REPO_ROOT / "experiments" / "naturalearth" 
-PLOTS_DIR = REPO_ROOT / "talks" / "2026_summer_yehuda" / "figures"
+PLOTS_DIR = REPO_ROOT / "results" / "plots"
 
 
 import io
@@ -255,7 +256,7 @@ class ItalyData:
     
         f_mean = np.zeros_like(initial_f)
         f_M2 = np.zeros_like(initial_f)
-        rate_mean = np.zeros_like(initial_f)    
+        rate_mean = np.zeros_like(initial_f)
         rate_M2 = np.zeros_like(initial_f)
 
         count = 0
@@ -263,12 +264,24 @@ class ItalyData:
         n_kept = (n_samples - burn_in) // thin
         plot_every = max(1, n_kept // n_plot_samples)
 
+        # memory profiling: current resident set size (RSS) of this process,
+        # recorded once per raw Gibbs iteration (i.e. n_samples points total,
+        # independent of burn_in/thin), via the sampler's after_cycle_method hook
+        process = psutil.Process()
+        mem_usage_mb = []
+
+        def _record_memory(f):
+            mem_usage_mb.append(process.memory_info().rss / (1024 ** 2))
+
+        self.sampler.after_cycle_method = _record_memory
+
         for res in self.sampler.sample_posterior(
             n_iter=n_samples,
             burn_in=burn_in,
             thin=thin,
             initial_f=initial_f,
             random_seed=random_seed,
+            after_cycle_method=True,
         ):
             count += 1
 
@@ -286,9 +299,31 @@ class ItalyData:
         f_sd = np.sqrt(f_M2 / (count - 1))
         rate_sd = np.sqrt(rate_M2 / (count - 1))
 
-
+        self.mem_iterations = list(range(1, len(mem_usage_mb) + 1))
+        self.mem_usage_mb = mem_usage_mb
 
         return f_mean, f_sd, rate_mean, rate_sd, samples_to_plot
+
+    def plot_memory_usage(self):
+
+        iterations = self.mem_iterations
+        mem_usage_mb = self.mem_usage_mb
+
+        plt.figure(figsize=(10, 6))
+
+        plt.plot(iterations, mem_usage_mb, marker="o", markersize=3, color="tab:blue")
+        plt.xlabel("Gibbs iteration")
+        plt.ylabel("Process memory usage (RSS, MB)")
+        plt.title(
+            "Memory usage during posterior sampling\n"
+            f"({'Declustered' if self.Declusterd else 'All events'}, "
+            f"bin={self.BIN_SIZE_KM}km, n={len(iterations)} iterations)"
+        )
+
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+
+        self.save_plot("memory_usage")
 
     def plot_posterior_samples(self, samples):
 
@@ -394,7 +429,7 @@ if __name__ == "__main__":
 
     rate_map = italy_data.sampler.field_from_f(f)
 
-    f_mean, f_sd, rate_mean, rate_sd, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=50, burn_in=10, thin=10)
+    f_mean, f_sd, rate_mean, rate_sd, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=30, burn_in=10, thin=10)
 
 
     f_vmin = min(np.min(f), np.min(f_mean))
@@ -436,6 +471,8 @@ if __name__ == "__main__":
     italy_data.save_plot("posterior_samples")
 
     italy_data.plot_posterior_summary(f_mean, f_sd, rate_mean, rate_sd, f_map=f, rate_map=rate_map, f_vmin=-14, f_vmax=7, rate_vmin=0, rate_vmax=25)
+
+    italy_data.plot_memory_usage()
 
   
 
@@ -446,7 +483,7 @@ if __name__ == "__main__":
 
     rate_map = italy_data.sampler.field_from_f(f)
 
-    f_mean, f_sd, rate_mean, rate_sd, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=50, burn_in=10, thin=10)
+    f_mean, f_sd, rate_mean, rate_sd, samples_to_plot = italy_data.posterior_summary(initial_f=f, n_samples=30, burn_in=10, thin=10)
 
 
     f_vmin = min(np.min(f), np.min(f_mean))
@@ -488,6 +525,8 @@ if __name__ == "__main__":
     italy_data.save_plot("posterior_samples")
 
     italy_data.plot_posterior_summary(f_mean, f_sd, rate_mean, rate_sd, f_map=f, rate_map=rate_map, f_vmin=-14, f_vmax=7, rate_vmin=0, rate_vmax=25)
+
+    italy_data.plot_memory_usage()
 
     plt.show()
 

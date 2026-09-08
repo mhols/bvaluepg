@@ -52,7 +52,7 @@ const σ0 = 0.5
 const μ0 = 0.01
 
 const SPDE_ν = 0.5
-const GRID_POINTS = 50
+const MAX_TRIANGLE_AREA = 0.5
 
 # ============================================================
 # 3. Load catalog
@@ -89,6 +89,8 @@ domain = [
 
 mesh = create_mesh(
     corners;
+    point_marker = zeros(Int, size(corners, 1), 0),
+    point_attribute = zeros(Float64, size(corners, 1), 0),
     info_str = "Triangular mesh of square domain.",
     verbose = false,
     check_triangulation = false,
@@ -100,10 +102,12 @@ mesh = create_mesh(
     prevent_steiner_points_boundary = false,
     prevent_steiner_points = false,
     set_max_steiner_points = false,
-    set_area_max = true,
+    set_area_max = false,
     set_angle_min = false,
-    add_switches = ""
+    add_switches = "a$(MAX_TRIANGLE_AREA)"
 )
+
+println("Mesh: $(mesh.n_point) points, $(mesh.n_cell) triangles")
 
 C, C_tilde, G = component_matrices(mesh)
 C_inv = spdiagm(0 => 1 ./ diag(C_tilde))
