@@ -9,10 +9,12 @@ import pickle
 
 import sys
 sys.path.append(str(Path(__file__).resolve().parent.parent / "source"))
+sys.path.append(str(Path(__file__).resolve().parent.parent / "data"))
 
 from coordinates import Italy_Coordinates as IC
 import polyagammadensity as pgd
 import covariance_kernels as ck
+from preprocess_nnd_rot_cut_bin import *
 
 # the coastline files are assumed to be in the "data" directory at the root of the repository, they can be downloaded from the following link:
 # https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_coastline.zip
@@ -30,6 +32,124 @@ import requests
 import geopandas as gpd
 import matplotlib.pyplot as plt
 from shapely.geometry import box
+
+### helper methods (copied from /data)
+def load_catalog(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(path, low_memory=False, sep="|", skiprows=0)
+    df.columns = [str(column).strip() for column in df.columns]
+    df = df.rename(
+        columns={
+            "#EventID": "event_id",
+            "EventID": "event_id",
+            "Time": "datetime",
+            "Latitude": "lat",
+            "Longitude": "lon",
+            "Depth/Km": "depth",
+            "Magnitude": "mag",
+        }
+    )
+    required = ["datetime", "lat", "lon", "depth", "mag"]
+    missing = [column for column in required if column not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}; available columns: {df.columns.tolist()}")
+
+    df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
+    for column in ["lat", "lon", "depth", "mag"]:
+        df[column] = pd.to_numeric(df[column], errors="coerce")
+    if "event_id" in df.columns:
+        df["event_id_num"] = pd.to_numeric(df["event_id"], errors="coerce")
+    else:
+        df["event_id"] = np.arange(1, len(df) + 1)
+        df["event_id_num"] = df["event_id"].astype(float)
+
+    df = df.dropna(subset=["datetime", "lat", "lon", "mag"]).copy()
+    df["year"] = df["datetime"].dt.year
+    df["month"] = df["datetime"].dt.month
+    df["day"] = df["datetime"].dt.day
+    df["hour"] = df["datetime"].dt.hour
+    df["minute"] = df["datetime"].dt.minute
+    df["second"] = df["datetime"].dt.second + df["datetime"].dt.microsecond / 1_000_000
+    df = add_time_fields(df)
+    return df.sort_values("datetime").reset_index(drop=True)
+
+
+def create_synthetic_catalog() -> pd.DataFrame:
+    """Placeholder for later synthetic background-only catalogues.
+
+    Intended output columns:
+    datetime, lat, lon, depth, mag, event_id, and optionally f_true/lambda_true.
+    The returned dataframe can then be passed through the same pipeline below.
+
+synthetic catalogues generieren
+    ganzen Katalog fuer die pipeline generieren oder nur background events generieren :/
+    vielleicht gleich mit dummy zeit und so
+    1. Erzeuge ein wahres Feld, (Block, Balken oder Checkerboard)
+    2. Ziehe daraus Poisson-Counts
+    3. Wandle Counts in zufällige Eventpunkte pro Bin um
+    4. Skaliere diese Punkte auf ein kuenstilches x_proj_km/y_proj_km-Gebiet
+    5. Rechne daraus passende lon/lat zurück oder besser direkt synthetische lon/lat setzen
+    6. Ergänze Dummy-Zeit, Tiefe, Magnitude (und optional lambda_true, f_true, bin_ix, bin_iy)
+
+ok das wird zuviel fuer hier, besser in eigenem skript. ich muss nur aufpassen, dass die Spaltennamen und Formate passen
+
+    """
+    raise NotImplementedError("Synthetic catalogue generation will be added later.")
+
+
+def filter_catalog(df: pd.DataFrame) -> pd.DataFrame:
+    result = df.copy()
+    if MIN_MAGNITUDE is not None:
+        result = result[result["mag"] >= float(MIN_MAGNITUDE)].copy()
+    if MAX_MAGNITUDE is not None:
+        result = result[result["mag"] <= float(MAX_MAGNITUDE)].copy()
+    if YEAR_MIN is not None:
+        result = result[result["decimal_year"] >= float(YEAR_MIN)].copy()
+    if YEAR_MAX is not None:
+        result = result[result["decimal_year"] <= float(YEAR_MAX)].copy()
+    return result.sort_values("datetime").reset_index(drop=True)
+
+
+def make_eqcat(df: pd.DataFrame) -> EqCat:
+    eqcat = EqCat()
+    eqcat.data = {
+        "N": df["N"].to_numpy(float),
+        "Time": df["decimal_year"].to_numpy(float),
+        "Mag": df["mag"].to_numpy(float),
+        "Lat": df["lat"].to_numpy(float),
+        "Lon": df["lon"].to_numpy(float),
+        "Depth": df["depth"].fillna(0.0).to_numpy(float),
+        "X": df["x_proj_km"].to_numpy(float),
+        "Y": df["y_proj_km"].to_numpy(float),
+    }
+    return eqcat
+
+
+def run_nnd_declustering(eqcat: EqCat) -> dict[str, np.ndarray]:
+    dpar = {"D": NND_D, "b": NND_B, "Mc": MIN_MAGNITUDE}
+    np.random.seed(RANDOM_SEED)
+    eqcat.data["Z"] = eqcat.data["Depth"]
+    return clustering.NND_eta(eqcat, dpar, correct_co_located=True, verbose=False)
+
+
+def add_nnd_status(df: pd.DataFrame, nnd: dict[str, np.ndarray]) -> pd.DataFrame:
+    result = df.copy()
+    result["nnd_parent_id"] = pd.Series(pd.NA, index=result.index, dtype="Int64")
+    result["nnd_eta"] = np.nan
+    result["nnd_log10_eta"] = np.nan
+
+    child_to_row = pd.Series(result.index.to_numpy(), index=result["N"].astype(float)).to_dict()
+    for child, parent, eta in zip(nnd["aEqID_c"], nnd["aEqID_p"], nnd["aNND"]):
+        row = child_to_row.get(float(child))
+        if row is None:
+            continue
+        result.at[row, "nnd_parent_id"] = int(parent)
+        result.at[row, "nnd_eta"] = float(eta)
+        result.at[row, "nnd_log10_eta"] = float(np.log10(eta))
+
+    result["nnd_is_triggered"] = result["nnd_log10_eta"].lt(ETA_THRESHOLD_LOG10).fillna(False)
+    result["decluster_kept"] = ~result["nnd_is_triggered"]
+    return result
+
 
 
 class ItalyData: 

@@ -79,6 +79,7 @@ class Coordinates:
         x, y = self.inverse_rotate_coordinates(x_rot, y_rot)
         return self.xy_to_lonlat(x, y)
 
+
     def get_binned_data_in_rotated_coordinates(self, lon, lat, dkm):
         """
         Get binned data in rotated coordinates. 
