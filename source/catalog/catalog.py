@@ -242,7 +242,7 @@ class Catalog:
                 magsum[ii, jj] = np.sum(self.mag[I == ii*nbiny + jj])
 
 
-        self._binning_count = {
+        self._binning_mag= {
             'i' : i,
             'j' : j,
             'nbinx': nbinx,
@@ -251,7 +251,7 @@ class Catalog:
             'extent': (x_rot.min(), x_rot.min() + nbinx * dkm, y_rot.min(), y_rot.min() + nbiny * dkm)
         }
 
-        return self._binning_count
+        return self._binning_mag
 
 
     @property
@@ -370,8 +370,24 @@ if __name__=='__main__':
 
     print(C.binning_count) 
 
+    I = C.binning_count['counts']>0
+    n = C.binning_count['counts']
+    sm = C.binning_mag['magsum']
+
+    b = np.where(I, n / (sm - n*2.3) / np.log(10), 1)
+
+
+    #b = C.binning_mag['magsum']  / \
+    #    np.where(C.binning_count['counts']>0, C.binning_count['counts'], 0.001)    
+
+    plt.figure()
+    plt.hist(b.ravel())
+
     plt.figure(figsize=(10, 8))
-    plt.imshow(C.binning_count['counts'].T, vmin=0, vmax=5, origin='lower', extent=C.extent, cmap='viridis')
+    
+    plt.imshow(b.T, 
+               vmin=0.0, vmax=2.5, origin='lower', 
+               extent=C.extent, cmap='viridis')
     C.plot_coastlines()
 
     plt.show()
