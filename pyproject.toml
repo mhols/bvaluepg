@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "polyagammapoisson"
+version = "0.0.1"
+authors = [
+  { name="Matthias Holschneider", email="matthias.holschneider@gmail.com" },
+  { name = "Cristina Chavez Chong", email= "cristina@mail.com" },
+  { name = "Toni Luhdo", email = "luhdo@uni-potsdam.de"}
+]
+description = "Posterior sampling of Poisson density with latent Gauss process"
+readme = "README.md"
+requires-python = ">=3.12"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["source"]
+
+
+[project.scripts]
+# initialize = "nextrapol.cli:initialize"
+# checknight = "nextrapol.cli:checknight"
+
+[project.urls]
+"Homepage" = "https://github.com/pypa/sampleproject"
+"Bug Tracker" = "https://github.com/pypa/sampleproject/issues"
