@@ -1,6 +1,6 @@
 # Toni Notes: SPDE-ETAS
 
-Stand: 8. September 2026
+Stand: 15. September 2026
 
 ## Zweck des Projekts
 
@@ -210,19 +210,19 @@ Raum in isotrop skalierten rotierten Kilometerkoordinaten
 
 ### Gemeinsamer Datenvertrag
 
-Fuer Julia soll ein eigener, reproduzierbarer Adapter erstellt werden. Er darf nicht stillschweigend `Main_script.jl` oder die Originaldaten ueberschreiben. Empfohlene Ausgabespalten:
+Fuer Julia wird ein eigener, reproduzierbarer Adapter verwendet. Er ueberschreibt weder `Main_script.jl` noch die Originaldaten. Numerische Ausgabespalten:
 
 ```text
-time_days  magnitude  x_model  y_model  event_id
+time_days  magnitude_excess  x_model  y_model
 ```
 
-Die ersten vier Spalten entsprechen Sofianes aktuellem numerischem Loader; `event_id` dient der Rueckverfolgbarkeit und erfordert entweder einen erweiterten Loader oder eine separate Mapping-Datei.
+Diese vier Spalten entsprechen Sofianes numerischem Loader. `event_id`, Originalzeit, absolute Magnitude und Originalkoordinaten stehen zur Rueckverfolgbarkeit in einer separaten Mapping-Datei.
 
 Konventionen:
 
 - nach `datetime` aufsteigend sortieren;
 - `time_days = (datetime - erster Zeitstempel)` in Tagen;
-- absolute Magnitude behalten und im Julia-`Catalog` explizit `M0 = Mc` setzen;
+- fuer Sofianes Rechenweg `magnitude_excess = magnitude - Mc` schreiben und im Julia-`Catalog` `M0 = 0` setzen;
 - `x_rot_km` und `y_rot_km` nur verschieben und isotrop skalieren, niemals x und y getrennt auf `[0,5]` pressen;
 - vorgeschlagene einheitliche Skalierung: `SPACE_SCALE_KM = 100`, also eine Julia-Raumeinheit gleich 100 km;
 - `x_model = (x_rot_km - x_min_km)/SPACE_SCALE_KM` und analog fuer y;
@@ -235,7 +235,7 @@ Die isotrope Skalierung erhaelt Entfernungsverhaeltnisse. Eine getrennte Normier
 
 Vor einer Interpretation muessen folgende Punkte im Julia-Code geklaert oder korrigiert werden:
 
-1. **Magnitudenkonvention:** `Catalog` berechnet korrekt `Delta M = M - M0`. In `branching_process.jl` wird dieser relative Wert an den raeumlichen Kern uebergeben. In `etas_log_likelihood` wird derzeit dagegen `Delta M_parent + M0`, also wieder die absolute Magnitude, an denselben Kern uebergeben. Diese inkonsistente Verwendung muss gegen Sofianes Modellgleichungen geprueft und vereinheitlicht werden.
+1. **Magnitudenkonvention:** Der Adapter liefert wie Sofianes Beispieldaten bereits `M - Mc`; deshalb wird `Catalog(..., M0=0)` verwendet. Am gemeinsamen Sampler wurde fuer diesen Lauf nichts geaendert. Vor einer wissenschaftlichen Interpretation muss anhand von Sofianes Modellgleichungen bestaetigt werden, dass diese Konvention beabsichtigt ist.
 2. **Raumparameter:** `D`, `rho`, Meshflaechen und Intensitaet haengen von der gewaehlten Raumeinheit ab. Startwerte, Bounds und Priors aus dem synthetischen `[0,5]`-Beispiel duerfen nicht ungeprueft fuer Italien uebernommen werden.
 3. **Bedeutung von `rho`:** In `spatialSPDE.jl` wird der uebergebene Wert direkt als `kappa` verwendet. Er ist daher nicht ohne Herleitung als gewohnte Korrelationsreichweite interpretierbar.
 4. **Zeiteinheit:** Bei Zeit in Tagen muessen insbesondere `c`, der zeitliche Kernel und dessen Priors/Bounds als Tagesgroessen interpretiert und geprueft werden.
@@ -328,11 +328,214 @@ Nicht ohne weitere Evidenz ableitbar sind tektonische Kausalitaet, die "wahre" B
 
 Empfohlener naechster konkreter Schritt ist WP1 plus WP2, danach ein eigener Italien-Adapter und ein separates Julia-Laufskript. `Main_script.jl` sollte als weiterhin lauffaehiges synthetisches Referenzbeispiel erhalten bleiben. Der reale Lauf sollte eigene Konfigurationen und eigene Ergebnisordner verwenden, damit synthetische und reale Ergebnisse nicht gegenseitig ueberschrieben werden.
 
+### Bevorzugter Ablauf: Sofianes Main-Skript fuer Italien
+
+Der neue Ablauf bleibt bewusst nahe an Sofianes Original. `Main_script_italy.jl` ist eine eigenstaendige Kopie des Einstiegsablaufs. Die gemeinsamen Dateien unter `src/` und das synthetische `Main_script.jl` bleiben dabei unveraendert. Angepasst sind Datenpfad, rechteckige Italien-Domain, Seed, Testlaenge und eigener Ausgabeordner.
+
+`scripts/prepare_italy_mc3_comparison.py` liest den Rohkatalog aus dem uebergeordneten `data/`-Ordner, wendet den festgeschriebenen Analysevertrag an und berechnet NND eigens fuer `Mc=3.0` neu. Danach erzeugt `scripts/prepare_italy_catalog.py` aus diesem Bestand Sofianes headerloses numerisches Vier-Spalten-Format:
+
+```text
+Tage seit dem ersten Ereignis | Magnitude - Mc | skaliertes x | skaliertes y
+```
+
+Erzeugte Eingaben und Begleitdateien:
+
+| Datei | Inhalt |
+|---|---|
+| `data/italy_mc3_sofiane.txt` | kompletter Mc-3.0-Katalog mit 3.622 Zeilen |
+| `data/italy_mc3_sofiane_first_200.txt` | erste 200 Ereignisse fuer technische Tests |
+| `data/italy_mc3_sofiane_first_500.txt` | erste 500 Ereignisse fuer Laufzeittests |
+| `data/italy_mc3_sofiane_first_1000.txt` | erste 1.000 Ereignisse fuer Laufzeittests |
+| `data/italy_mc3_sofiane_mapping.csv` | Rueckbezug zu Event-ID, Zeit, Magnitude und Originalkoordinaten |
+| `data/italy_mc3_sofiane_meta.json` | Auswahl, Transformationen, Einheiten und Eventzahlen |
+
+Start aus `SPDE-ETAS-main`:
+
+```bash
+/Users/toni/Documents/CodeProjects/VirtualEnvs/PolyaGamma/bin/python scripts/prepare_italy_mc3_comparison.py
+python3 scripts/prepare_italy_catalog.py
+julia --project=. Main_script_italy.jl
+```
+
+Der validierte Smoke-Test verwendet standardmaessig 200 Ereignisse, zwei MCMC-Iterationen, Seed `20260908`, eine Raumeinheit von 100 km und eine maximale Dreiecksflaeche von 0,5. Er ergab eine Zeitspanne von 369,81 Tagen sowie ein Mesh mit 240 Knoten und 423 Dreiecken. Beide MCMC-Schritte wurden erfolgreich beendet; die Ergebnisse liegen getrennt unter `mcmc_results/italy/`.
+
+Fuer den kompletten Katalog muss in `Main_script_italy.jl` nur `DATA_FILE` auf `data/italy_mc3_sofiane.txt` umgestellt werden. `NITER`, Burn-in, Priors, Startwerte und Mesh sollten jedoch vor diesem Lauf fachlich und hinsichtlich Laufzeit/Speicher festgelegt werden. Ein blosses Hochsetzen der Iterationszahl waere noch kein belastbarer Produktionsfit.
+
+Alternativ akzeptiert das Skript Datendatei, Iterationszahl und Ausgabeordner als Argumente. Damit koennen Pilotlaeufe ohne Codeaenderung getrennt gestartet werden:
+
+```bash
+julia --project=. Main_script_italy.jl data/italy_mc3_sofiane_first_500.txt 2 mcmc_results/italy_pilot_500
+julia --project=. Main_script_italy.jl data/italy_mc3_sofiane_first_1000.txt 2 mcmc_results/italy_pilot_1000
+```
+
+Beide Skalierungstests wurden am 15. September 2026 erfolgreich abgeschlossen:
+
+| Ereignisse | Zeitspanne | Iterationen | reale Prozesszeit | max. Resident-Memory | Peak-Memory-Footprint |
+|---:|---:|---:|---:|---:|---:|
+| 500 | 610,41 Tage | 2 | 10,67 s | 781 MB | 561 MB |
+| 1.000 | 668,61 Tage | 2 | 10,68 s | 775 MB | 567 MB |
+
+Die Messwerte stammen aus separaten Prozessen mit `/usr/bin/time -l`. Dass sich die Zeiten und Speicherwerte kaum unterscheiden, zeigt, dass bei nur zwei Iterationen Julia-Kompilierung, Paketinitialisierung und die feste Mesh-Arbeit dominieren. Diese Messung belegt technische Stabilitaet bis 1.000 Ereignisse, erlaubt aber noch keine belastbare Hochrechnung fuer lange Ketten oder alle 3.622 Ereignisse. Fuer ein echtes Laufzeitprofil sollten mehr Iterationen in einer Julia-Sitzung und getrennte Messungen von Initialisierung und MCMC verwendet werden.
+
+### Festgelegter Mc-3.0-Vergleichsbestand und NND-Neuberechnung
+
+Der technische Analysevertrag ist nun explizit in `data/italy_mc3_comparison/metadata.json` gespeichert:
+
+```text
+Magnitude: M >= 3.0
+Zeitraum: decimal year 2015.0 bis 2026.5
+Projektion: gamma = 41.75252483646699 Grad
+Rotation: -45 Grad
+festes Raumfenster: x = 265.707... bis 1269.757... km
+                     y = -1414.197... bis -34.860... km
+gemeinsames Raster: 51 x 69 Zellen, nominal 20 km
+```
+
+NND wurde mit `D=1.6`, `b=1.0`, `Mc=3.0`, `log10(eta)=-4.6` und Seed 0 neu ausgefuehrt. Damit werden nicht die methodisch unpassenden Mc-2.5-Labels wiederverwendet:
+
+| Auswahl | Ereignisse |
+|---|---:|
+| nach Magnituden- und Zeitfilter | 3.696 |
+| innerhalb des festen Raumfensters | 3.622 |
+| NND-kept innerhalb des Fensters | 1.694 |
+| NND-triggered innerhalb des Fensters | 1.928 |
+
+`data/italy_mc3_comparison/count_grids.npz` enthaelt auf demselben Raster bereits getrennte beobachtete Counts fuer alle 3.622 Ereignisse und fuer die 1.694 NND-kept-Ereignisse. Die letzte Zeile und Spalte des nominellen 20-km-Rasters ragen ueber das Analysefenster hinaus; bei Ratenvergleichen werden diese Zellen deshalb auf die tatsaechliche Schnittflaeche beschnitten.
+
+### TODO fuer die beiden PG-Laeufe
+
+Vor den vergleichenden PG-Laeufen muss in `experiments/exp_italy_preprocess_nnd_rot_cut_pg.py` folgende Funktion korrigiert werden:
+
+```python
+def get_cell_size_km_from_filename(prefix: Path) -> float:
+    # ... liest cell_size_km korrekt aus dem Dateinamen ...
+    return 2  # cell_size_km
+```
+
+Bei einem Dateinamen mit `_dkm_20` wird zwar `cell_size_km=20.0` geparst, anschliessend aber konstant `2` zurueckgegeben. Mit `RHO_KM=4.0` berechnet der Code dadurch `rho_cells=4/2=2` statt `4/20=0.2`. Falls `rho` tatsaechlich in Rasterzellen erwartet wird, entspricht die verwendete raeumliche Skala damit effektiv etwa 40 km statt 4 km, also Faktor 10 zu gross. Das veraendert die Prior-Praezisionsmatrix und damit die Glattung und Posteriorraten. Vor einer Ergebnisinterpretation muss `return cell_size_km` verwendet und die Bedeutung von `rho` in `precision_matern` bestaetigt werden.
+
+Danach sind zwei getrennte PG-Laeufe mit `data/italy_mc3_comparison/count_grids.npz` vorgesehen:
+
+1. `counts_all`: alle 3.622 Ereignisse;
+2. `counts_nnd_kept`: 1.694 mit Mc=3.0 neu bestimmte NND-Background-Ereignisse.
+
+Das bestehende PG-Skript zeigt die Ergebnisse derzeit nur als Plots und speichert Posteriorfelder nicht dauerhaft. Fuer den Vergleich muessen Mean-, SD- und moeglichst die Raster-Samples zusammen mit Seed und Konfiguration geschrieben werden. Diese PG-Aenderungen und Laeufe sind noch nicht umgesetzt.
+
+### Technischer Vollkataloglauf und gemeinsames Vergleichsraster
+
+Der komplette Julia-Katalog wurde technisch mit zwei Iterationen ausgefuehrt:
+
+```bash
+julia --project=. Main_script_italy.jl data/italy_mc3_sofiane.txt 2 mcmc_results/italy_full_technical
+```
+
+| Groesse | Ergebnis |
+|---|---:|
+| Ereignisse | 3.622 |
+| Zeitspanne | 4.142,14 Tage |
+| Mesh | 240 Knoten, 423 Dreiecke |
+| reale Prozesszeit | 12,22 s |
+| maximale Resident-Memory | 1,06 GB |
+| Peak-Memory-Footprint | 820 MB |
+| technische Background-Counts | 1.337 und 1.262 |
+
+Die Background-Counts und Felder sind mit zwei Iterationen nicht wissenschaftlich interpretierbar.
+
+`scripts/project_julia_to_pg_grid.py` integriert jedes stueckweise lineare Julia-Intensitaetsfeld exakt ueber die Schnittflaechen der SPDE-Dreiecke mit den gemeinsamen 20-km-Zellen. Anschliessend wird mit der Beobachtungsdauer multipliziert. Zielgroesse sind damit erwartete Julia-Background-Ereignisse je gemeinsamer Rasterzelle und Zeitraum. Ausgaben:
+
+| Datei | Inhalt |
+|---|---|
+| `mcmc_results/italy_full_technical/julia_expected_counts_on_pg_grid.npz` | Julia-Rastersamples, Mittelwert/SD und beobachtete All-/NND-Counts |
+| `mcmc_results/italy_full_technical/julia_pg_grid_summary.csv` | Zellgrenzen, beschnittene Flaeche und gemeinsame Vergleichswerte |
+
+Die technischen Julia-Rastersummen betragen 1.450,53 und 1.340,66 erwartete Background-Ereignisse. Dass sie nicht exakt den gezogenen Background-Counts 1.337 und 1.262 entsprechen, muss vor Produktionsauswertungen untersucht werden; moegliche Ursachen sind die bedingte MCMC-Zuordnung gegenueber dem integrierten Intensitaetsfeld sowie Modell-/Integrationsdetails. Die neue Rasterintegration selbst verwendet keine Mittelpunktnaeherung.
+
+Wichtig: Die im Smoke-Test ausgegebenen Background-Counts 159 und 139 sowie alle Parameter- und Intensitaetswerte sind **keine wissenschaftlichen Ergebnisse**. Zwei Iterationen, Sofianes synthetische Startwerte/Priors und eine chronologisch abgeschnittene Teilmenge pruefen nur den Daten- und Rechenweg.
+
+### Frueherer Prototyp: `experiments/exp_italy.jl`
+
+Am 10. September 2026 wurde ein separates technisches Julia-Experiment angelegt:
+
+```text
+experiments/exp_italy.jl
+```
+
+Start aus `SPDE-ETAS-main`:
+
+```bash
+julia --project=. experiments/exp_italy.jl
+```
+
+Das Skript veraendert `Main_script.jl` nicht und verwendet einen eigenen Ausgabeordner:
+
+```text
+mcmc_results/italy_smoke/
+```
+
+Der aktuelle Smoke-Test ist absichtlich klein konfiguriert:
+
+```text
+Mc = 3.0
+erste 200 geeignete Ereignisse in chronologischer Reihenfolge
+2 MCMC-Iterationen
+Seed = 20260908
+1 Modell-Raumeinheit = 100 km
+maximale Dreiecksflaeche = 0.5 Modellflaecheneinheiten
+```
+
+Der Loader liest direkt den vorhandenen Pipe-Katalog
+`../data/preprocess_nnd_rot_cut_bin_Mc_2.5_eta_-4.60_dkm_20_events.csv`. Er prueft benoetigte Spalten und Feldzahlen, verwendet nur Ereignisse mit `inside_final_cut=True` und `Magnitude >= 3.0`, sortiert nach Zeit und wandelt die Zeit in Tage seit dem ersten ausgewaehlten Ereignis um. Die rotierten Kilometerkoordinaten werden mit derselben Skala in beiden Achsen verschoben und durch 100 km geteilt.
+
+Der validierte Lauf ergab:
+
+```text
+geeignete Mc-3.0-Ereignisse im Fenster: 3622
+fuer den Smoke-Test verwendet: 200
+Zeitraum der Teilmenge: 2015-01-01 bis 2016-01-06
+Zeitspanne: 369.81 Tage
+Domain: 10.041 x 13.793 Modell-Raumeinheiten
+Mesh: 240 Knoten, 423 Dreiecke
+MCMC: beide Schritte erfolgreich abgeschlossen
+```
+
+Erzeugte Dateien:
+
+| Datei | Inhalt |
+|---|---|
+| `run_metadata.txt` | Auswahl, Einheiten, Seed, Netz- und Laufparameter |
+| `selected_catalog.tsv` | Event-ID, relative Zeit, Magnitude und Modellkoordinaten fuer 200 Ereignisse |
+| `mesh_points.tsv` | IDs und Koordinaten der 240 Meshknoten |
+| `parameter_chain.csv` | zwei technische Parametersaetze |
+| `intensity_chain.csv` | zwei Intensitaetsfelder mit je 240 Knotenwerten |
+| `background_count_chain.txt` | technische Background-Counts je Iteration |
+
+Mit demselben Seed wurden in zwei erfolgreichen Testlaeufen dieselben beiden Iterationswerte beobachtet. Der technische Daten- und Rechenpfad ist damit fuer diese Teilmenge reproduzierbar.
+
+Wichtig: Die Background-Counts 159 und 139 sowie alle Parameter- und Intensitaetswerte dieses Laufs sind **keine wissenschaftlichen Ergebnisse**. Zwei Iterationen, synthetische Startwerte/Priors und die chronologisch erste Teilmenge dienen ausschliesslich als Integrations- und Laufzeittest.
+
+Der Prototyp und dessen Ausgaben unter `mcmc_results/italy_smoke/` sind noch unversioniert vorhanden. Sie werden im bevorzugten Ablauf nicht mehr benoetigt, wurden aber nicht ohne ausdrueckliche Freigabe geloescht. Der gemeinsame Sampler steht wieder auf dem bisherigen Projektstand.
+
+Der naechste Schritt ist eine wissenschaftlich konfigurierte Produktionskette, nicht die Interpretation des Zwei-Iterations-Laufs. Zuerst sollten wir:
+
+1. die Magnituden-, Zeit- und Raumparametrisierung mit Sofiane bestaetigen;
+2. Iterationszahl, Burn-in, Priors, Startwerte und mehrere Seeds festlegen;
+3. die oben notierten PG-Korrekturen und beide Mc-3.0-PG-Laeufe umsetzen;
+4. zusaetzlich Event-weise Background-Wahrscheinlichkeiten und ausreichende Diagnostik exportieren;
+5. erst danach mehrere laengere Mc-3.0-Ketten planen.
+
 ## Aktueller Status
 
 - **Erledigt:** Julia-1.12-/Optim-2.x-Kompatibilitaet fuer den beobachteten Lauf hergestellt.
 - **Erledigt:** Nichtinteraktive, reproduzierbare Netzerzeugung mit 45 Knoten und 71 Dreiecken.
 - **Erledigt:** Vollstaendiger technischer Testlauf ueber 100 MCMC-Schritte.
+- **Erledigt:** Reproduzierbarer Adapter in Sofianes numerisches Vier-Spalten-Format samt Mapping und Metadaten.
+- **Erledigt:** Separate Kopie `Main_script_italy.jl` mit rechteckigem Mesh, Seed und eigenen Ausgaben; Smoke-Test mit 200 Ereignissen erfolgreich.
+- **Erledigt:** Technische Zwei-Iterations-Piloten mit 500 und 1.000 Ereignissen erfolgreich; getrennte Ausgaben und erste Ressourcenmessung dokumentiert.
+- **Erledigt:** Gemeinsamen Mc-3.0-Analysevertrag festgeschrieben und NND fuer Mc=3.0 neu berechnet.
+- **Erledigt:** Technischer Julia-Vollkataloglauf mit allen 3.622 Ereignissen erfolgreich.
+- **Erledigt:** Julia-SPDE-Intensitaeten exakt auf das gemeinsame beschnittene 20-km-Raster integriert.
+- **Offen:** PG-Zellgroessenfehler korrigieren, `rho` fachlich bestaetigen und PG-all/PG-NND mit gespeicherten Posteriorfeldern ausfuehren.
+- **Offen:** Magnitudenkonvention und Modellgleichungen mit Sofiane fachlich bestaetigen; der gemeinsame Sampler wurde dafuer nicht veraendert.
 - **Offen:** Plotting und systematische MCMC-Diagnostik.
 - **Offen:** Fachliche Freigabe der Netzaufloesung und Produktionsparameter.
 
