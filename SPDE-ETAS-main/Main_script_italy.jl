@@ -1,5 +1,20 @@
-# Italy adaptation of Sofiane's original Main_script.jl.
-# The inference code and four-column numeric input convention are unchanged.
+# Authors: Sofiane Taki-Eddine Rahmani, Gert Zöller, Sebastian Hainzl, Behnam Maleki Asayesh
+# Italy adaptation of the original Main_script.jl.
+#
+# Intentional Italy-only differences:
+# - Italy data path and rectangular analysis domain
+# - reproducible seed and separate output directory
+# - corrected post-burn-in index (BURNIN + 1)
+# - mesh cells and run metadata for the PG-grid comparison
+
+
+# ============================================================
+# ETAS-SPDE MCMC
+# ============================================================
+
+# -----------------------------
+# 1. Packages
+# -----------------------------
 
 using DelimitedFiles
 using LinearAlgebra
@@ -23,19 +38,19 @@ include(joinpath(PROJECT_ROOT, "src", "SPDE-ETAS_sampler.jl"))
 include(joinpath(PROJECT_ROOT, "src", "etas.jl"))
 
 # ============================================================
-# Italy configuration
+# 2. Italy configuration
 # ============================================================
 
 # Defaults: small technical test. Optional arguments are data file, iterations,
-# and output directory, in that order.
+# output directory, burn-in, and random seed, in that order.
 const DATA_FILE = length(ARGS) >= 1 ? abspath(ARGS[1]) :
     joinpath(PROJECT_ROOT, "data", "italy_mc3_sofiane_first_200.txt")
 const NITER = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 2
 const OUTDIR = length(ARGS) >= 3 ? abspath(ARGS[3]) :
     joinpath(PROJECT_ROOT, "mcmc_results", "italy")
 
-const BURNIN = 0
-const RANDOM_SEED = 20260908
+const BURNIN = length(ARGS) >= 4 ? parse(Int, ARGS[4]) : 0
+const RANDOM_SEED = length(ARGS) >= 5 ? parse(Int, ARGS[5]) : 20260908
 
 const K0 = 0.03
 const α0 = 1.80
@@ -61,28 +76,22 @@ const Y_MIN_ROT_KM = -1414.1965686237359
 const Y_MAX_ROT_KM = -34.860497554831255
 
 # ============================================================
-# Load the same four numeric columns as Sofiane's original
+# 3. Load catalog
 # ============================================================
 
 Random.seed!(RANDOM_SEED)
 data = readdlm(DATA_FILE)
-size(data, 2) == 4 || error("Expected exactly four numeric columns in $DATA_FILE")
 
-time = Float64.(data[:, 1])
-mag = Float64.(data[:, 2])
-lon = Float64.(data[:, 3])
-lat = Float64.(data[:, 4])
-
-issorted(time) || error("Catalogue times must be sorted.")
-all(diff(time) .> 0) || error("Catalogue times must be strictly increasing.")
-minimum(time) == 0.0 || error("First relative event time must be zero.")
-minimum(mag) >= 0.0 || error("Magnitude excess values must be nonnegative.")
+time = data[:, 1]
+mag  = data[:, 2]
+lon  = data[:, 3]
+lat  = data[:, 4]
 
 Tmax = maximum(time)
 pts = hcat(lon, lat)
 
 # ============================================================
-# Rectangular Italy mesh
+# 4. Mesh and SPDE objects
 # ============================================================
 
 width = (X_MAX_ROT_KM - X_MIN_ROT_KM) / SPACE_SCALE_KM
@@ -151,10 +160,22 @@ catalog = Catalog(
 )
 
 # ============================================================
-# Run Sofiane's sampler
+# 7. Run MCMC
 # ============================================================
 
-chains = etas_spde_mcmc_full(
+chain_K,
+chain_α,
+chain_c,
+chain_p,
+chain_q,
+chain_D,
+chain_γ,
+chain_μ,
+chain_ρ,
+chain_σ,
+chain_μspde,
+chain_intensity,
+chain_nbg = etas_spde_mcmc_full(
     catalog,
     M,
     di,
@@ -175,11 +196,8 @@ chains = etas_spde_mcmc_full(
     μ0 = μ0,
 )
 
-chain_K, chain_α, chain_c, chain_p, chain_q, chain_D, chain_γ,
-chain_μ, chain_ρ, chain_σ, chain_μspde, chain_intensity, chain_nbg = chains
-
 # ============================================================
-# Separate Italy outputs
+# 8. Output directory
 # ============================================================
 
 mkpath(OUTDIR)
@@ -188,6 +206,10 @@ keep_from <= NITER || error("BURNIN must be smaller than NITER")
 
 writedlm(joinpath(OUTDIR, "mesh_points.tsv"), hcat(mesh.point[1, :], mesh.point[2, :]), '\t')
 writedlm(joinpath(OUTDIR, "mesh_cells.tsv"), Matrix(mesh.cell)', '\t')
+
+# ============================================================
+# 9. Save parameter chains
+# ============================================================
 
 params_matrix = hcat(
     chain_K[keep_from:end],
@@ -203,17 +225,52 @@ params_matrix = hcat(
 )
 
 open(joinpath(OUTDIR, "chains_parameters.csv"), "w") do io
-    println(io, "K,alpha,c,p,q,D,gamma,rho,sigma,mu_spde")
-    writedlm(io, params_matrix, ',')
+    println(io, "K,α,c,p,q,D,γ,ρ,σ,μspde")
+    for i in axes(params_matrix, 1)
+        println(io, join(params_matrix[i, :], ","))
+    end
 end
 
+# ============================================================
+# 10. Save raw intensity chains
+# ============================================================
+
 open(joinpath(OUTDIR, "chains_intensity.csv"), "w") do io
-    writedlm(io, reduce(hcat, chain_intensity[keep_from:end])', ',')
+    for i in keep_from:length(chain_intensity)
+        println(io, join(chain_intensity[i], ","))
+    end
 end
+
+# ============================================================
+# 11. Save intensity quantiles
+# ============================================================
+
+intensity_mat = reduce(hcat, chain_intensity[keep_from:end])'
+
+q025 = mapslices(x -> quantile(x, 0.025), intensity_mat; dims=1)[:]
+q250 = mapslices(x -> quantile(x, 0.250), intensity_mat; dims=1)[:]
+q500 = mapslices(x -> quantile(x, 0.500), intensity_mat; dims=1)[:]
+q750 = mapslices(x -> quantile(x, 0.750), intensity_mat; dims=1)[:]
+q975 = mapslices(x -> quantile(x, 0.975), intensity_mat; dims=1)[:]
+
+quantiles_mat = hcat(q975, q750, q500, q250, q025)
+
+open(joinpath(OUTDIR, "chains_intensity_quantiles.csv"), "w") do io
+    println(io, "q975,q750,q500,q250,q025")
+    for i in axes(quantiles_mat, 1)
+        println(io, join(quantiles_mat[i, :], ","))
+    end
+end
+
+# ============================================================
+# 12. Save number of background events
+# ============================================================
 
 open(joinpath(OUTDIR, "chains_nbg.csv"), "w") do io
     println(io, "nbg")
-    writedlm(io, chain_nbg[keep_from:end])
+    for value in chain_nbg[keep_from:end]
+        println(io, value)
+    end
 end
 
 open(joinpath(OUTDIR, "run_metadata.txt"), "w") do io
