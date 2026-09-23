@@ -1,0 +1,631 @@
+%
+% Version: $Id: poster-boxes.sty,v 1.2 2007/04/02 11:53:22 bzfpfets Exp $
+%
+% LaTeX package poster-boxes
+%
+% This package collects box-setting commands that are intended for
+% typesetting posters. They are all based on pstricks and hence
+% *do not work together with pdflatex*.
+%
+% An alternative package is "fancybox" that defines some of the
+% boxes used here using 'pure' latex codes only.
+% ----------------------------------------------------------------------
+%
+% The package provides variations of the command to set a box.
+% The variations include:
+%
+% - filled background or not (default, transparent)
+% - the shape of the border (default, rounded, oval, circle)
+% - whether there is a shadow or not (default, shadow)
+% - and whether there is a slider (default, slider, slider to the right)
+%
+% The parameters are:
+% + color (color of background)
+% + fboxsep (inner separation distance of box to text)
+% + width (width of *outer* size of the box)
+% + text (tex-code that should be put in the box)
+%
+% The commands in detail are:
+%
+% Different border group:
+%
+% \posterbox{ color }{ fboxsep }{ width }{ text }         - default box
+% \posterroundedbox{ color }{ fboxsep }{ width }{ text }  - rounded corners
+% \posterovalbox{ color }{ fboxsep }{ width }{ text }     - oval border
+% \postercirclebox{ color }{ fboxsep }{ width }{ text }   - circle border
+%
+% Transparent variants:
+%
+% \postertransparentbox{ fboxsep }{ width }{ text }
+% \posterroundedtransparentbox{ fboxsep }{ width }{ text }
+% \posterovaltransparentbox{ fboxsep }{ width }{ text }
+% \postercircletransparentbox{ fboxsep }{ width }{ text }
+%
+% Variants with shadows:
+%
+% \postershadowbox{ color }{ fboxsep }{ width }{ text }
+% \posterroundedshadowbox{ color }{ fboxsep }{ width }{ text }
+% \posterovalshadowbox{ color }{ fboxsep }{ width }{ text }
+% \postercircleshadowbox{ color }{ fboxsep }{ width }{ text }
+%
+% Variants with tabs:
+%
+% \postertabbox{ color }{ fboxsep }{ width }{ tab text }{ text }
+% \postertabshadowbox{ color }{ fboxsep }{ width }{ tab text }{ text }
+% \posterroundedtabbox{ color }{ fboxsep }{ width }{ tab text }{ text }
+% \posterroundedtabshadowbox{ color }{ fboxsep }{ width }{ tab text }{ text }
+%
+% Variants with tabs to the right:
+%
+% \postertabboxright{ color }{ fboxsep }{ width }{ tab text }{ text }
+% \postertabshadowboxright{ color }{ fboxsep }{ width }{ tab text }{ text }
+% \posterroundedtabboxright{ color }{ fboxsep }{ width }{ tab text }{ text }
+% \posterroundedtabshadowboxright{ color }{ fboxsep }{ width }{ tab text }{ text }
+%
+% The following commands are for experts that know how to handle pstricks.
+% (\expertshadowbox has a shadow.)
+% - \expertbox{ options }{ fboxsep }{ width }{ text }
+% - \expertshadowbox{ options }{ fboxsep }{ width }{ text }
+%
+% Note: Whenever possible, LaTeX commands are used instead of (plain) TeX
+%       commands. This might make the code a bit slower, but maybe saver#
+%       this way.
+%
+% ----------------------------------------------------------------------
+% For compatibility reasons also the older boxes are defined. See at the
+% end of this file.
+% ----------------------------------------------------------------------
+% The package is based on parts of the poster classes by S. O. Krumke.
+%
+% - (C) 2003 S. O. Krumke
+%   based on the poster class poster.cls
+%   (c) 1998-2001 O. Karch, S. O. Krumke, H.-C. Wirth
+%
+% Versions of this document:
+%
+% - Version 1.0 (06/2006) [Marc Pfetsch]
+%
+%   + created separate package
+%   + added tabboxes with tabs on the right
+%   + renamed all boxes
+%   + the size of a box now refers to its *outer* size!
+%   + changed comment language to English
+%   + tabs now all have rounded boundaries
+%   + rewrote the tabbed boxes - the tabs are now put on top
+%     of the basic box. Previously the basic box was moved
+%     downwards.
+%   + introduced debug option 'oldboxesoff'
+%
+%
+% - Version 1.1 (06/2007) [Max Wardetzky]
+%
+%   + added 'footerbox' for institution logos (application area poster only)
+% ----------------------------------------------------------------------
+%
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{poster-boxes}[2006/06/04 v1.0]
+%
+\RequirePackage{ifthen}
+%
+% This declares a switch for forbidding the old style box commands
+% This can be used for debugging.
+\newboolean{@oldboxes}
+\setboolean{@oldboxes}{true}
+\DeclareOption{oldboxesoff}{%
+  \setboolean{@oldboxes}{false}
+}
+%
+\ProcessOptions\relax
+%
+% Use pstricks for the colored boxes with gradient fill
+% In older latex versions you might additionally need "pstcol"
+\RequirePackage{pst-grad,pst-node}
+%
+% For calculations within this class
+\RequirePackage{calc}
+%
+% For testing whether pdf(la)tex is used
+\RequirePackage{ifpdf}
+%
+%
+\ifpdf
+  \PackageError{poster-boxes}{This package cannot be processed with pdflatex}{}%
+\fi
+%
+% The typesetting relies on two parameters:
+%
+\newcommand{\shadowsize}{6pt}    % default size of the shadow for boxes
+\newcommand{\boxframearc}{0.18}  % default for rounded boxes
+%
+% You can use \fbsdefault as a default value for the distance between a
+% box and its contents, i.e., as a value for 'framesep'
+\newlength{\fbsdefault}
+\setlength{\fbsdefault}{5mm}
+%
+% \posterboxinnerwidth ist the inner width of a shadow box that should
+% go across the whole text width.
+\newlength{\innerwidth}
+\setlength{\innerwidth}{\textwidth}
+\addtolength{\innerwidth}{-2\fbsdefault}   % for the inner margins
+\addtolength{\innerwidth}{-2\pslinewidth}  % for the border lines
+\addtolength{\innerwidth}{-\shadowsize}    % for the shadow
+%
+% \underbase{ box } and \overbase{ box } move the baseline of a box so
+% that the complete box is below and above, repectively, of the baseline
+% of the sourounding code.
+\newcommand{\underbase}[1]{\raisebox{-\height}[0pt][\totalheight]{#1}}
+\newcommand{\overbase}[1]{\raisebox{\depth}[\totalheight][0pt]{#1}}
+%
+% This is used to set the tabbed versions:
+\newsavebox{\@mainbox}%
+%
+% Default color of the tabs (may be defined in advance by clients):
+\providecolor{tabcolor}{rgb}{1.0,0.0,0.0}
+%
+% Default color of the tab text (may be defined in advance by clients):
+\providecolor{tabtextcolor}{rgb}{0.0,1.0,1.0}
+%
+% ----------------------------------------------------------------------
+% -------------------- Basic Boxes -------------------------------------
+% ----------------------------------------------------------------------
+%
+% - \expertbox{ options }{ fboxsep }{ width }{ text }
+% - \expertshadowbox{ options }{ fboxsep }{ width }{ text }
+%   These comands are for experts that know how to handle pstricks.
+%   \expertshadowbox has a showdow.
+\newcommand{\expertbox}[3]{%
+  \psframebox[#1]{\begin{minipage}{#2}#3\end{minipage}}%
+}
+%
+\newcommand{\expertshadowbox}[3]{%
+  \psframebox[shadow=true,shadowsize=\shadowsize,#1]{\begin{minipage}{#2}#3\end{minipage}}%
+}
+%
+% ----------------------------------------------------------------------
+% ----------------- Colored Boxes without Shadows ----------------------
+% ----------------------------------------------------------------------
+%
+% \posterbox{ color }{ fboxsep }{ width }{ text }
+% creates a box with colored background
+\newcommand{\posterbox}[4]{%
+  \newskip\@boxcomp \@boxcomp=#2%
+  \expertbox{fillcolor=#1,fillstyle=solid,framesep=#2}{#3-2\@boxcomp-2\pslinewidth}{#4}%
+}
+% \posterroundedbox{ color }{ fboxsep }{ width }{ text }
+\newcommand{\posterroundedbox}[4]{%
+  \newskip\@boxcomp \@boxcomp=#2%
+  \expertbox{fillcolor=#1,fillstyle=solid,framearc=\boxframearc,framesep=#2}{#3-2\@boxcomp-2\pslinewidth}{#4}%
+}
+% \posterovalbox{ color }{ fboxsep }{ width }{ text }
+\newcommand{\posterovalbox}[4]{%
+  \newskip\@boxcomp \@boxcomp=#2%
+  \psovalbox[fillcolor=#1,fillstyle=solid,framesep=#2]{%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth}#4\end{minipage}}%
+}
+% \postercirclebox{ color }{ fboxsep }{ width }{ text }
+\newcommand{\postercirclebox}[4]{%
+  \newskip\@boxcomp \@boxcomp=#2%
+  \pscirclebox[fillcolor=#1,fillstyle=solid,framesep=#2]{%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth}#4\end{minipage}}%
+}
+%
+%
+% ----------------------------------------------------------------------
+% -------------------- Transparent Boxes -------------------------------
+% ----------------------------------------------------------------------
+%
+% \postertransparentbox{ fboxsep }{ width }{ text }
+\newcommand{\postertransparentbox}[3]{%
+  \newskip\@boxcomp\@boxcomp=#1%
+  \expertbox{fillstyle=none,framesep=#1}{#2-2\@boxcomp-2\pslinewidth}{#3}%
+}
+% \posterroundedtransparentbox{ fboxsep }{ width }{ text }
+\newcommand{\posterroundedtransparentbox}[3]{%
+  \newskip\@boxcomp\@boxcomp=#1%
+  \expertbox{fillstyle=none,framearc=\boxframearc,framesep=#1}{#2-2\@boxcomp-2\pslinewidth}{#3}%
+}
+% \posterovaltransparentbox{ fboxsep }{ width }{ text }
+\newcommand{\posterovaltransparentbox}[3]{%
+  \newskip\@boxcomp\@boxcomp=#1%
+  \psovalbox[fillstyle=none,framesep=#1]{\begin{minipage}{#2-2\@boxcomp-2\pslinewidth}#3\end{minipage}}%
+}
+% \postercircletransparentbox{ fboxsep }{ width }{ text }
+\newcommand{\postercircletransparentbox}[3]{%
+  \newskip\@boxcomp\@boxcomp=#1%
+  \pscirclebox[fillstyle=none,framesep=#1]{\begin{minipage}{#2-2\@boxcomp-2\pslinewidth}#3\end{minipage}}%
+}
+%
+%
+% ----------------------------------------------------------------------
+% -------------------- Colored Boxes with Shadows ----------------------
+% ----------------------------------------------------------------------
+%
+% - \postershadowbox{ color }{ fboxsep }{ width }{ text }
+\newcommand{\postershadowbox}[4]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \expertshadowbox{fillcolor=#1,fillstyle=solid,framesep=#2}{#3-2\@boxcomp-2\pslinewidth-\shadowsize}{#4}%
+}
+% - \posterroundedshadowbox{ color }{ fboxsep }{ width }{ text }
+\newcommand{\posterroundedshadowbox}[4]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \expertshadowbox{fillcolor=#1,fillstyle=solid,framearc=\boxframearc,framesep=#2}%
+  {#3-2\@boxcomp-2\pslinewidth-\shadowsize}{#4}%
+}
+% \posterovalshadowbox{ color }{ fboxsep }{ width }{ text }
+\newcommand{\posterovalshadowbox}[4]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \psovalbox[fillcolor=#1,fillstyle=solid,shadow=true,shadowsize=\shadowsize,framesep=#2]{%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth-\shadowsize}#4\end{minipage}}%
+}
+% \postercircleshadowbox{ color }{ fboxsep }{ width }{ text }
+\newcommand{\postercirclecolorshadowbox}[4]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \pscirclebox[fillcolor=#1,fillstyle=solid,shadow=true,shadowsize=\shadowsize,framesep=#2]{%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth-\shadowsize}#4\end{minipage}}%
+}
+%
+%
+% ----------------------------------------------------------------------
+% -------------------- Colored Boxes with Tabs ----------------------
+% ----------------------------------------------------------------------
+%
+% Macro for building the tab box.
+% \postert@bbox{ tab text }
+\newcommand{\postert@bboxt@b}[1]{%
+  \psframebox[framearc=\boxframearc,framesep=2mm,fillcolor=tabcolor,linecolor=tabcolor,fillstyle=solid]{%
+    \textbf{\textcolor{tabtextcolor}{\strut#1}}%
+  }%
+}
+%
+% See command \postertabbox:
+% - We store the contents of the basic box in the box \@mainbox.
+% - Then we compute the height of this box.
+% - We start the outer psframebox.
+% - We set the tab with \raisebox and \rlap - hence it will
+%   be moved up and to the left of the box.
+% - Then we ouput \@mainbox - it starts at the same left
+%   postition as the tab because of \rlap.
+%
+% \postertabbox{ color }{ fboxsep }{ width }{ tab text }{ text }
+\newcommand{\postertabbox}[5]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \begin{lrbox}{\@mainbox}%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth}#5\end{minipage}%
+  \end{lrbox}%
+  \newskip\@mainboxheight%
+  \settoheight{\@mainboxheight}{\usebox\@mainbox}%
+  \psframebox[framesep=#2,fillcolor=#1,fillstyle=solid]{%
+    \rlap{\raisebox{\@mainboxheight+#2}[0pt][0pt]{%
+        \hspace*{-2mm}%
+        \postert@bboxt@b{#4}%
+      }%
+    }%
+    \usebox\@mainbox%
+  }%
+}
+%
+% \postertabshadowbox{ color }{ fboxsep }{ width }{ tab text }{ text }
+\newcommand{\postertabshadowbox}[5]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \begin{lrbox}{\@mainbox}%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth-\shadowsize}#5\end{minipage}%
+  \end{lrbox}%
+  \newskip\@mainboxheight%
+  \settoheight{\@mainboxheight}{\usebox\@mainbox}%
+  \psshadowbox[shadow=true,shadowsize=\shadowsize,framesep=#2,fillcolor=#1,fillstyle=solid]{%
+    \rlap{\raisebox{\@mainboxheight+#2}[0pt][0pt]{%
+        \hspace*{-2mm}%
+        \postert@bboxt@b{#4}%
+      }%
+    }%
+    \usebox\@mainbox%
+  }%
+}
+% \posterroundedtabbox{ color }{ fboxsep }{ width }{ tab text }{ text }
+\newcommand{\posterroundedtabbox}[5]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \begin{lrbox}{\@mainbox}%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth}#5\end{minipage}%
+  \end{lrbox}%
+  \newskip\@mainboxheight%
+  \settoheight{\@mainboxheight}{\usebox\@mainbox}%
+  \psframebox[framearc=\boxframearc,framesep=#2,fillcolor=#1,fillstyle=solid]{%
+    \rlap{\raisebox{\@mainboxheight+#2}[0pt][0pt]{%
+        \hspace*{-2mm}%
+        \postert@bboxt@b{#4}%
+      }%
+    }%
+    \usebox\@mainbox%
+  }%
+}
+% \posterroundedtabshadowbox{ color }{ fboxsep }{ width }{ tab text }{ text }
+\newcommand{\posterroundedtabshadowbox}[5]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \begin{lrbox}{\@mainbox}%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth-\shadowsize}#5\end{minipage}%
+  \end{lrbox}%
+  \newskip\@mainboxheight%
+  \settoheight{\@mainboxheight}{\usebox\@mainbox}%
+  \psshadowbox[shadow=true,shadowsize=\shadowsize,framearc=\boxframearc,framesep=#2,fillcolor=#1,fillstyle=solid]{%
+    \rlap{\raisebox{\@mainboxheight+#2}[0pt][0pt]{%
+        \hspace*{-2mm}%
+        \postert@bboxt@b{#4}%
+      }%
+    }%
+    \usebox\@mainbox%
+  }%
+}
+%
+%
+% ----------------------------------------------------------------------
+% -------------- Colored Boxes with Tabs on the Right ------------------
+% ----------------------------------------------------------------------
+%
+% \postertabboxright{ color }{ fboxsep }{ width }{ tab text }{ text }
+\newcommand{\postertabboxright}[5]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \begin{lrbox}{\@mainbox}%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth}#5\end{minipage}%
+  \end{lrbox}%
+  \newskip\@mainboxheight%
+  \settoheight{\@mainboxheight}{\usebox{\@mainbox}}%
+  \psframebox[framesep=#2,fillcolor=#1,fillstyle=solid]{%
+    \usebox\@mainbox%
+    \llap{\raisebox{\@mainboxheight+#2}[0pt][0pt]{%
+        \postert@bboxt@b{#4}%
+        \hspace*{-2mm}%
+      }%
+    }%
+  }%
+}
+% \postertabshadowboxright{ color }{ fboxsep }{ width }{ tab text }{ text }
+\newcommand{\postertabshadowboxright}[5]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \begin{lrbox}{\@mainbox}%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth-\shadowsize}#5\end{minipage}%
+  \end{lrbox}%
+  \newskip\@mainboxheight%
+  \settoheight{\@mainboxheight}{\usebox\@mainbox}%
+  \psshadowbox[shadow=true,shadowsize=\shadowsize,framesep=#2,fillcolor=#1,fillstyle=solid]{%
+    \usebox\@mainbox%
+    \llap{\raisebox{\@mainboxheight+#2}[0pt][0pt]{%
+        \postert@bboxt@b{#4}%
+        \hspace*{-2mm}
+      }%
+    }%
+  }%
+}
+% \posterroundedtabboxright{ color }{ fboxsep }{ width }{ tab text }{ text }
+\newcommand{\posterroundedtabboxright}[5]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \begin{lrbox}{\@mainbox}%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth}#5\end{minipage}%
+  \end{lrbox}%
+  \newskip\@mainboxheight%
+  \settoheight{\@mainboxheight}{\usebox\@mainbox}%
+  \psframebox[framearc=\boxframearc,framesep=#2,fillcolor=#1,fillstyle=solid]{%
+    \usebox\@mainbox%
+    \llap{\raisebox{\@mainboxheight+#2}[0pt][0pt]{%
+        \postert@bboxt@b{#4}%
+        \hspace*{-2mm}
+      }%
+    }%
+  }%
+}
+%
+% \posterroundedtabshadowboxright{ color }{ fboxsep }{ width }{ tab text }{ text }
+\newcommand{\posterroundedtabshadowboxright}[5]{%
+  \newskip\@boxcomp\@boxcomp=#2%
+  \begin{lrbox}{\@mainbox}%
+    \begin{minipage}{#3-2\@boxcomp-2\pslinewidth-\shadowsize}#5\end{minipage}%
+  \end{lrbox}%
+  \newskip\@mainboxheight%
+  \settoheight{\@mainboxheight}{\usebox\@mainbox}%
+  \psshadowbox[shadow=true,shadowsize=\shadowsize,framearc=\boxframearc,framesep=#2,fillcolor=#1,fillstyle=solid]{%
+    \usebox\@mainbox%
+    \llap{\raisebox{\@mainboxheight+#2}[0pt][0pt]{%
+        \postert@bboxt@b{#4}%
+        \hspace*{-2mm}
+      }%
+    }%
+  }%
+}
+%
+%
+%
+% ----------------------------------------------------------------------
+% --------------------- Footer Box with Logos --------------------------
+% ----------------------------------------------------------------------
+%
+\newcommand{\footerbox}{%
+\rput[tl](0mm,20mm){%
+  \expertbox{linestyle=none,fillcolor=matheonlightblue,fillstyle=solid,boxsep=false,framesep=0mm}%
+    {\textwidth}{%
+      \parbox[b][2cm][c]{\textwidth}{%
+        \centering
+          \includegraphics[height=1.5cm]{fu_logo}\hspace{3em}%
+          \includegraphics[height=1.5cm]{hu_logo}\hspace{3em}%
+          \includegraphics[height=1.5cm]{tu_logo}\hspace{3em}%
+          \includegraphics[width=3cm]{wias_logo}\hspace{3em}%
+          \includegraphics[height=1.5cm]{zib_logo-bold}
+      }%
+    }%
+  }%
+}
+%
+%
+% ----------------------------------------------------------------------
+% -------------------------- Old Commands ------------------------------
+% ----------------------------------------------------------------------
+%
+\if@oldboxes
+\newcommand{\colorshadowbox}[4]{%
+  \expertshadowbox{fillcolor=#1,fillstyle=solid,framesep=#2}{#3}{#4}}
+\newcommand{\roundedcolorshadowbox}[4]{%
+  \expertshadowbox{fillcolor=#1,fillstyle=solid,framearc=\boxframearc,framesep=#2}{#3}{#4}}
+\newcommand{\ovalcolorshadowbox}[4]{%
+  \psovalbox[fillcolor=#1,fillstyle=solid,shadow=true,shadowsize=\shadowsize,framesep=#2]{%
+    \begin{minipage}{#3}#4\end{minipage}}}
+\newcommand{\circlecolorshadowbox}[4]{%
+  \pscirclebox[fillcolor=#1,fillstyle=solid,shadow=true,shadowsize=\shadowsize,framesep=#2]{%
+    \begin{minipage}{#3}#4\end{minipage}}}
+\newcommand{\colorfbox}[4]{%
+  \expertbox{fillcolor=#1,fillstyle=solid,framesep=#2}{#3}{#4}}
+\newcommand{\roundedcolorfbox}[4]{%
+  \expertbox{fillcolor=#1,fillstyle=solid,framearc=\boxframearc,framesep=#2}{#3}{#4}}
+\newcommand{\ovalcolorfbox}[4]{%
+    \psovalbox[fillcolor=#1,fillstyle=solid,framesep=#2]{%
+      \begin{minipage}{#3}#4\end{minipage}}}
+\newcommand{\circlecolorfbox}[4]{%
+  \pscirclebox[fillcolor=#1,fillstyle=solid,framesep=#2]{%
+    \begin{minipage}{#3}#4\end{minipage}}}
+\newcommand{\transparentfbox}[3]{%
+  \expertbox{fillstyle=none,framesep=#1}{#2}{#3}}
+\newcommand{\roundedtransparentfbox}[3]{%
+  \expertbox{fillstyle=none,framearc=\boxframearc,framesep=#1}{#2}{#3}}
+\newcommand{\ovaltransparentfbox}[3]{%
+  \psovalbox[fillstyle=none,framesep=#1]{%
+    \begin{minipage}{#2}#3\end{minipage}}}
+\newcommand{\circletransparentfbox}[3]{%
+  \pscirclebox[fillstyle=none,framesep=#1]{%
+    \begin{minipage}{#2}#3\end{minipage}}}
+%
+\newcommand{\reiterboxohne}[5]{%
+  \overbase{%
+    \psshadowbox[shadow=false,shadowsize=0pt,fillcolor=#1,fillstyle=solid,framesep=#2]{%
+      \rlap{\raisebox{#2}[0pt][0pt]{%
+          \hspace*{-2mm}%
+          \postert@bboxt@b{#4}%
+        }%
+      }%
+      \underbase{%
+        \begin{minipage}{#3}#5\end{minipage}%
+      }%
+    }%
+  }%
+}
+%
+\newcommand{\reiterboxmit}[5]{%
+  \overbase{%
+    \psshadowbox[shadow=true,shadowsize=\shadowsize,fillcolor=#1,fillstyle=solid,framesep=#2]{%
+      \rlap{\raisebox{#2}[0pt][0pt]{%
+          \hspace*{-2mm}%
+          \postert@bboxt@b{#4}%
+        }%
+      }%
+      \underbase{%
+        \begin{minipage}{#3}#5\end{minipage}%
+      }%
+    }%
+  }%
+}
+%
+\newcommand{\roundedreiterboxohne}[5]{%
+  \overbase{%
+    \psshadowbox[shadow=false,shadowsize=0pt,framearc=\boxframearc,framesep=#2,fillcolor=#1,fillstyle=solid]{%
+      \rlap{\raisebox{#2}[0pt][0pt]{%
+          \hspace*{-2mm}%
+          \postert@bboxt@b{#4}%
+        }%
+      }%
+      \underbase{%
+        \begin{minipage}{#3}#5\end{minipage}%
+      }%
+    }%
+  }%
+}
+%
+\newcommand{\roundedreiterboxmit}[5]{%
+  \overbase{%
+    \psshadowbox[shadow=true,shadowsize=\shadowsize,framearc=\boxframearc,framesep=#2,fillcolor=#1,fillstyle=solid]{%
+      \rlap{\raisebox{#2}[0pt][0pt]{%
+          \hspace*{-2mm}%
+          \postert@bboxt@b{#4}%
+        }%
+      }%
+      \underbase{%
+        \begin{minipage}{#3}#5\end{minipage}%
+      }%
+    }%
+  }%
+}
+%
+\newcommand{\reiterboxohnerechts}[5]{%
+  \overbase{%
+    \psshadowbox[shadow=false,shadowsize=0pt,fillcolor=#1,fillstyle=solid,framesep=#2]{%
+      \newskip\@tabboxshift%
+      \setlength{\@tabboxshift}{#3}%
+      \addtolength{\@tabboxshift}{\widthof{\textbf{#4}}*\real{-1.0}}%
+      \addtolength{\@tabboxshift}{-2mm}%
+      \rlap{\raisebox{#2}[0pt][0pt]{%
+          \hspace*{\@tabboxshift}%
+          \postert@bboxt@b{#4}%
+        }%
+      }%
+      \underbase{%
+        \begin{minipage}{#3}#5\end{minipage}%
+      }%
+    }%
+  }%
+}
+%
+\newcommand{\reiterboxmitrechts}[5]{%
+  \overbase{%
+    \psshadowbox[shadow=true,shadowsize=\shadowsize,fillcolor=#1,fillstyle=solid,framesep=#2]{%
+      \newskip\@tabboxshift%
+      \setlength{\@tabboxshift}{#3}%
+      \addtolength{\@tabboxshift}{\widthof{\textbf{#4}}*\real{-1.0}}%
+      \addtolength{\@tabboxshift}{-2mm}%
+      \rlap{\raisebox{#2}[0pt][0pt]{%
+          \hspace*{\@tabboxshift}%
+          \postert@bboxt@b{#4}%
+        }%
+      }%
+      \underbase{%
+        \begin{minipage}{#3}#5\end{minipage}%
+      }%
+    }%
+  }%
+}
+%
+\newcommand{\roundedreiterboxohnerechts}[5]{%
+  \overbase{%
+    \psshadowbox[shadow=false,shadowsize=0pt,framearc=\boxframearc,framesep=#2,fillcolor=#1,fillstyle=solid]{%
+      \newskip\@tabboxshift%
+      \setlength{\@tabboxshift}{#3}%
+      \addtolength{\@tabboxshift}{\widthof{\textbf{#4}}*\real{-1.0}}%
+      \addtolength{\@tabboxshift}{-4mm}%
+      \rlap{\raisebox{#2}[0pt][0pt]{%
+          \hspace*{\@tabboxshift}%
+          \postert@bboxt@b{#4}%
+        }%
+      }%
+      \underbase{%
+        \begin{minipage}{#3}#5\end{minipage}%
+      }%
+    }%
+  }%
+}
+%
+\newcommand{\roundedreiterboxmitrechts}[5]{%
+  \overbase{%
+    \psshadowbox[shadow=true,shadowsize=\shadowsize,framearc=\boxframearc,framesep=#2,fillcolor=#1,fillstyle=solid]{%
+      \newskip\@tabboxshift%
+      \setlength{\@tabboxshift}{#3}%
+      \addtolength{\@tabboxshift}{\widthof{\textbf{#4}}*\real{-1.0}}%
+      \addtolength{\@tabboxshift}{-4mm}%
+      \rlap{\raisebox{#2}[0pt][0pt]{%
+          \hspace*{\@tabboxshift}%
+          \postert@bboxt@b{#4}%
+        }%
+      }%
+      \underbase{%
+        \begin{minipage}{#3}#5\end{minipage}}%
+    }%
+  }%
+}
+\fi
+%
+\endinput
+%%
+%% End of file `poster-boxes.sty'.

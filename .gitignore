@@ -16,11 +16,15 @@ data/*.json
 data/*.csv
 data/*.zip
 
+# figures
+
 
 # Local test/debug outputs
 tests/plots/
 
 # LaTeX (minimal essentials)
+*.ps
+*.dvi
 *.pdf
 *.aux
 *.log
@@ -32,6 +36,10 @@ tests/plots/
 *.fdb_latexmk
 _minted*/
 source/__pycache__/
+
+# local folders to ignore
+talks/2026_sfb_poster_toni/crc_poster-master/
+talks/2026_sfb_poster_toni/toni_poster_landscape/
 
 # Local build artifacts
 _storage/
@@ -104,3 +112,5 @@ talks/2026_sfb_toni/main_matthias_sfb.snm
 .DS_Store
 talks/2026_sfb_cristina/main_cristina_sfb.snm
 talks/2026_sfb_cristina/main_cristina_sfb.nav
+*.snm
+*.nav
