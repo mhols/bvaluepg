@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
-import coordinates
+from . import coordinates
 import sys
 from pathlib import Path
-import declustering as dc
+from . import declustering as dc
 import scipy
 import matplotlib.pyplot as plt
 import pickle

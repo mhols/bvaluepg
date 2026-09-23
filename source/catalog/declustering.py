@@ -11,10 +11,9 @@ https://zaliapin.github.io/pubs/Zaliapin_Ben-Zion_JGR20.pdf
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from mpl_toolkits.basemap import Basemap
 import numpy as np
 import pandas as pd
-from tgoebel_clustering_analysis import clustering, EqCat
+from .tgoebel_clustering_analysis import clustering, EqCat
 import os
 import scipy
 
