@@ -74,11 +74,11 @@ Exact posterior sampling by data augmentation and application to earthquake cata
 }
 
 \author{
- \textit{[authors]}
+ \textit{Us}
 }
 
 \institute{
-\textit{[Affiliation]}
+    \textit{SFB1294 Autumn School 20026 Boltenhagen}
 }
 
 % ============================================================
@@ -174,7 +174,7 @@ f \sim
 \mathcal N(\mu,Q^{-1}),
 \]
 
-where the precision matrix $Q$ introduces spatial dependence.
+where the precision matrix $Q$ introduces spatial dependence. And a Gamma prior is placed on the scale parameter $\lambda$.
 
 \vspace{0.3cm}
 
@@ -256,20 +256,6 @@ k_i
 \right).
 \]
 
-Since
-
-\[
-\sigmoid(f_i)+\sigmoid(-f_i)=1,
-\]
-
-the augmented total
-
-\[
-b_i=n_i+k_i
-\]
-
-induces a logistic/binomial representation.
-
 We then draw
 
 \[
@@ -330,6 +316,18 @@ where
 
 
 \end{block}
+
+% ------------------------------------------------------------
+
+
+\begin{theorem}
+
+    Let $K(f'|f)$ denote the transition kernel. Let $\alpha>0$, $\delta>0$ and $Q\succ 0$. Then there exist a constant $\varepsilon>0$ and a probability density $h$ on $\mathbb{R}^M$ such that 
+    \[
+        K(f'|f) \geq \varepsilon h(f'), \quad f, f' \in \mathbb{R}^M
+    \]
+    Consequently, the marginal latent-field is uniformly ergodic
+\end{theorem}
 
 
 
@@ -428,7 +426,7 @@ factorization rather than dense covariance matrices.
     width=\linewidth,
     height=13cm,
     keepaspectratio
-]{figures/synthetic_bars_posterior_mean_minus_truth_rho_3_lam_12_var_4.png}
+]{figures/synthetic_bars_posterior_mean_minus_map_rho_3_lam_12_var_4.png}
 
 \end{minipage}
 
@@ -502,7 +500,7 @@ narrow structures where the spatial prior induces smoothing.
     width=\linewidth,
     height=13cm,
     keepaspectratio
-]{figures/synthetic_block_posterior_mean_minus_truth_rho_2_lam_12_var_4.png}
+]{figures/synthetic_block_posterior_mean_minus_map_rho_2_lam_12_var_4.png}
 
 \end{minipage}
 
