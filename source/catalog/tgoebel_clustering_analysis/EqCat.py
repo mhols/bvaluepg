@@ -13,7 +13,7 @@ import scipy.io #to writer and read mat bin
 # the next line sets the path to PROJ LIB, should be found automatically for conda install
 #-----------------my modules-----------------------------------------
 #import ClusteringAnalysis.src.datetime_utils as dateTime
-import tgoebel_clustering_analysis.datetime_utils as dateTime
+from . import datetime_utils as dateTime
 
 #--------------------------------------------------------------------
 class EqCat:
