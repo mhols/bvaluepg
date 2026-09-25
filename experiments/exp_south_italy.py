@@ -48,7 +48,7 @@ import polyagammadensity as pgd
 # Configuration
 # ---------------------------------------------------------------------
 
-BIN_SIZE_KM = 10.0
+BIN_SIZE_KM = 5.0
 MAG_MIN = 2.5
 DECLUSTER_ETA0 = -6.2
 
