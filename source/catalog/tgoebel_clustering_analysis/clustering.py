@@ -15,7 +15,7 @@ import warnings
 #===============================================================================
 #                          my modules
 #===============================================================================
-from . import data_utils as data_utils
+from  polyagammapoisson.catalog.tgoebel_clustering_analysis  import data_utils as data_utils
 
 #===============================================================================
 # 
