@@ -1,9 +1,9 @@
 import pandas as pd
 import numpy as np
-from . import coordinates
+from polyagammapoisson import coordinates
 import sys
 from pathlib import Path
-from . import declustering as dc
+from  polyagammapoisson.catalog import declustering as dc
 import scipy
 import matplotlib.pyplot as plt
 import pickle
