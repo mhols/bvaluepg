@@ -1,5 +1,5 @@
 import numpy as np
-from polyagammadensity import Mixin2D 
+from polyagammapoisson.polyagammadensity import Mixin2D 
 import scipy.sparse as sps
 import scipy.sparse.linalg as sparse_linalg
 

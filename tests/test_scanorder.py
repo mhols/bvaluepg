@@ -9,7 +9,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIR = REPO_ROOT / "source"
 sys.path.insert(0, str(SOURCE_DIR))
 
-from polyagammadensity import Mixin2D
+from polyagammapoisson.polyagammadensity import Mixin2D
 
 
 def test_image_to_scanorder_uses_explicit_row_major_order_for_2_by_3():
