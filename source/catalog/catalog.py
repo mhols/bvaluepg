@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-from polyagammapoisson import coordinates
 import sys
 from pathlib import Path
 from  polyagammapoisson.catalog import declustering as dc
