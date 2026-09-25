@@ -10,7 +10,7 @@ import scipy.sparse.linalg as sparse_linalg
 from scipy.stats import poisson 
 from scipy.special import roots_hermite
 import matplotlib.pyplot as plt
-import gibbs_softplus_mixture as gsm
+import polyagammapoisson.gibbs_softplus_mixture as gsm
 from pathlib import Path
 from matplotlib.colors import LogNorm
 from matplotlib.colors import PowerNorm
@@ -21,7 +21,7 @@ from pathlib import Path
 import sys
 
 
-import build_mix_explink as eme
+import polyagammapoisson.build_mix_explink as eme
 ### Experiments sollte unabhaengig sein von diesem Modul... 
 ### dieser Modul kann importiert werden aber er kennt nichts von den Experimenten
 
@@ -225,7 +225,7 @@ class Density:
         :param self: Description
         :param nobs: array like the observed number of events in the bins
         """
-        if not self.prior_mean is None:
+        if hasattr(self, 'prior_mean') and not self.prior_mean is None:
             assert len(nobs.ravel()) == self.nbins, "wrong dimension for nobs, must be like prior_mean"
         self._nobs = nobs.ravel()
         self.ndata = sum(self.nobs)
@@ -234,7 +234,7 @@ class Density:
 
     def set_nobs(self, nobs):
         """
-        Docstring for set_data
+        Docstring for set_obs
         
         :param self: Description
         :param nobs: array like the observed number of events in the bins
@@ -248,6 +248,15 @@ class Density:
     @property
     def nobs(self):
         return self._nobs
+
+    @property
+    def weight(self):
+        if not hasattr(self, '_weight') or not self._weight:
+            self._weight = self.kwargs.get('weight', 1)
+        return self._weight
+
+    def set_weight(self, weight):
+        self._weight = weight
 
     @staticmethod
     def apply_cholesky_sparse_inverse(factor, v):
@@ -296,7 +305,7 @@ class Density:
             self.prior_precision = sp.linalg.solve_triangular(self.Lprior, tmp, trans=True, lower=True)
         
         return self.prior_precision
-    
+
     def laplace_approximation_one_dimension(self, m, v2, n):
         """
         m: prior mean
@@ -307,19 +316,23 @@ class Density:
         v2 = np.array([[v2]])
         calc = self.__class__(m, v2, prior_precision=None, sparse=False,  **self.kwargs)
         calc.set_data(np.array([n]))
-        pm = calc.max_logposterior_estimator()
-        pv2 = 1./calc.hessian_neg_log_posterior(pm)
+        pm = calc.max_logposterior_estimator()[0]
+        hess = calc.hessian_neg_log_posterior(pm)[0,0]
+        pv2 = 1./hess if hess>0 else None
 
-        return pm[0], pv2[0,0]
+        return pm, pv2
     
-    def posterior_f_one_dimension(self, f, pm, pv2, n):
+    def posterior_f_one_dimension(self, f, pm, pv2, n, sm=1):
+        """
+        Sum of magnitudes
+        """
         l = self.field_from_f(f)
-        pd = np.exp(-(f-pm)**2/(2*pv2)) * l**n * np.exp(-l)
+        pd = np.exp(-(f-pm)**2/(2*pv2)) * l**n * np.exp(-l*sm)
         return pd
     
-    def posterior_field_one_dimension(self, field, pm, pv2, n):
-        pd = self.density_under_gaussian(field, pm, pv2)
-        pd = field**n * np.exp(-field) * pd
+    def posterior_field_one_dimension(self, field, pm, pv2, n, sm=1):
+        pd = self.prior_single_bin_f(field, pm, pv2)
+        pd = field**n * np.exp(-field*sm) * pd
         return pd
     
     def prior_n_under_gaussian(self, pm, pv2, n):
@@ -496,7 +509,7 @@ class Density:
         """
         field = self.field_from_f(f) ## self.lam * sigmoid(f)
 
-        return np.sum(self.nobs * np.log(field)) - np.sum(field)
+        return np.sum(self.nobs * np.log(field)) - np.sum(self.weight * field)
     
     def neg_logposterior(self, f):
         """
@@ -536,7 +549,7 @@ class Density:
     def neg_grad_logposterior(self, f):
         """
         """
-        res = self.nobs * self.derivative_log_field_from_f(f) - self.derivative_field_from_f(f)
+        res = self.nobs * self.derivative_log_field_from_f(f) - self.weight * self.derivative_field_from_f(f)
 
         if self.mode == Density.COVARIANCE:
 
@@ -545,11 +558,12 @@ class Density:
             
         elif self.mode == Density.PRECISION:
             tmp = self.prior_precision @ (f-self.prior_mean)
+
         
         return -res + tmp
 
     def hessian_neg_log_posterior(self, f):
-        D = -np.diag( self.ndata * self.second_derivative_log_field_from_f(f) - self.second_derivate_field_from_f(f))
+        D = -np.diag( self.nobs * self.second_derivative_log_field_from_f(f) - self.weight * self.second_derivate_field_from_f(f))
 
         if self.mode == Density.PRECISION:
             return D + self.prior_precision
@@ -557,6 +571,8 @@ class Density:
             return D + self.get_prior_precision()
 
 
+    '''
+    possibly to be removes
     def apply_hessian_neg_log_posterior_non_normalized(self, atf, tof):
         """
         applies the Hessian at atf to tof
@@ -574,9 +590,10 @@ class Density:
         tmp = self.apply_prior_choleski_covar(tmp)
         print('done hess')
         return tmp
-    
+    '''
 
-    
+
+
     def first_guess_estimator(self, f=None, s2=None):
         """
         Uses a Gaussian approximation of the pixelwise f to obtain a first  

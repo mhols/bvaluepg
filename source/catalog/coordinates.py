@@ -7,7 +7,6 @@ class Coordinates:
         self.center_lat = center_lat
         self.rotation_angle = rotation_angle
 
-        print('This class is moved to the catalog package and will be removed from here')
 
     def lonlat_to_xy(self, lon, lat):
         """

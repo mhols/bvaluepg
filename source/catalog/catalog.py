@@ -10,7 +10,8 @@ import pickle
 import zipfile
 import geopandas as gpd
 from shapely.geometry import box
-
+import polyagammapoisson.polyagammadensity as pgd
+import polyagammapoisson.covariance_kernels as ck
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent.parent.parent
@@ -38,11 +39,15 @@ CATALOGS = {
 
 class Catalog:
 
-    def __init__(self, catname='', **kwargs):
+    def __init__(self, catname='', BINSIZE=1, **kwargs):
+        print(kwargs)
+        super().__init__(**kwargs)
+
         if not catname in CATALOGS:
             raise Exception(f'no such catalog: {catname}')
 
-        self.kwargs = kwargs
+        #self.kwargs = kwargs
+        self.BINSIZE = BINSIZE
 
         path, kwargs, trans = CATALOGS[catname]
         cata = pd.read_csv(path, **kwargs)
@@ -189,7 +194,7 @@ class Catalog:
         if hasattr(self, '_binning_count') and not self._binning_count is None:
             return self._binning_count
         
-        dkm = size if size else self.kwargs.get('BINSIZE', 2)
+        dkm = size if size else self.BINSIZE
 
         x_rot, y_rot = self.xy
         nbinx = int(np.ceil((x_rot.max() - x_rot.min()) / dkm))
@@ -224,7 +229,7 @@ class Catalog:
         if hasattr(self, '_binning_mag') and not self._binning_mag is None:
             return self._binning_mag
         
-        dkm = size if size else self.kwargs.get('BINSIZE', 2)
+        dkm = size if size else self.BINSIZE
 
         x_rot, y_rot = self.xy
         nbinx = int(np.ceil((x_rot.max() - x_rot.min()) / dkm))
@@ -271,28 +276,126 @@ class MapMixin:
         pass
 
 
-    def plot_coastlines(self):
+    def plot_coastlines(self, color='red', linewidth=1, **kwargs):
         ax = plt.gca()
 
         for poly in self.coastlines:
             lon, lat = poly[:, 0], poly[:, 1]
             x, y = self.coordinates.lonlat_to_rotated_xy(lon, lat)
             poly = np.column_stack((x, y))
-            ax.plot(poly[:, 0], poly[:, 1], color='red', linewidth=0.8)
+            ax.plot(poly[:, 0], poly[:, 1], color=color, linewidth=linewidth, **kwargs)
 
         ax.set_aspect("equal")
         ax.set_xlim(self.extent[0], self.extent[1])
         ax.set_ylim(self.extent[2], self.extent[3])
  
 
-class Italy(Catalog, MapMixin):
+class AValueMixin:
+
+    def __init__(self, 
+                COVARCLASS=None, 
+                PGCLASS=pgd.PolyaGammaDensity2D,
+                PRECISIONCLASS=None,
+                prior_avalue=1,
+                lam=None,
+                v2=None,
+                rho=None,
+                sparse=False,
+                boundary='zero',
+                magbinsize=0.5,
+                 **kwargs):
+        super().__init__(**kwargs)
+
+        self.prior_avalue = prior_avalue
+        self.magbinsize = magbinsize
+
+
+        n = self.binning_count['nbinx']
+        m = self.binning_count['nbiny']
+        
+        self.calc = PGCLASS(lam=lam, n=n, m=m, sparse=sparse, **kwargs)
+
+
+        pmean = np.full( n*m, self.prior_mean_value_f)
+
+        if COVARCLASS:
+            covar = COVARCLASS(n=n, m=m, v2=v2, rho=rho, boundary=boundary, **kwargs)
+            self.calc.set_prior_Gaussian(prior_mean=pmean, prior_covariance=covar)
+            if PRECISIONCLASS:
+                raise Exception('too many covariance structures')
+        else: 
+            prec = PRECISIONCLASS(n=n, m=m, v2=v2, rho=rho, boundary=boundary, **kwargs)
+            self.calc.set_prior_Gaussian(prior_mean=pmean, prior_precision=prec)
+
+
+        self.calc.set_data(self.binning_count['counts'])
+
+
+    @property
+    def prior_mean_value_f(self):
+        return self.f_from_a(self.prior_avalue)
+
+    def f_from_a(self, a):
+        return self.calc.f_from_field(10**a)
+    
+    def a_from_f(self, f):
+        return np.log( self.calc.field_from_f(f)) / np.log(10)
+    
+    @property
+    def completenes_mag(self):
+        return self.kwargs.get('M0', np.min(self.mag))
+
+
+
+class BValueMixin(AValueMixin):
+
+
+    
+    def __init__(self,  M0=None, prior_bvalue=1, lam=None, **kwargs):
+
+        self.prior_bvalue = prior_bvalue
+        if lam is None:
+            lam = 2*self.beta_from_b(prior_bvalue)
+
+        super().__init__(lam=lam, **kwargs)
+
+        f = self.prior_mean_value_f
+        b = self.b_from_f(f)
+        print(f, b)
+        
+        magsum = self.binning_mag['magsum']
+        print(magsum)
+
+        self.calc.set_weight(magsum.ravel() - 
+                self.binning_count['counts'].ravel() * (self.completenes_mag-self.magbinsize/2))
+
+    
+    @property
+    def prior_mean_value_f(self):
+        return self.f_from_b(self.prior_bvalue)
+
+
+    def f_from_b(self, b):
+        return self.calc.f_from_field(self.beta_from_b(b))
+
+    def b_from_f(self, f):
+        return self.b_from_beta(self.calc.field_from_f(f))
+
+    def b_from_beta(self, beta):
+        return beta / np.log(10)
+
+    def beta_from_b(self, b):
+        return np.log(10) * b
+
+
+class Italy(MapMixin, Catalog):
 
     REPO_ROOT = Path(__file__).resolve().parent.parent.parent
     ITALYCOASTLINE =  REPO_ROOT / "data" /  "coastlines/ne_10m_coastline.zip"
     EXTRACTED_COASTLINE_DIR = REPO_ROOT / "experiments" / "naturalearth" 
 
-    def __init__(self, *args, **kwargs):
-        super(Italy, self).__init__(*args, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
         self._coordinates = coordinates.Italy_Coordinates
         #self.cache_file = self.REPO_ROOT / "experiments" / "cache" / "italy_coastlines.pkl"
@@ -348,46 +451,115 @@ class Italy(Catalog, MapMixin):
 
 class SicilyCalabria(Italy):
 
-    def __init__(self, *args, **kwargs):
-        super(SicilyCalabria, self).__init__(*args, **kwargs)
-
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.filter_xy( -450, 250, -650, -190)
         self.downsample_catalog()
 
 
+class StrettoDiMessina(Italy):
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.filter_xy( -275, -69, -590, -420)
+        self.downsample_catalog()
+
+class ItalyBValue(BValueMixin, Italy):
+    def __init__(self, **kwargs):
+        self.kwargs=kwargs
+        super().__init__(**kwargs)
+
+class SicilyCalabriaBValue(BValueMixin,  SicilyCalabria ):
+    def __init__(self, **kwargs):
+        self.kwargs=kwargs
+        super().__init__(**kwargs)
+
+class StrettoDiMessinaBValue(BValueMixin, StrettoDiMessina):
+
+    def __init__(self, **kwargs):
+        self.kwargs=kwargs
+        super().__init__(**kwargs)
+
+class StrettoDiMessinaAValue(AValueMixin, StrettoDiMessina):
+
+    def __init__(self, **kwargs):
+        self.kwargs=kwargs
+        super().__init__(**kwargs)
+
+
+
 if __name__=='__main__':
 
-    C = SicilyCalabria('INGV', BINSIZE=10)
 
-    for t in set(C.original_catalog['EventType']):
-        print( t, sum(C.original_catalog['EventType']==t))
+    #Region = SicilyCalabriaBValue
+    #Region = ItalyBValue
+    Region = StrettoDiMessinaBValue
 
-    C.filter_decluster(f_eta_0=-6.2)
-    print (f'old count: {len(C._catDataFrame.index)}')
-    print (f'new count: {sum(C.I)}')
+    C = Region( catname='INGV', BINSIZE=1,
+                        PRECISIONCLASS=ck.precision_matern,
+                        prior_bvalue=1, 
+                        sparse=True,
+                        boundary="symmetric",
+                        v2=0.1, rho=20, M0=2.45)
 
-    print(C._catDataFrame)
+    RegionA = StrettoDiMessinaAValue
 
-    print(C.binning_count) 
+    A = RegionA( catname='INGV', BINSIZE=1,
+                        PGCLASS=pgd.RampDensity2D,
+                        PRECISIONCLASS=ck.precision_matern,
+                        prior_avalue= 0, 
+                        sparse=True,
+                        boundary="symmetric",
+                        v2=1, rho=20, lam=10)
 
-    I = C.binning_count['counts']>0
-    n = C.binning_count['counts']
-    sm = C.binning_mag['magsum']
+    print(SicilyCalabriaBValue.__mro__)
 
-    b = np.where(I, n / (sm - n*2.3) / np.log(10), 1)
+
+    
 
 
     #b = C.binning_mag['magsum']  / \
     #    np.where(C.binning_count['counts']>0, C.binning_count['counts'], 0.001)    
 
-    plt.figure()
-    plt.hist(b.ravel())
+    plt.figure(figsize=(10, 8))
+    plt.title('B-value')
+    b = C.b_from_f(C.calc.max_logposterior_estimator())
+    C.calc.imshow(b, 
+               origin='lower', 
+               extent=C.extent, cmap='jet')
+    C.plot_coastlines(color='white', linewidth=4)
+    plt.colorbar()
+
+    plt.plot(*C.xy, '.g', markersize=2)
 
     plt.figure(figsize=(10, 8))
-    
-    plt.imshow(b.T, 
-               vmin=0.0, vmax=2.5, origin='lower', 
-               extent=C.extent, cmap='viridis')
-    C.plot_coastlines()
 
+    plt.title('A-value at M0')
+    a = A.a_from_f(A.calc.max_logposterior_estimator()) 
+
+    A.calc.imshow(a, 
+               origin='lower', 
+               extent=C.extent, cmap='jet')
+    C.plot_coastlines(color='white', linewidth=4)
+    plt.colorbar()
+
+    plt.plot(*C.xy, '.g', markersize=2)
+
+
+    plt.figure(figsize=(10, 8))
+
+    plt.title('A-value at 0')
+
+    A.calc.imshow((a + 2.5*b)/np.log(10) + np.log(b), 
+               origin='lower', 
+               extent=C.extent, cmap='jet')
+    C.plot_coastlines(color='white', linewidth=4)
+    plt.colorbar()
+
+    plt.plot(*C.xy, '.g', markersize=2)
+
+
+
+
+    
     plt.show()

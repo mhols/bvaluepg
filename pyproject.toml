@@ -22,6 +22,9 @@ classifiers = [
 [tool.hatch.build.targets.wheel]
 packages = ["source"]
 
+[tool.hatch.build.force-include]
+"source" = "polyagammapoisson"
+
 
 [project.scripts]
 # initialize = "nextrapol.cli:initialize"
