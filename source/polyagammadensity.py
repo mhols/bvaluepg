@@ -251,7 +251,7 @@ class Density:
 
     @property
     def weight(self):
-        if not hasattr(self, '_weight') or not self._weight:
+        if not hasattr(self, '_weight') or self._weight is None:
             self._weight = self.kwargs.get('weight', 1)
         return self._weight
 
