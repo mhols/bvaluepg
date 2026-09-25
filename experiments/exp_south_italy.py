@@ -39,9 +39,9 @@ SOURCE_DIR = REPO_ROOT / "source"
 if str(SOURCE_DIR) not in sys.path:
     sys.path.insert(0, str(SOURCE_DIR))
 
-from catalog.catalog import SicilyCalabria
-import covariance_kernels as ck
-import polyagammadensity as pgd
+from polyagammapoisson.catalog.catalog import SicilyCalabria
+import polyagammapoisson.covariance_kernels as ck
+import polyagammapoisson.polyagammadensity as pgd
 
 
 # ---------------------------------------------------------------------
@@ -60,8 +60,8 @@ PRIOR_MEAN = -5.3
 BOUNDARY = "symmetric"
 
 MAP_NITER = 3000
-N_ITER = 10000
-BURN_IN = 3000
+N_ITER = 10
+BURN_IN = 3
 THIN = 1
 RANDOM_SEED = 101
 N_POSTERIOR_SAMPLES_TO_PLOT = 4
@@ -136,7 +136,7 @@ def plot_map(ax, x, cat, nbinx, nbiny, title, cbar_label, cmap="viridis", norm=N
 
 def prepare_catalogue():
     # SicilyCalabria already applies the fixed rotated-coordinate spatial cut.
-    cat = SicilyCalabria("INGV", BINSIZE=BIN_SIZE_KM)
+    cat = SicilyCalabria(catname="INGV", BINSIZE=BIN_SIZE_KM)
     n_before = len(cat.catDataFrame)
 
     # Keep non-child events according to the NND declustering rule.
