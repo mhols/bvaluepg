@@ -28,6 +28,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import PowerNorm
 import numpy as np
 from scipy.special import expit
+import italy_data
 
 
 # ---------------------------------------------------------------------
@@ -39,7 +40,7 @@ SOURCE_DIR = REPO_ROOT / "source"
 if str(SOURCE_DIR) not in sys.path:
     sys.path.insert(0, str(SOURCE_DIR))
 
-from polyagammapoisson.catalog.catalog import SicilyCalabria
+import polyagammapoisson.catalog.catalog as catalog
 import polyagammapoisson.covariance_kernels as ck
 import polyagammapoisson.polyagammadensity as pgd
 
@@ -136,7 +137,7 @@ def plot_map(ax, x, cat, nbinx, nbiny, title, cbar_label, cmap="viridis", norm=N
 
 def prepare_catalogue():
     # SicilyCalabria already applies the fixed rotated-coordinate spatial cut.
-    cat = SicilyCalabria(catname="INGV", BINSIZE=BIN_SIZE_KM)
+    cat = italy_data.SicilyCalabria(catalog=italy_data.CATALOGS["INGV"], BINSIZE=BIN_SIZE_KM)
     n_before = len(cat.catDataFrame)
 
     # Keep non-child events according to the NND declustering rule.
