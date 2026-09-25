@@ -31,7 +31,7 @@ TRUTH_FILE = REPO_ROOT / "data" / "synthetic" / f"{TYPE}_synthetic_catalog_truth
 
 LAM = 12.0
 
-RHO = 3.0
+RHO = 6.0
 
 PRIOR_MEAN = -3.7
 

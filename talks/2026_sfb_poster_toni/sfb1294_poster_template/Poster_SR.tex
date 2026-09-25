@@ -1,0 +1,245 @@
+%
+% Version: example_poster1.tex,Vers. 1 2017/01/17 
+%
+% Example for the LaTeX class msfb1294_1-poster
+%
+% for the CRC 1294 Data Assimilation
+%,
+% ----------------------------------------------------------------------
+%
+% ----------------------------------------------------------------------
+% The options for the poster class are:
+% + german  - select german title
+% + english - select english title (default)
+% + HU      - select HU as the institution
+% + TU      - select TU as the institution
+% + GFZ		- select GFZ as the institution
+% + TUI		- select TU Ilmenau as the institution
+% + URO		- select University of Rostock as the institution
+% + reArea  - selects the title for a research area
+% ----------------------------------------------------------------------
+%
+%
+% **********************************************************************
+% Please note the comments in the file 'README.md'
+% **********************************************************************
+%
+%
+\documentclass[english,URO]{sfb1294_1-poster}
+%
+% load useful packages:
+%
+% load some useful latex symbols:
+\usepackage{latexsym}
+% define names for even more symbols:
+\usepackage{textcomp}
+% define several useful macros for typesetting mathematics:
+\usepackage{amsmath}
+% load mathematic fonts:
+\usepackage{amsfonts}
+% for typesetting paragraphs in a special form:
+\usepackage{shapepar}
+% for setting the examples
+\usepackage{alltt}
+% for extended possibilities in setting arrays and tables
+\usepackage{array}
+% For typesetting boxes
+\usepackage[oldboxesoff]{poster-boxes}
+\usepackage{subfigure}
+\usepackage{multicol}
+
+\usepackage{graphicx}
+\usepackage{xcolor}
+
+% You can define colors as follows:
+%\definecolor{light-red}{rgb}{1, 0.59, 0.59}
+%\definecolor{light-blue}{rgb}{0.93 0.95 1.0}
+%\definecolor{light-gray}{rgb}{0.83 0.83 0.83}
+
+
+
+\usepackage{smaller}
+
+%---------------------------------------------------------------------------
+\begin{document}
+%
+% set titlebox:
+% - the first argument is the project id (e.g. P1)
+% - the second argument is the title of the project (use '\protect\\' to
+%   place linebreaks.
+% - the third argument is the list of involved persons.
+\titlebox{A02}% only the id without 'Project' -- not used for individual posters
+{Long-time stability and accuracy of ensemble transform filter algorithms and many other things}% 
+{Sebastian Reich}
+%
+% To add a background picture uncomment the following line (and
+% replace 'filename':
+%\bgpic{background}
+%
+% The background color can be changed as follows:
+\pagecolor{light-gray}
+%
+%---------------------------------------------------------------------------
+% In this example we place the boxes by rput commands. For this we have to
+% define a coordinate system with the following command. Its size matches
+% the available size on the poster excluding the titlebox.
+
+\begin{pspicture}(0,0)(\contentswidth,\contentsheight)
+
+% ------------------- Background
+
+  \rput[tl](3mm,255mm){%
+    \postertabbox{white}{\fbsdefault}{0.48\contentswidth}{\large Background}{%
+      \footnotesize
+      
+     Lorem ipsum dolor sit amet, consectetur adipiscing elit. Fusce id nibh ac elit vestibulum tempus. Integer nec lacus ac libero ultrices pharetra. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vivamus hendrerit velit vel tincidunt congue. Suspendisse potenti.
+
+    \begin{itemize}
+    \item Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+    \item Quisque vitae metus eget elit cursus tincidunt.
+    \item Donec suscipit justo nec felis cursus, vel fermentum nisi rutrum.
+    \item Suspendisse bibendum est non ante vehicula, in vulputate ligula hendrerit.
+    \end{itemize}
+    
+    Curabitur consectetur tincidunt ligula, sit amet sollicitudin lacus hendrerit vel. Ut feugiat lacus in neque fermentum, et sagittis urna posuere. Vestibulum quis neque sed arcu ullamcorper dictum. Nulla facilisi. Aliquam ac tellus vitae magna aliquet dignissim.
+
+    Exemplum formulae mathematicae in LaTeX:
+    \[ x^n + y^n = z^n \]
+
+    Nam sit amet orci quis sapien dapibus venenatis. Integer accumsan diam nec ipsum tempus, vitae pharetra urna aliquet. Donec ultricies consequat tellus, ac elementum odio egestas at. Proin auctor nisi a egestas congue. In hac habitasse platea dictumst.
+    
+
+    }
+  }
+
+% ------------------- Highlights
+
+  \rput[tl](3mm,155mm){%
+    \postertabbox{white}{\fbsdefault}{0.48\contentswidth}{\large Highlights}{%
+      \footnotesize
+      
+     Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque nec justo id urna ultricies tincidunt. Donec pharetra, sem at vulputate suscipit, nisl libero cursus justo, a fermentum justo dui nec lectus. Cras sit amet dolor nec urna porta tristique eget vel ligula. Curabitur gravida, purus at hendrerit ullamcorper, orci justo tristique odio, nec convallis augue mauris vitae sem. Nullam pretium quam ut justo consectetur, vitae malesuada sapien fermentum.
+
+     \[ \sum_{n=1}^{\infty} 2^{-n} = 1 \]
+
+    Suspendisse in tincidunt nibh, nec volutpat risus. Nam vitae hendrerit nunc, ac posuere libero. Sed malesuada tortor non nisi cursus, id venenatis eros vestibulum. Mauris imperdiet, purus sed sollicitudin viverra, justo metus bibendum nisl, id tristique metus risus eget urna. Integer egestas quam sit amet elit rutrum, nec varius odio mattis. Etiam ultricies nunc ut nibh tempor, in tristique velit placerat.
+
+    \[ \int_{a}^{b} x^2 \,dx \]
+
+    Aenean a malesuada lectus. Sed tincidunt orci et elit gravida, in malesuada urna consequat. Ut id eros non dolor aliquet feugiat a sit amet quam. Praesent vel scelerisque erat. Quisque vitae libero at nunc ultricies fermentum ac sit amet ipsum. Donec sodales nunc ac augue tempor, quis blandit lorem faucibus.
+    
+
+    }
+  }
+
+% ------------------- Plans & Outlook
+
+  \rput[tl](107.7mm,255mm){%
+    \postertabbox{white}{\fbsdefault}{0.48\contentswidth}{\large Plans \& Outlook}{%
+      \footnotesize
+
+      Lorem ipsum dolor sit amet, consectetur adipiscing elit. Vivamus consequat nisl eget dui placerat, non aliquam ligula feugiat. Integer et magna vestibulum, convallis dui at, malesuada ligula. Pellentesque vel dictum purus, sed tempor turpis. Curabitur gravida orci vel nisl suscipit, non vulputate justo hendrerit. Aliquam erat volutpat. Ut fermentum orci id nisl commodo, ac pretium libero malesuada. Nulla facilisi. Cras non ante malesuada, bibendum arcu sed, scelerisque augue.
+
+
+    \begin{itemize}
+    \item Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+    \item Vestibulum ante ipsum primis in faucibus orci luctus.
+    \item Curabitur euismod lacus vitae turpis efficitur, sed cursus nisi interdum.
+    \item Duis vehicula quam id velit aliquet scelerisque.
+    \end{itemize}
+
+    Mauris luctus velit eget erat suscipit, sit amet vehicula elit condimentum. Sed non ipsum vel libero ultricies blandit vitae at magna. Integer pharetra lectus sit amet tincidunt ullamcorper. Quisque ac neque vel quam fringilla rutrum.
+     
+    }
+  }
+
+  % ------------------- Work Packages
+
+  \rput[tl](107.7mm,187mm){%
+    \postertabbox{white}{\fbsdefault}{0.48\contentswidth}{\large 
+     Work packages}{%
+      \footnotesize
+      
+    Fusce at tincidunt nisi, quis vulputate mauris. Etiam nec nulla ut nisi sagittis scelerisque. Donec pharetra dapibus nibh nec suscipit. Suspendisse eget nibh non eros pretium venenatis. Quisque id magna ac turpis efficitur vehicula. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Praesent consectetur massa nec mauris ullamcorper, ac sollicitudin eros lobortis.
+
+    Phasellus semper urna ut elit convallis, quis porta arcu commodo. Curabitur dictum nec ipsum a consequat. Pellentesque at libero sit amet sapien bibendum tincidunt a et purus.
+
+    \[
+    S = \{ z \in \mathbb{C}\, |\, |z| < 1 \} \quad \textrm{and} \quad S_2=\partial{S}
+    \]
+
+    Vivamus id sapien sit amet tortor pulvinar efficitur a ut justo. In hac habitasse platea dictumst. Mauris tincidunt augue et nunc fermentum dictum. Sed quis felis in eros ultricies scelerisque. Nullam nec fringilla risus. Fusce dapibus nunc non purus tincidunt, vitae pulvinar nisl pellentesque. Integer scelerisque vehicula lorem, in pharetra magna faucibus ut.
+    
+    }
+  }
+
+
+  \rput[tl](107.7mm,107mm){%
+    \postertabbox{white}{\fbsdefault}{0.48\contentswidth}{\large 
+     Connections to other projects}{%
+      \footnotesize
+
+    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Proin suscipit nisl vel sem hendrerit, at consequat odio vestibulum. Fusce interdum ligula quis orci volutpat, quis dapibus leo feugiat. Etiam nec eros ultricies, auctor velit ut, tristique orci. Aliquam at ex odio. Nullam malesuada vestibulum tortor, sit amet consequat orci molestie quis. Suspendisse eget lectus et libero hendrerit vehicula. Sed nec tincidunt sapien, a fringilla ipsum.
+
+    \begin{itemize}
+    \item Sed vestibulum, nunc eget tristique dignissim, libero justo consequat lacus, quis porttitor sem leo quis justo.
+    \item Praesent nec urna vestibulum, aliquam justo nec, feugiat libero.
+    \item Curabitur suscipit dolor ut massa ultricies, a pellentesque nibh pulvinar.
+    \item Nam elementum lorem vitae arcu tempor, non bibendum libero vulputate.
+    \end{itemize}
+
+    Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Etiam sagittis felis ac odio ultrices, ac efficitur tortor mattis. Integer viverra libero ac mauris pulvinar, quis consequat odio vestibulum.
+
+    Suspendisse ut dui eget odio bibendum consectetur. Fusce sed dolor sed elit bibendum imperdiet. Ut vestibulum, nisi vitae tempus commodo, ligula lorem tristique odio, at vulputate lacus odio eget augue. Donec vehicula, felis at commodo dictum, lorem nisi tempor nibh, non commodo eros nisl ut tortor. Sed non elementum lorem, nec tincidunt libero.
+      
+    }
+  }
+
+  % ---------------------------------------------------------------------------
+  \rput[tl](3mm,23.5mm){%
+    \posterroundedtabbox{white}{\fbsdefault}{0.48\contentswidth}{References}{%
+      \tiny   \raggedright
+      Evensen. \textit{Data Assimilation. The ensemble Kalman filter.} Springer, 2006.\\
+      Kelly, Law, Stuart. Well-posedness and accuracy of the ensemble Kalman filter in discrete and continuous time. \textit{Nonlinearity}, 27:2579--2604, 2014.\\
+      Tong, Majda, Kelly. Nonlinear stability and ergodicity of ensemble based Kalman filters. \textit{Nonlinearity}, 657, 2016. 
+      Reich. A nonparametric ensemble transform method for Bayesian inference. \textit{SIAM J. Sci. Comp.,} 35:A2013-A2024, 2013. \\
+      Reich, Cotter. \textit{Probabilistic Forecasting and Bayesian Data Assimilation.} Cambridge, 2015.\\
+      de Wiljes, Reich, Stannat. Long-time stability and accuracy of the ensemble Kalman-Bucy filter for fully observed porcesses and small
+      measurement noise. \textit{arXiv:1612.06065}, 2016.\\
+      
+
+\vspace{-4mm}
+
+    }
+  }
+
+  % ---------------------------------------------------------------------------
+  \rput[tl](107.7mm,17.5mm){%
+    \posterroundedtabbox{white}{\fbsdefault}{0.48\contentswidth}{Acknowledgements}{%
+      \tiny   \raggedright
+     \begin{center}
+          \begin{minipage}{0.3\textwidth}
+          This research has been partially funded by 
+Deutsche Forschungsgemeinschaft (DFG) through grant 
+CRC 1294 \lq\lq Data Assimilation\rq\rq, Project **.
+          \end{minipage}
+          \begin{minipage}{.672\textwidth}
+          \centering
+          \vspace{-4mm}
+          \includegraphics[width=.62\textwidth]{dfg_logo_blau_4c.eps}
+          \end{minipage}
+     \end{center}
+          
+     \vspace{-7mm}
+
+    }
+  }
+  % --------------------------------------------------------------------------------
+  
+\end{pspicture}
+\end{document}
+
+
+
+
+

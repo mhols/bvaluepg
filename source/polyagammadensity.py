@@ -806,8 +806,8 @@ class SigmoidMixin(Density):
                 raise ValueError("initial_f must have shape matching prior_mean")
 
         # Samples speichern
-        n_keep = max(0, (n_iter - burn_in) // thin)
-        f_samples = np.zeros((n_keep, nbins))
+        #n_keep = max(0, (n_iter - burn_in) // thin)
+        #f_samples = np.zeros((n_keep, nbins))
 
 
         if self.mode == Density.COVARIANCE and not self.sparse:
@@ -835,7 +835,7 @@ class SigmoidMixin(Density):
                 self.lam = self.sample_lam_cond_f(f)
 
             if after_cycle_method is not None:
-                self.after_cycle_method(f)
+                f = after_cycle_method(f)
 
             # --- Step 1: sample k gegenben f ---
             # Die Rate für die latenten „negativen“ Zählungen ist lam * sigmoid(-f)
