@@ -18,6 +18,7 @@ from collections.abc import Iterable
 from sksparse.cholmod import cholesky
 from pathlib import Path
 
+from types import SimpleNamespace
 import sys
 
 
@@ -146,6 +147,21 @@ def apply_cholesky_sparse_T(factor, v):
     # v[perm] is the forward permutation old/original -> new/CHOLMOD.
     return L.T @ v[perm, ...]
 
+
+class KwargsSink:
+    def __init__(self, **kwargs):
+        self.params__dict__.update(kwargs)
+
+class KwargsUpdater:
+    def __init__(self, **kwargs):
+        if not hasattr(self, 'params'):
+            self.params = SimpleNamespace(**kwargs)
+        self.params__dict__.update(kwargs)
+        super().__init__(**kwargs)
+
+    @property
+    def kwargs(self):
+        return self.params.__dict__
 
 
 

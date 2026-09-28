@@ -45,6 +45,7 @@ class Italy(MapMixin, Catalog):
         super().__init__(**kwargs)
 
         self._coordinates = coordinates.Italy_Coordinates
+
         #self.cache_file = self.REPO_ROOT / "experiments" / "cache" / "italy_coastlines.pkl"
 
     @property
@@ -155,7 +156,7 @@ if __name__=='__main__':
                         prior_bvalue=1, 
                         sparse=True,
                         boundary="symmetric",
-                        v2=0.1, rho=20, M0=2.45)
+                        v2=0.1, rho=20, Mc=2.5)
 
     RegionA = StrettoDiMessinaAValue
 
@@ -165,7 +166,7 @@ if __name__=='__main__':
                         prior_avalue= 0, 
                         sparse=True,
                         boundary="symmetric",
-                        v2=1, rho=20, lam=10)
+                        v2=1, rho=20, lam=10, Mc=2.5)
 
     print(SicilyCalabriaBValue.__mro__)
 

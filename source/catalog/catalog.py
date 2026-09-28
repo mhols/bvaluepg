@@ -16,13 +16,15 @@ import os
 
 class Catalog:
 
-    def __init__(self, catalog=None, BINSIZE=1, **kwargs):
+    def __init__(self, catalog=None, BINSIZE=1, Mc=None, f_eta_0=None, **kwargs):
         print(kwargs)
         super().__init__(**kwargs)
 
 
         #self.kwargs = kwargs
         self.BINSIZE = BINSIZE
+        self.Mc = Mc
+        self.f_eta_0 = f_eta_0
 
         path, kwargs, trans = catalog
         cata = pd.read_csv(path, **kwargs)
@@ -45,6 +47,10 @@ class Catalog:
 
         #: selected elements after filtering
         self.I = np.array(len(self._catDataFrame) * [True])
+
+        if self.f_eta_0:
+            self.filter_decluster()
+            self.downsample_catalog()
         
 
         self._coordinates = None
@@ -148,10 +154,10 @@ class Catalog:
         return I
 
     def filter_decluster(self, Mc = None, f_eta_0=None):
-        Mc = Mc if Mc else self.kwargs.get('Mc', self.mag.min())
-        f_eta_0 = f_eta_0 if f_eta_0 else -4.6  # TODO
+        MMc = Mc if not self.Mc else self.Mc
+        ff_eta_0 = f_eta_0 if not self.f_eta_0 else self.f_eta_0
 
-        I = dc.decluster(self._catDataFrame, Mc, f_eta_0)
+        I = dc.decluster(self._catDataFrame, MMc, ff_eta_0)
         self.I = I & self.I
         return I
 
@@ -162,6 +168,7 @@ class Catalog:
         I = I if I else self.I
         self._catDataFrame = self._catDataFrame.copy()[I]
         self.I = np.full(len(self._catDataFrame), True)
+
         return self._catDataFrame
 
     @property
@@ -294,12 +301,12 @@ class AValueMixin:
         pmean = np.full( n*m, self.prior_mean_value_f)
 
         if COVARCLASS:
-            covar = COVARCLASS(n=n, m=m, v2=v2, rho=rho, boundary=boundary, **kwargs)
+            covar = COVARCLASS(n, m, v2=v2, rho=rho/self.BINSIZE, boundary=boundary, **kwargs)
             self.calc.set_prior_Gaussian(prior_mean=pmean, prior_covariance=covar)
             if PRECISIONCLASS:
                 raise Exception('too many covariance structures')
         else: 
-            prec = PRECISIONCLASS(n=n, m=m, v2=v2, rho=rho, boundary=boundary, **kwargs)
+            prec = PRECISIONCLASS(n, m, v2=v2, rho=rho/self.BINSIZE, boundary=boundary, **kwargs)
             self.calc.set_prior_Gaussian(prior_mean=pmean, prior_precision=prec)
 
 
@@ -314,7 +321,7 @@ class AValueMixin:
         return self.calc.f_from_field(10**a)
     
     def a_from_f(self, f):
-        return np.log( self.calc.field_from_f(f)) / np.log(10)
+        return np.log( self.calc.field_from_f(f) / self.BINSIZE**2) / np.log(10)
     
     @property
     def completenes_mag(self):
