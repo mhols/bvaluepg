@@ -39,12 +39,13 @@ CATALOGS = {
 
 
 
-class Italy(MapMixin, Catalog):
+class ItalyMxin(MapMixin, Catalog):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         self._coordinates = coordinates.Italy_Coordinates
+
         #self.cache_file = self.REPO_ROOT / "experiments" / "cache" / "italy_coastlines.pkl"
 
     @property
@@ -96,7 +97,7 @@ class Italy(MapMixin, Catalog):
 
         return self.polygons
 
-class SicilyCalabria(Italy):
+class SicilyCalabria(ItalyMxin):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -104,33 +105,29 @@ class SicilyCalabria(Italy):
         self.downsample_catalog()
 
 
-class StrettoDiMessina(Italy):
+class StrettoDiMessina(ItalyMxin):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.filter_xy( -275, -69, -590, -420)
         self.downsample_catalog()
 
-class ItalyBValue(BValueMixin, Italy):
+class ItalyBValue(pgd.KwargsUpdater, BValueMixin, ItalyMxin, pgd.KwargsSink):
     def __init__(self, **kwargs):
-        self.kwargs=kwargs
         super().__init__(**kwargs)
 
-class SicilyCalabriaBValue(BValueMixin,  SicilyCalabria ):
+class SicilyCalabriaBValue(pgd.KwargsUpdater, BValueMixin,  SicilyCalabria, pgd.KwargsSink ):
     def __init__(self, **kwargs):
-        self.kwargs=kwargs
         super().__init__(**kwargs)
 
-class StrettoDiMessinaBValue(BValueMixin, StrettoDiMessina):
+class StrettoDiMessinaBValue(pgd.KwargsUpdater, BValueMixin, StrettoDiMessina, pgd.KwargsSink):
 
     def __init__(self, **kwargs):
-        self.kwargs=kwargs
         super().__init__(**kwargs)
 
-class StrettoDiMessinaAValue(AValueMixin, StrettoDiMessina):
+class StrettoDiMessinaAValue(pgd.KwargsUpdater, AValueMixin, StrettoDiMessina, pgd.KwargsSink):
 
     def __init__(self, **kwargs):
-        self.kwargs=kwargs
         super().__init__(**kwargs)
 
 
@@ -155,7 +152,7 @@ if __name__=='__main__':
                         prior_bvalue=1, 
                         sparse=True,
                         boundary="symmetric",
-                        v2=0.1, rho=20, M0=2.45)
+                        v2=0.1, rho=20, Mc=2.5)
 
     RegionA = StrettoDiMessinaAValue
 
@@ -165,7 +162,7 @@ if __name__=='__main__':
                         prior_avalue= 0, 
                         sparse=True,
                         boundary="symmetric",
-                        v2=1, rho=20, lam=10)
+                        v2=1, rho=20, lam=10, Mc=2.5)
 
     print(SicilyCalabriaBValue.__mro__)
 

@@ -18,6 +18,7 @@ from collections.abc import Iterable
 from sksparse.cholmod import cholesky
 from pathlib import Path
 
+from types import SimpleNamespace
 import sys
 
 
@@ -146,6 +147,31 @@ def apply_cholesky_sparse_T(factor, v):
     # v[perm] is the forward permutation old/original -> new/CHOLMOD.
     return L.T @ v[perm, ...]
 
+class Parameter(SimpleNamespace):
+
+    def __getattr__(self, name):
+        return None
+
+
+class KwargsSink:
+    def __init__(self, **kwargs):
+        self.params.__dict__.update(kwargs)
+
+class KwargsUpdater:
+    def __init__(self, **kwargs):
+        print('creating params')
+        if not hasattr(self, 'params'):
+            self.params = Parameter(**kwargs)
+        self.params.__dict__.update(kwargs)
+        super().__init__(**kwargs)
+
+    @property
+    def kwargs(self):
+        return self.params.__dict__
+
+    @kwargs.setter
+    def kwargs(self, kwargs):
+        self.kwargs.update(kwargs)
 
 
 
@@ -157,29 +183,60 @@ class Density:
     COVARIANCE=1
     PRECISION=0
 
-    def __init__(self, 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)    
+
+        """
+        def __init__(self, 
                     prior_mean=None, 
                     prior_covariance=None, 
                     prior_precision=None, 
                     sparse=False, 
                     **kwargs):
+
         """
-         
-        """
-
-        self.kwargs = kwargs
-        self.sparse = sparse
-
-        self.prior_mean=prior_mean
-        self.prior_covariance=prior_covariance
-        self.prior_precision=prior_precision
 
 
-        if (prior_covariance is None) and (prior_precision is None):
+        if (self.prior_covariance is None) and (self.prior_precision is None):
             return
         
         self.set_prior_Gaussian(
-            prior_mean, prior_covariance, prior_precision, sparse)
+            self.prior_mean, self.prior_covariance, self.prior_precision, self.sparse)
+
+
+    @property
+    def prior_mean(self):
+        return self.params.prior_mean
+
+    @prior_mean.setter
+    def prior_mean(self, prior_mean):
+        self.params.prior_mean = prior_mean
+
+    @property
+    def prior_covariance(self):
+        return self.params.prior_covariance
+
+    @prior_covariance.setter
+    def prior_covariance(self, prior_covariance):
+        self.params.prior_covariace= prior_covariance
+
+    @property
+    def prior_precision(self):
+        return self.params.prior_precision
+
+    @prior_precision.setter
+    def prior_precision(self, prior_precision):
+        self.params.prior_precision= prior_precision
+
+    @property
+    def sparse(self):
+        return self.params.sparse
+
+    @sparse.setter
+    def sparse(self, sparse):
+        self.params.sparse=sparse
+
+
 
     def set_prior_Gaussian(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
 
@@ -685,9 +742,9 @@ class Density:
 
 class SigmoidMixin(Density):
 
-    def __init__(self, prior_mean, prior_covariance, **kwargs):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.last_sample = None
-        super().__init__(prior_mean, prior_covariance, **kwargs)
 
     @property
     def lam(self):
@@ -1165,33 +1222,21 @@ class ExponentialMixin:
     
 class PolyaGammaDensity(SigmoidMixin, Density):
 
-    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+    def __init__(self, **kwargs):
         super().__init__(
-            prior_mean,
-            prior_covariance,
-            prior_precision=prior_precision,
-            sparse=sparse,
-            **kwargs
+           **kwargs
         )
 
 class RampDensity(SmoothRampMixin, Density):
-    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+    def __init__(self,  **kwargs):
         super().__init__(
-            prior_mean,
-            prior_covariance,
-            prior_precision=prior_precision,
-            sparse=sparse,
-            **kwargs,
+           **kwargs,
         )
 
 class ExponentialDensity(ExponentialMixin, Density):
-    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+    def __init__(self,  **kwargs):
         super().__init__(
-            prior_mean,
-            prior_covariance,
-            prior_precision=prior_precision,
-            sparse=sparse,
-            **kwargs,
+           **kwargs,
         )
 
 class Mixin2D:
@@ -1363,17 +1408,17 @@ class MixinSubPixel2D(Mixin2D, SubPixelMixin):
 
 
 
-class PolyaGammaDensity2D(Mixin2D, PolyaGammaDensity):
+class PolyaGammaDensity2D(KwargsUpdater, Mixin2D, PolyaGammaDensity, KwargsSink):
     """
     Docstring for PolyGammaDensity2D
     specialized in 2Dimensional data
     """
     def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
         super().__init__(
-            prior_mean,
-            prior_covariance,
-            prior_precision=prior_precision,
-            sparse=sparse,
+            #prior_mean,
+            #prior_covariance,
+            #prior_precision=prior_precision,
+            #sparse=sparse,
             **kwargs
         )
 

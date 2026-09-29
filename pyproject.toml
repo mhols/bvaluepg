@@ -20,7 +20,7 @@ classifiers = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["source"]
+packages = ["source, source.catalog"]
 
 [tool.hatch.build.force-include]
 "source" = "polyagammapoisson"
