@@ -148,68 +148,64 @@ def precision_matern(n=None, m=None, rho=None, v2=None, boundary="zero", **kwarg
     s_ref = np.sum(covariance_column * e_ref)
     return (s_ref / v2) * P0
 
-def precision_matern_9pt(ny, mx, tau=1.0, alpha=0.2, **kwargs):
+def laplacian_9pt_2d(ny, nx, boundary="zero"):
+    """Positive 9-point Laplacian for row-major order and unit grid spacing.
+
+    The interior stencil is (20 * center - 4 * cardinal - diagonal) / 6.
+    Boundary handling matches laplacian_2d(): zero extension or repetition
+    of the boundary cell, including diagonal neighbours at edges and corners.
     """
-    Sparse precision for an n x n grid using a 9-point Laplacian stencil.
+    Ly = laplacian_1d(ny, boundary=boundary)
+    Lx = laplacian_1d(nx, boundary=boundary)
+    Iy = sps.eye(ny, format="csr")
+    Ix = sps.eye(nx, format="csr")
 
-    If rho and v2 are provided, this mirrors precision_matern() with
-    Q = I + alpha L and alpha = 0.5 / (cosh(1/rho) - 1), followed by the same
-    Q.T @ Q and v2 normalization.
+    By = 2.0 * Iy - Ly
+    Bx = 2.0 * Ix - Lx
+    # A singleton axis has two ghost neighbours mapped to its only cell.
+    if boundary == "symmetric":
+        if ny == 1:
+            By = 2.0 * Iy
+        if nx == 1:
+            Bx = 2.0 * Ix
 
-    If rho is omitted, this remains the generic builder
-    Q = tau I + alpha L, with alpha defaulting to 0.2.
-
-    Uses a 9-point Laplacian stencil with diagonal neighbors.
-
-    Stencil references:
-    https://en.wikipedia.org/wiki/Nine-point_stencil
-    https://notebook.community/eramirem/numerical-methods-pdes/05_elliptic
-    https://scicomp.stackexchange.com/questions/37656/tensor-product-representation-for-the-9-point-finite-difference-approximations-f
-    """
-    one_dim = sps.diags(
-        [-np.ones(n - 1), 2.0 * np.ones(n), -np.ones(n - 1)],
-        offsets=[-1, 0, 1],
-        format="csr",
+    cardinal_neighbors = (
+        sps.kron(By, Ix, format="csr")
+        + sps.kron(Iy, Bx, format="csr")
     )
-    neighbor_1d = sps.diags(
-        [np.ones(n - 1), np.ones(n - 1)],
-        offsets=[-1, 1],
-        format="csr",
-    )
-    identity = sps.eye(n, format="csr")
+    diagonal_neighbors = sps.kron(By, Bx, format="csr")
 
-    cardinal_laplacian = (
-        sps.kron(identity, one_dim, format="csr")
-        + sps.kron(one_dim, identity, format="csr")
-    )
-    diagonal_neighbors = sps.kron(neighbor_1d, neighbor_1d, format="csr")
-
-    laplacian = (
-        4.0 * cardinal_laplacian
-        + 4.0 * sps.eye(n * n, format="csr")
+    return (
+        20.0 * sps.eye(ny * nx, format="csr")
+        - 4.0 * cardinal_neighbors
         - diagonal_neighbors
     ) / 6.0
 
-    if rho is None:
-        if alpha is None:
-            alpha = 0.2
-        return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
 
-    if v2 is None:
-        raise ValueError("v2 must be provided when rho is provided")
-    
-    return (tau * sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
+def precision_matern_9pt(n=None, m=None, rho=None, v2=None, boundary="zero", **kwargs):
+    """Build a variance-scaled 9-point precision analogously to precision_matern.
 
-    # alpha = 0.5 / (np.cosh(1/rho) -1)
+    n and m are rows and columns in row-major order. The basis operator is
+    A = I + alpha * L9 with alpha = 0.5 / (cosh(1 / rho) - 1).
+    The precision P0 = A.T @ A is scaled so that the central reference cell
+    has marginal variance v2. Its normalization is computed for L9 itself.
 
-    # Q = (sps.eye(n * n, format="csr") + alpha * laplacian).tocsc()
-    # Q = Q.T @ Q
-    # e = np.zeros(Q.shape[0])
-    # e[(n//2)*n + n//2] = 1
+    rho is an operator-scale parameter in grid-cell units, not generally
+    the actual 1/e correlation length of the resulting covariance.
+    boundary supports "zero" and "symmetric", as in the 5-point builder.
+    """
+    laplacian = laplacian_9pt_2d(n, m, boundary=boundary)
+    alpha = 0.5 / (np.cosh(1/rho) -1)
 
-    # kernel = sparse_linalg.spsolve(Q, e)
-    # iv2 = np.sum(kernel * e)
-    # return (iv2 / v2) * Q
+    A = (sps.eye(n * m, format="csr") + alpha * laplacian).tocsc()
+    P0 = A.T @ A
+    e_ref = np.zeros(P0.shape[0])
+    e_ref[(n//2)*m + m//2] = 1
+
+    covariance_column = sparse_linalg.spsolve(P0, e_ref)
+
+    s_ref = np.sum(covariance_column * e_ref)
+    return (s_ref / v2) * P0
 
     
 ## --> TODO: move out of this module into research experiments module
