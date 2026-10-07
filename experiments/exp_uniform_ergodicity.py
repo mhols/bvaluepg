@@ -60,6 +60,8 @@ n_iter = 10000
 burn_in = 0
 box_plot_burn_in = 2000
 
+save_plots = True
+
 
 initial_means = {"low": -3.0, "medium": prior_mean, "high": 3.0}
 
@@ -190,7 +192,8 @@ axes[1, 1].set_title("Posterior mean f (medium init)")
 axes[1, 2].imshow(chains["high"]["posterior_f_mean"].reshape(n, m), origin="lower")
 axes[1, 2].set_title("Posterior mean f (high init)")
 
-save_plot(plot_name="true_and_posterior_mean_fields")
+if save_plots:
+    save_plot(plot_name="true_and_posterior_mean_fields")
 
 # ----------------------------------------------------------------------
 # Trace plot: spatial mean of f
@@ -226,7 +229,8 @@ plt.title("Trace of the mean latent field")
 plt.legend()
 
 plt.tight_layout()
-save_plot(plot_name="trace_mean_f")
+if save_plots:  
+    save_plot(plot_name="trace_mean_f")
 
 
 
@@ -263,7 +267,8 @@ plt.ylabel(r"$\sum_i \lambda_i$")
 plt.title("Trace of the total intensity")
 plt.legend()    
 plt.tight_layout()
-save_plot(plot_name="trace_total_rate")
+if save_plots:
+    save_plot(plot_name="trace_total_rate")
 
 
 
@@ -292,10 +297,11 @@ plt.axhline(
 
 plt.xlabel("Chain")
 plt.ylabel(r"$M^{-1}\sum_i f_i$")
-plt.title("Posterior mean of the latent field")
+plt.title("Posterior distribution of the mean latent field")
 plt.legend()
 plt.tight_layout()
-save_plot(plot_name="box_mean_f")
+if save_plots:
+    save_plot(plot_name="box_mean_f")
 
 
 
@@ -322,10 +328,11 @@ plt.axhline(
 )
 plt.xlabel("Chain")
 plt.ylabel(r"$\sum_i \lambda_i$")
-plt.title("Posterior mean of the total intensity")
+plt.title("Posterior distribution of the total intensity")
 plt.legend()
 plt.tight_layout()
-save_plot(plot_name="box_mean_total_rate")
+if save_plots:
+    save_plot(plot_name="box_mean_total_rate")
 plt.show()  
 
 
