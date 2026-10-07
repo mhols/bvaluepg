@@ -1,20 +1,6 @@
 """
 Simple South Italy earthquake experiment with fixed lambda.
 
-Model
------
-    n_i | f_i ~ Poisson(lambda * sigmoid(f_i))
-    f ~ N(m, Q^{-1})
-
-This is intentionally a small real-data example:
-- lambda is fixed;
-- one MCMC chain;
-- no global-shift move;
-- no multiple-chain diagnostics;
-- no sensitivity or posterior-predictive suite.
-
-The catalogue selection, declustering, binning, coordinates, and coastlines are
-taken from source/catalog/catalog.py.
 """
 
 from __future__ import annotations
