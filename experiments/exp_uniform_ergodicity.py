@@ -55,6 +55,8 @@ rho = 3
 prior_mean = -1.0
 v2 = 1.0
 true_lam = 12.0
+lambda_prior_shape = 1.0
+lambda_prior_rate = lambda_prior_shape / true_lam
 
 n_iter = 10000
 burn_in = 0
@@ -116,6 +118,8 @@ for labels, initial_value in initial_means.items():
 
     estim = pgd.PolyaGammaDensity2D(
         lam=true_lam,
+        lam_prior_shape=lambda_prior_shape,
+        lam_prior_rate=lambda_prior_rate,
         n=n,
         m=m,
     )   
@@ -130,28 +134,34 @@ for labels, initial_value in initial_means.items():
     initial_f = np.full( M, initial_value)
 
     mean_f_trace = []
+    lambda_trace = []
     total_rate_trace = []
 
     posterior_f_sum = np.zeros(M)
     posterior_rate_sum = np.zeros(M)
 
+
     nsamples = 0
 
-    for f in estim.sample_posterior(
+    for iteration, (f, lambda_sample) in enumerate(estim.sample_posterior(
             initial_f= initial_f, 
             n_iter = n_iter, 
             burn_in = burn_in, 
             thin = 1, 
-            random_seed=chains_seeds[labels]):
-
+            random_seed=chains_seeds[labels],
+            sample_lam=True,
+            return_lam=True,)):
 
        
         mean_f_trace.append(np.mean(f))
         rate = estim.field_from_f(f)
+        lambda_trace.append(lambda_sample)
         total_rate_trace.append(np.sum(rate))   
     
-        posterior_f_sum += f
-        posterior_rate_sum += rate
+        if iteration > box_plot_burn_in:
+            posterior_f_sum += f
+            posterior_rate_sum += rate
+
 
 
         nsamples += 1
@@ -159,9 +169,11 @@ for labels, initial_value in initial_means.items():
     posterior_rate_mean = posterior_rate_sum / nsamples
     posterior_f_mean = posterior_f_sum / nsamples
 
+
     chains[labels] = {
         "mean_f_trace": mean_f_trace,
         "total_rate_trace": total_rate_trace,
+        "lambda_trace": lambda_trace,
         "posterior_f_mean": posterior_f_mean,
         "posterior_rate_mean": posterior_rate_mean,
         "nsamples": nsamples,
@@ -263,7 +275,7 @@ plt.axhline(
 )
 
 plt.xlabel("Iteration")
-plt.ylabel(r"$\sum_i \lambda_i$")
+plt.ylabel(r"$T=\sum_i \nu_i$")
 plt.title("Trace of the total intensity")
 plt.legend()    
 plt.tight_layout()
@@ -276,11 +288,14 @@ if save_plots:
 # Box plots
 # ----------------------------------------------------------------------
 
+# Mean f box plot
+
 plt.figure(figsize=(9, 5))
 labels = list(chains.keys())
 
 mean_f_box = [np.array(chains[label]["mean_f_trace"][box_plot_burn_in:]) for label in labels]
 mean_rate_box = [np.array(chains[label]["total_rate_trace"][box_plot_burn_in:]) for label in labels]
+mean_lambda_box = [np.array(chains[label]["lambda_trace"][box_plot_burn_in:]) for label in labels]
 
 plt.boxplot(
     mean_f_box,
@@ -304,7 +319,7 @@ if save_plots:
     save_plot(plot_name="box_mean_f")
 
 
-
+# Intensity box plot
 
 plt.figure(figsize=(9, 5))
 plt.boxplot(
@@ -327,12 +342,37 @@ plt.axhline(
     label="Observed total count",
 )
 plt.xlabel("Chain")
-plt.ylabel(r"$\sum_i \lambda_i$")
+plt.ylabel(r"$T=\sum_i \nu_i$")
 plt.title("Posterior distribution of the total intensity")
 plt.legend()
 plt.tight_layout()
 if save_plots:
     save_plot(plot_name="box_mean_total_rate")
+
+# Lambda box plot 
+
+lambda_samples = [np.array(chains[label]["lambda_trace"][box_plot_burn_in:]) for label in labels]
+
+
+plt.figure(figsize=(9, 5))
+plt.boxplot(
+    lambda_samples,
+    tick_labels=labels,
+    patch_artist=True,
+)
+plt.axhline(
+    true_lam,
+    linestyle="--",
+    color="black",
+    label="True lambda",
+)
+plt.xlabel("Chain")
+plt.ylabel(r"$\lambda$")
+plt.title("Posterior distribution of the global rate parameter")
+plt.legend()
+plt.tight_layout()
+if save_plots:
+    save_plot(plot_name="box_mean_lambda")  
 plt.show()  
 
 
