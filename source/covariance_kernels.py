@@ -64,7 +64,7 @@ def _d2(n, m):
     return d2
 
 
-def spatial_covariance_gaussian(n=None, m=None, rho=None, v2=None, **kwargs):
+def spatial_covariance_gaussian(n=None, m=None, rho=None, v2=None,  **kwargs):
     """
     Docstring for spatial_covariance_gaussian
     
@@ -98,7 +98,7 @@ def spatial_covariance_matern_3_5(n=None, m=None, rho=None, v2=None, **kwargs):
     return v2 * (1+5**0.5 * d / rho + 5 * d2 / (3 * rho**2)) * np.exp(- 5**0.5 * d / rho)
 
 
-def precision_matern(n=None, m=None, rho=None, v2=None, boundary="zero", **kwargs):
+def precision_matern(n=None, m=None, rho=None, v2=None, h=None, boundary="zero",  cholesky=False, **kwargs):
     """Build a variance-scaled, Matern-style 5-point precision.
 
     For the positive discrete Laplacian L, the function constructs
@@ -138,17 +138,25 @@ def precision_matern(n=None, m=None, rho=None, v2=None, boundary="zero", **kwarg
     laplacian = laplacian_2d(n, m, boundary=boundary)
     alpha = 0.5 / (np.cosh(1/rho) -1)
 
-    A = (sps.eye(n * m, format="csr") + alpha * laplacian).tocsc()
-    P0 = A.T @ A
-    e_ref = np.zeros(P0.shape[0])
-    e_ref[(n//2)*m + m//2] = 1
+    if h is None:
+        A = (sps.eye(n * m, format="csr") + alpha * laplacian).tocsc()
+    else:
+        A = h**2 * (sps.eye(n * m, format="csr") + h**(-2) * alpha * laplacian).tocsc()
+        P0 = A.T @ A
+    if h is None:
+        e_ref = np.zeros(P0.shape[0])
+        e_ref[(n//2)*m + m//2] = 1
 
-    covariance_column = sparse_linalg.spsolve(P0, e_ref)   # kernel column of P0^{-1} corresponding to the reference cell
+        covariance_column = sparse_linalg.spsolve(P0, e_ref)   # kernel column of P0^{-1} corresponding to the reference cell
 
-    s_ref = np.sum(covariance_column * e_ref)
-    return (s_ref / v2) * P0
+        s_ref = np.sum(covariance_column * e_ref)
+        P0 = (s_ref / v2) * P0
+    if cholesky:
+        return P0, A
+    else:
+        return P0
 
-def precision_matern_9pt(ny, mx, tau=1.0, alpha=0.2, **kwargs):
+def precision_matern_9pt(n=None, m=None, tau=1.0, alpha=0.2, v2=None, boundary="zero", rho=None, **kwargs):
     """
     Sparse precision for an n x n grid using a 9-point Laplacian stencil.
 

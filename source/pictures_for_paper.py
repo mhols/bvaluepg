@@ -10,9 +10,9 @@ class PicturesForPaper:
     def __init__(self, **kwargs):
         #prepare all data
         self.kwargs = kwargs
-        self.n = 64 # size of square
-        self.m = 64
-        self.nn = 32
+        self.n = 6 # size of square
+        self.m = 8
+        self.nn = 3
         self.a_high=0.5
         self.b_high=5
         self.a_low=0.5
@@ -36,8 +36,8 @@ class PicturesForPaper:
         self.prior_mean_PG_high = self.prior_mean_PG_high_value * np.ones(self.n * self.m)
 
 
-        self.truth_high_contrast_square = sd.single_square(n=self.n, m=self.n, nn=self.nn, a=self.a_high, b=self.b_high)
-        self.truth_low_contrast_square = sd.single_square(n=self.n, m=self.n, nn=self.nn, a=self.a_low, b=self.b_low)
+        self.truth_high_contrast_square = sd.single_square(n=self.n, m=self.m, nn=self.nn, a=self.a_high, b=self.b_high)
+        self.truth_low_contrast_square = sd.single_square(n=self.n, m=self.m, nn=self.nn, a=self.a_low, b=self.b_low)
         self.sample_data_high = pg.Density.random_events_from_field( self.truth_high_contrast_square)
         self.sample_data_low = pg.Density.random_events_from_field( self.truth_low_contrast_square)
 
@@ -46,11 +46,9 @@ class PicturesForPaper:
         self.PG_high = pg.PolyaGammaDensity2D(n=self.n, m=self.m, lam=self.lam)
         self.RD_low = pg.RampDensity2D(n=self.n, m=self.m)
         self.RD_high= pg.RampDensity2D(n=self.n, m=self.m)
-        self.EXP_low = pg.ExponentialDensity(n=self.n, m=self.m)  ## for the moment no sampling et
-        self.EXP_high= pg.ExponentialDensity(n=self.n, m=self.m)  ## for the moment no sampling et
+        self.EXP_low = pg.ExponentialDensity2D(n=self.n, m=self.m)  ## for the moment no sampling et
+        self.EXP_high= pg.ExponentialDensity2D(n=self.n, m=self.m)  ## for the moment no sampling et
 
-
- 
         covar_low = self.prior_covariance_class(self.n, self.m, self.r, self.v2_PG_low)
         self.PG_low.set_prior_Gaussian(self.prior_mean_PG_low, covar_low)
 
@@ -93,6 +91,7 @@ class PicturesForPaper:
         # upper square example high-contrast
 
         plt.figure()
+        ny, mx = self.truth_high_contrast_square.shape
         plt.imshow(self.truth_high_contrast_square, vmin=0, vmax=6)
 
 
@@ -121,6 +120,11 @@ class PicturesForPaper:
         #maximum posterior estimate
 
         plt.figure()
+        self.PG_high.xmin = 10
+        self.PG_high.xmax = 50
+        self.PG_high.ymin = 33
+        self.PG_high.ymax = 54
+
         self.PG_high.imshow(self.PG_high.field_from_f(self.maximum_logposterior_PG_high), vmin=0, vmax=6)
 
     def figure_06(self):
@@ -347,18 +351,18 @@ class PicturesForPaper:
 if __name__ == '__main__':
     P = PicturesForPaper()
     # P.figure_01()
-    # P.figure_02()
-    # P.figure_03()
+    #P.figure_02()
+    #P.figure_03()
     # P.figure_04()
-    # P.figure_05()
-    # P.figure_06()
+    #P.figure_05()
+    #P.figure_06()
     # P.figure_07()
     # P.figure_08()
     # P.figure_09()
     # P.figure_10()
     # P.figure_11()
     # P.figure_12('posterior density for 1-observation sigmoid')
-    P.figure_13('posterior f for 1-observation', calc=P.RD_low)
+    P.figure_13('posterior f for 1-observation', calc=P.PG_low)
     #P.figure_14('posterior f for 1-observation')
     # P.figure_15('posterior f for 1-observation', pm=1, n=1, pv2=1, CALC=pg.ExponentialDensity)
     #P.figure_16('prior distribtuion events exponential low', pm=1, pv2=4, n=np.arange(20), CALC=P.EXP_low)

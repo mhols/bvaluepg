@@ -64,6 +64,16 @@ def inv_exponential(field):
     field = np.asarray(field, dtype=float)
     return np.log(np.clip(field, 1e-300, None))
 
+def normalize_log(p):        
+    tmp = p - p.max()
+    tmp = np.exp(tmp)
+    tmp /= np.sum(tmp)
+
+    return tmp
+
+
+
+
 def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
     """Ziehen aus PG(b, c) unter Verwendung des Pakets „polyagamma“.
 
@@ -150,30 +160,38 @@ def apply_cholesky_sparse_T(factor, v):
 class Parameter(SimpleNamespace):
 
     def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
         return None
-
 
 class KwargsSink:
     def __init__(self, **kwargs):
         self.params.__dict__.update(kwargs)
 
+
 class KwargsUpdater:
+
     def __init__(self, **kwargs):
-        print('creating params')
-        if not hasattr(self, 'params'):
-            self.params = Parameter(**kwargs)
-        self.params.__dict__.update(kwargs)
+        self.params = Parameter(**kwargs)
         super().__init__(**kwargs)
+
+    def __getattr__(self, name):
+        if name.startswith("__"):
+            raise AttributeError(name)
+        return getattr(self.params, name)
+
+    def __setattr__(self, name, value):
+        if name == "params":
+            super().__setattr__(name, value)
+        elif "params" in self.__dict__:
+            self.params.__dict__[name] = value
+        else:
+            super().__setattr__(name, value)
 
     @property
     def kwargs(self):
         return self.params.__dict__
-
-    @kwargs.setter
-    def kwargs(self, kwargs):
-        self.kwargs.update(kwargs)
-
-
+    
 
 class Density:
     """
@@ -306,15 +324,6 @@ class Density:
     def nobs(self):
         return self._nobs
 
-    @property
-    def weight(self):
-        if not hasattr(self, '_weight') or self._weight is None:
-            self._weight = self.kwargs.get('weight', 1)
-        return self._weight
-
-    def set_weight(self, weight):
-        self._weight = weight
-
     @staticmethod
     def apply_cholesky_sparse_inverse(factor, v):
         L, perm = _as_cholmod_lower_factor(factor)
@@ -371,7 +380,12 @@ class Density:
         """
         m = np.array(np.array([m]))
         v2 = np.array([[v2]])
-        calc = self.__class__(m, v2, prior_precision=None, sparse=False,  **self.kwargs)
+        kwargs = self.kwargs.copy()
+        kwargs['prior_mean'] = m
+        kwargs['prior_variance'] = v2
+        kwargs['prior_precision'] = False
+        kwargs['sparse'] = False
+        calc = self.__class__(**kwargs)
         calc.set_data(np.array([n]))
         pm = calc.max_logposterior_estimator()[0]
         hess = calc.hessian_neg_log_posterior(pm)[0,0]
@@ -484,14 +498,17 @@ class Density:
         print('WARNING: depricated, replace by prior single_bin_field')
         tmp = np.exp( - (self.f_from_field(field) - mu)**2/(2*gamma2)) / np.sqrt(2*np.pi*gamma2)
         tmp /= np.abs(self.derivative_field_from_f(self.f_from_field(field)))
+        #tmp *= self.derivative_f_from_field(field)
 
         return tmp
     
     def prior_single_bin_f(self, f, mu, gamma2):
+        print('WARNING: depricated')
         tmp = np.exp( - (f-mu)**2 / (2* gamma2)) / np.sqrt(2*np.pi*gamma2)
         return tmp
     
     def prior_single_bin_field(self, field, mu, gamma2):
+        print('WARNING: depricated')
         return self.density_under_gaussian(field, mu, gamma2)
     
     def log_likelihood_single_observation_f(self, f, n):
@@ -501,24 +518,28 @@ class Density:
     def log_likelihood_single_observation_field(self, field, n):
         return n*np.log(field) - field
 
-    def posterior_single_obeservation_field(self, field, mu, gamma2, n):
-        tmp = self.log_likelihood_single_obeservation_field(field, mu, gamma2, n)
-        tmp -= np.max(tmp)
-        tmp = np.exp(tmp)
-        tmp /= np.sum(tmp)
+    def log_prior_single_observation_f(self, f, mu, gamma2):
+        return -(f-mu)**2 / (2 * gamma2)
 
-        #TODO: compute normalization by Gauss integration instaed
+    def log_prior_single_observation_field(self, field, mu, gamma2):
+        f = self.f_from_field(field)
+        return -(f-mu)**2 / (2 * gamma2) - np.log(np.abs(self.derivative_field_from_f(f)))
 
-        return tmp
+    def prior_single_observation_f(self, f, mu, gamma2):
+        return normalize_log( self.log_prior_single_observation_f(f, mu, gamma2))
+
+    def prior_single_observation_field(self, field, mu, gamma2):
+        return normalize_log(self.log_prior_single_observation_field(field, mu, gamma2))
     
+    def posterior_single_observation_field(self, field, mu, gamma2, n):
+        tmp = self.log_likelihood_single_observation_field(field, n)
+        tmp += self.log_prior_single_observation_field(field, mu, gamma2)
+        return normalize_log(tmp)
+
     def posterior_single_obeservation_f(self, f, mu, gamma2, n):
-        tmp = self.log_likelihood_single_observation_f(f, mu, gamma2, n)
-        tmp -= (f-mu)**2/(2*gamma2)
-        tmp -= np.max(tmp)
-        tmp = np.exp(tmp)
-        tmp /= np.sum(tmp)
-        #TODO: compute normalization by Gauss integration instaed
-        return tmp
+        tmp = self.log_likelihood_single_observation_f(f,n)
+        tmp += self.log_prior_single_observation_f(f, mu, gamma2)
+        return normalize_log(tmp)
 
     def random_events_from_f(self, f):
         return self.random_events_from_field(self.field_from_f(f))
@@ -566,7 +587,8 @@ class Density:
         """
         field = self.field_from_f(f) ## self.lam * sigmoid(f)
 
-        return np.sum(self.nobs * np.log(field)) - np.sum(self.weight * field)
+        return self.alpha * np.sum(self.nobs * np.log(field)) \
+            - self.beta * np.sum(field)
     
     def neg_logposterior(self, f):
         """
@@ -577,7 +599,8 @@ class Density:
         """
         centered = f - self.prior_mean
         if self.mode == Density.PRECISION:
-            prior_quad = sum(centered * (self.prior_precision @ centered))
+            #prior_quad = np.sum(centered * (self.prior_precision @ centered))
+            prior_quad = np.sum( (self.cholprec @ centered)**2)
         
         elif self.mode == Density.COVARIANCE:
             prior_quad = np.sum(
@@ -586,7 +609,11 @@ class Density:
         else:
             raise Exception('not implemented yet')
 
-        return -self.loglikelihood(f) + prior_quad / 2
+        llh = -self.loglikelihood(f)
+
+        print(llh, self.gamma*prior_quad/2)
+
+        return llh + self.gamma * prior_quad / 2
     
     #def apply_prior_choleski_covar_inverse(self, f):
     #
@@ -606,7 +633,8 @@ class Density:
     def neg_grad_logposterior(self, f):
         """
         """
-        res = self.nobs * self.derivative_log_field_from_f(f) - self.weight * self.derivative_field_from_f(f)
+        res = self.alpha * self.nobs * self.derivative_log_field_from_f(f) - \
+            self.beta * self.derivative_field_from_f(f)
 
         if self.mode == Density.COVARIANCE:
 
@@ -616,11 +644,12 @@ class Density:
         elif self.mode == Density.PRECISION:
             tmp = self.prior_precision @ (f-self.prior_mean)
 
+        tmp *= self.gamma
         
         return -res + tmp
 
     def hessian_neg_log_posterior(self, f):
-        D = -np.diag( self.nobs * self.second_derivative_log_field_from_f(f) - self.weight * self.second_derivate_field_from_f(f))
+        D = -np.diag( self.nobs * self.second_derivative_log_field_from_f(f) -  self.second_derivate_field_from_f(f))
 
         if self.mode == Density.PRECISION:
             return D + self.prior_precision
@@ -731,7 +760,7 @@ class Density:
                 f0, 
                 jac=self.neg_grad_logposterior, 
                 method=method,
-                hess=self.hessian_neg_log_posterior,
+                #hess=self.hessian_neg_log_posterior,
                 # bounds=bounds,
                 options={'maxiter':niter, 'maxfun': niter}) 
 
@@ -769,6 +798,12 @@ class SigmoidMixin(Density):
     
     def derivative_log_field_from_f(self, f):
         return sigmoid(-f) 
+
+    def derivative_f_from_field(self, field):
+        s = field/self.lam
+        res = (1/s + 1/(1-s))/self.lam
+        return res
+
        
     def sample_polyagamma_cond_f(self):
 
@@ -787,7 +822,7 @@ class SigmoidMixin(Density):
     
     def f_from_field(self, field):
         s = field / self.lam
-        s = np.clip(s, 0.01, None)
+        s = np.clip(s, 0.000001, None)
         res = np.log(s / (1-s))
         return res
     
@@ -981,15 +1016,108 @@ class SigmoidMixin(Density):
 
         return
 
+class BetaSigmoidMixin(SigmoidMixin):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+   
+    def loglikelihood(self, f):
+        """
+        returns the non-normalized log loglikelihood
+        
+        :param f: the paramters
+        """
+        I = self.nobs > 0
+        nobs = self.nobs[I]
+        beta = self.field_from_f(f)[I]
+        weight = self.weight[I] #(typically sum of magnitudes)
+ 
+        Mc = self.Mc
+        A = self.BINSIZE**2
+
+        return np.sum(nobs * np.log(2 * np.sinh(beta*self.magbinsize/2)) \
+            - A * beta * (weight - nobs * Mc))
+    
+ 
+    def neg_grad_logposterior(self, f):
+        """
+        """
+        nobs = self.nobs.ravel()
+        I = nobs > 0
+        beta = self.field_from_f(f)
+        dbetadf = self.derivative_field_from_f(f)
+        summag = self.weight
+        A = self.BINSIZE**2
+        res = ( np.where(I, 
+            ( self.magbinsize * self.nobs /  np.tanh(beta * self.magbinsize/2), 0) + \
+               + A * (summag - self.nobs * self.Mc) ) ) * dbetadf
+
+        if self.mode == Density.COVARIANCE:
+
+            tmp = sp.linalg.solve_triangular(self.Lprior, f-self.prior_mean, trans=False, lower=True)
+            tmp = sp.linalg.solve_triangular(self.Lprior, tmp, trans=True, lower=True)
+            
+        elif self.mode == Density.PRECISION:
+            tmp = self.prior_precision @ (f-self.prior_mean)
+        else:
+            pass
+        
+        return -res + tmp
+
+    def neg_logposterior(self, f):
+
+        centered = f - self.prior_mean
+        if self.mode == Density.PRECISION:
+            prior_quad = np.sum(centered * (self.prior_precision @ centered))
+        
+        elif self.mode == Density.COVARIANCE:
+            prior_quad = np.sum(
+                sp.linalg.solve_triangular(
+                    self.Lprior, centered, trans=False, lower=True)**2)
+        else:
+            raise Exception('not implemented yet')
+
+        return -self.loglikelihood(f) +  prior_quad / 2
+ 
+    
+
+    def hessian_neg_log_posterior(self, f):
+        D = -np.diag( self.nobs * self.second_derivative_log_field_from_f(f) - self.weight * self.second_derivate_field_from_f(f))
+
+        if self.mode == Density.PRECISION:
+            return D + self.prior_precision
+        else:
+            return D + self.get_prior_precision()
+
+
+    '''
+    possibly to be removes
+    def apply_hessian_neg_log_posterior_non_normalized(self, atf, tof):
+        """
+        applies the Hessian at atf to tof
+        TODO: make more efficient
+        """
+        print('in hess')
+        D = -np.diag( self.second_derivative_log_field_from_f(atf))
+        tmp = D * self.Lprior
+        LDL = self.Lprior.T @ tmp
+        LDL = LDL +  np.eye(self.nbins)
+        K = sp.linalg.cholesky(LDL, lower=True)
+        tmp = self.apply_prior_choleski_covar_T(tof)
+        tmp = sp.linalg.solve_triangular(K, tmp, trans=False, lower=True)
+        tmp = sp.linalg.solve_triangular(K, tmp, trans=True, lower=True)
+        tmp = self.apply_prior_choleski_covar(tmp)
+        print('done hess')
+        return tmp
+    '''
+
+
+
 
 class SmoothRampMixin:
 
     def __init__(
         self,
-        prior_mean=None,
-        prior_covariance=None,
-        prior_precision=None,
-        sparse=False,
         nmax_mix:int=60,
         cache_dir:Path=Path('.mixture'), ### TODO: use relative path
         softplus_k: float = 1.0,
@@ -1000,11 +1128,7 @@ class SmoothRampMixin:
         self.cache_dir = cache_dir 
         self.softplus_k = float(softplus_k)
         super().__init__(
-            prior_mean,
-            prior_covariance,
-            prior_precision=prior_precision,
-            sparse=sparse,
-            **kwargs,
+           **kwargs,
         )
 
     @property
@@ -1126,10 +1250,6 @@ class ExponentialMixin:
 
     def __init__(
         self,
-        prior_mean=None,
-        prior_covariance=None,
-        prior_precision=None,
-        sparse=False,
         nmax_mix: int = 60,
         cache_dir: Path = Path(".mixture"),
         **kwargs,
@@ -1138,11 +1258,7 @@ class ExponentialMixin:
         self.nmax_mix = int(nmax_mix)
         self.cache_dir = Path(cache_dir)
         super().__init__(
-            prior_mean,
-            prior_covariance,
-            prior_precision=prior_precision,
-            sparse=sparse,
-            **kwargs,
+           **kwargs,
         )
 
     @property
@@ -1244,10 +1360,18 @@ class Mixin2D:
     @property
     def n(self):
         return self.kwargs['n']
+
+    @property
+    def nx(self):
+        return self.m
     
     @property
     def m(self):
         return self.kwargs['m']
+
+    @property
+    def ny(self):
+        return self.n
     
     @classmethod
     def image_to_scanorder(cls, image):
@@ -1259,15 +1383,18 @@ class Mixin2D:
         assert len(image.shape)==2, 'image must be 2 dimensional'
         return image.ravel(order="C")
 
-    def scanorder_to_image(self, linear_image, n=None, m=None):
+    def scanorder_to_image(self, linear_image, ny=None, nx=None):
         """Restore a row-major scan-order vector to image shape (ny, nx)."""
-        if n is None:
-            n = self.n
-        if m is None:
-            m = self.m
-        assert len(linear_image.ravel()) == n*m, 'number of elements do not correspond'
-        return np.reshape(linear_image, (n, m), order="C")
-    
+        if ny is None:
+            ny = self.ny
+        if nx is None:
+            nx = self.nx
+        assert len(linear_image.ravel()) == nx*ny,  \
+            f'number of elements do not correspond {(ny, ny)}  {len(linear_image.ravel())}'
+        return np.reshape(linear_image, (ny, nx), order="C")
+
+    def nx_ny_to_scanorder(self, ny=0, nx=0):
+        return self.nx* ny + nx 
 
     def random_catalog_from_nobs(self, nobs):
 
@@ -1287,11 +1414,12 @@ class Mixin2D:
 
 
     def to_image(self, d):
-        self.scanorder_to_image(d, self.n, self.m)
+        self.scanorder_to_image(d)
     
     def imshow(self, d, **kwargs):
         d = np.array(d, dtype=float)
-        plt.imshow( self.scanorder_to_image(d, self.n, self.m).T, **kwargs)
+        kwargs.pop('origin', None)
+        plt.imshow( self.scanorder_to_image(d), origin='upper', **kwargs)
 
 
 class Density2D(Mixin2D, Density):
@@ -1413,7 +1541,7 @@ class PolyaGammaDensity2D(KwargsUpdater, Mixin2D, PolyaGammaDensity, KwargsSink)
     Docstring for PolyGammaDensity2D
     specialized in 2Dimensional data
     """
-    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+    def __init__(self,  **kwargs):
         super().__init__(
             #prior_mean,
             #prior_covariance,
@@ -1423,25 +1551,17 @@ class PolyaGammaDensity2D(KwargsUpdater, Mixin2D, PolyaGammaDensity, KwargsSink)
         )
 
    
-class RampDensity2D(Mixin2D, RampDensity):
-    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+class RampDensity2D(KwargsUpdater, Mixin2D, RampDensity, KwargsSink):
+    def __init__(self,  **kwargs):
         super().__init__(
-            prior_mean,
-            prior_covariance,
-            prior_precision=prior_precision,
-            sparse=sparse,
-            **kwargs,
+           **kwargs,
         )
     
 
-class ExponentialDensity2D(Mixin2D, ExponentialDensity):
-    def __init__(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
+class ExponentialDensity2D(KwargsUpdater, Mixin2D, ExponentialDensity, KwargsSink):
+    def __init__(self,**kwargs):
         super().__init__(
-            prior_mean,
-            prior_covariance,
-            prior_precision=prior_precision,
-            sparse=sparse,
-            **kwargs,
+           **kwargs,
         )
 
 

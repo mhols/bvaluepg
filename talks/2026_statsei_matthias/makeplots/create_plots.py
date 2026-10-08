@@ -22,13 +22,12 @@ import os
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'experiments'))
-print(sys.path)
 
 
 from contextlib import redirect_stdout
 import sys
 import warnings
-
+import pickle
 import matplotlib.pyplot as plt
 from matplotlib.colors import PowerNorm
 import numpy as np
@@ -39,7 +38,7 @@ from scipy.special import expit
 # Project imports
 # ---------------------------------------------------------------------
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 SOURCE_DIR = REPO_ROOT / "source"
 if str(SOURCE_DIR) not in sys.path:
     sys.path.insert(0, str(SOURCE_DIR))
@@ -53,54 +52,135 @@ import italy_data as it
 # ---------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------
+LAMBDA = 25/16 ## peek intensity per pixel
+PICKLE = Path(__file__).resolve().parent / 'tmp.pickle'
+BIN_SIZE_KM = 5
+BIN_SIZE_KM_SMALL = 1 
+RHO_KM = 50
+PRIOR_VARIANCE = 2.0
+PRIOR_AVALUE = -2.5
 
-BIN_SIZE_KM = 4
+B_BIN_SIZE_KM = 9 
+B_BIN_SIZE_KM_SMALL = 1
+B_RHO_KM = 50
+B_PRIOR_VARIANCE = 0.1 
+B_PRIOR_BVALUE= 1
+
 MAG_MIN = 2.5
 DECLUSTER_ETA0 = -6.2
 
-LAMBDA = 40
 
-RHO_KM = 50.0
-PRIOR_VARIANCE = 2.0
-PRIOR_MEAN = -5
-BOUNDARY = "symmetric"
+BOUNDARY = "symmetric" #"zero"
 
 #COVARCLASS=ck.precision_matern_9pt,
 PGCLASS=pgd.PolyaGammaDensity2D
 PRECISIONCLASS=ck.precision_matern
-SPARSE=True,
-MAGBINSIZE=0.5
+SPARSE=True
+MAGBINSIZE=0.1
 CATALOG = it.CATALOGS["INGV"]
-
 MAP_NITER = 3000
 N_ITER = 10
 BURN_IN = 3
 THIN = 1
 RANDOM_SEED = 101
 N_POSTERIOR_SAMPLES_TO_PLOT = 4
-
 RESULTS_DIR = REPO_ROOT / "experiments" / "results" / "south_italy_simple_fixed_lambda"
 FIGURES_DIR = REPO_ROOT / "experiments" / "figures" / "south_italy_simple_fixed_lambda"
-SAMPLER_LOG = RESULTS_DIR / "sampler.log"
+SAMPLER_LOG = REPO_ROOT / "experiments" / "results" / "south_italy_simple_fixed_lambda" / "sampler.log"
 
-A = it.StrettoDiMessinaAValue( 
+LOAD_PICKLE = False
+
+if LOAD_PICKLE:
+    with open(PICKLE, 'rb') as f:
+        AAS = pickle.load(f)
+        A, AS = AAS
+else:
+    A = it.StrettoDiMessinaAValue( 
+            catalog=CATALOG,
+            BINSIZE=BIN_SIZE_KM, 
+            PGCLASS=PGCLASS,
+            PRECISIONCLASS=PRECISIONCLASS,
+            prior_avalue = PRIOR_AVALUE, 
+            sparse=SPARSE,
+            boundary=BOUNDARY,
+            v2=PRIOR_VARIANCE, 
+            rho=RHO_KM, 
+            lam=LAMBDA,
+            Mc=MAG_MIN,
+            f_eta_0=DECLUSTER_ETA0
+        )
+    AS = it.StrettoDiMessinaAValue( 
+            catalog=CATALOG, 
+            BINSIZE=BIN_SIZE_KM_SMALL, 
+            PGCLASS=PGCLASS,
+            PRECISIONCLASS=PRECISIONCLASS,
+            prior_avalue = PRIOR_AVALUE, 
+            sparse=SPARSE,
+            boundary=BOUNDARY,
+            v2=PRIOR_VARIANCE, 
+            rho=RHO_KM, 
+            lam=LAMBDA,
+            Mc=MAG_MIN,
+            f_eta_0=DECLUSTER_ETA0
+        )
+    with open(PICKLE, 'wb') as f:
+        pickle.dump((A, AS), f)
+
+
+
+"""
+B = it.StrettoDiMessinaBValue( 
         catalog=CATALOG, 
-        BINSIZE=BIN_SIZE_KM, 
-        PGCLASS=PGCLASS,
+        BINSIZE=B_BIN_SIZE_KM, 
         PRECISIONCLASS=PRECISIONCLASS,
-        prior_avalue = 0, 
+        prior_bvalue = B_PRIOR_BVALUE, 
         sparse=SPARSE,
         boundary=BOUNDARY,
-        v2=PRIOR_VARIANCE, 
-        rho=RHO_KM, 
-        lam=LAMBDA,
+        v2=B_PRIOR_VARIANCE,
+        rho=B_RHO_KM, 
         Mc=MAG_MIN,
-        f_eta_0=DECLUSTER_ETA0
+        magbinsize=0.1,
     )
 
+BS = it.StrettoDiMessinaBValue( 
+        catalog=CATALOG, 
+        BINSIZE=B_BIN_SIZE_KM_SMALL, 
+        PRECISIONCLASS=PRECISIONCLASS,
+        prior_bvalue = B_PRIOR_BVALUE, 
+        sparse=SPARSE,
+        boundary=BOUNDARY,
+        v2=B_PRIOR_VARIANCE,
+        rho=B_RHO_KM, 
+        Mc=MAG_MIN,
+        magbinsize=MAGBINSIZE
+    )
+"""
+def fig1_0():
+    import scipy.sparse.linalg as sparse_linalg
+
+    for AAA in (A, AS):
+        m, n = AAA.calc.m, AAA.calc.n
+        e_ref=np.zeros(AAA.calc.prior_precision.shape[0])
+        e_ref[(n//2)*m + m//2] = 1
 
 
+        oneline = sparse_linalg.spsolve(AAA.calc.prior_precision, e_ref)
+        plt.figure()
 
+        AAA.imshow(oneline)
+        plt.figure()
+        AAA.imshow(e_ref)
+        plt.figure()
+        i = np.argmax(np.abs(oneline))
+        jj = i // m
+        ii = i % n
+        oneline = AAA.calc.scanorder_to_image(oneline)
+        print(oneline.shape)
+        mm = np.arange(m)
+        x = (mm-ii) * AAA.BINSIZE
+        plt.plot(x, oneline[jj,:])
+
+        
 
 
 def fig1():
@@ -110,44 +190,260 @@ def fig1():
 
     plt.figure()
     plt.title('historgram of bins')
+    A.lam = LAMBDA
     nobs= A.calc.nobs.ravel()
-    I = nobs > 0
+    #nobs = nobs[nobs>0].5
+    #nobs = Acount['counts'].ravel()
+    A.prior_avalue = PRIOR_AVALUE * np.ones(nobs.shape)
+    res = []
+    n = np.arange(16)
+    for i in n:
+        res.append(sum(nobs==i))
 
-    plt.hist(nobs[I])
+    #plt.plot(n[1:], res[1:]/sum(res), 'o', label='counts')
+    bins = np.arange(16)-0.5
+    plt.hist(nobs, bins=bins, label='observd count')
+    #plt.yscale('log')
 
+    p = A.calc.prior_n_under_gaussian(pm=A.prior_mean_value_f[0], pv2=PRIOR_VARIANCE, n=n)
+
+    plt.plot(n, p*np.sum(nobs), 'ro')
+    plt.plot(n, p*np.sum(nobs), 'r-', label='prior dist')
+    plt.legend()
+    plt.xticks(np.arange(0,16))
+    plt.xlim(-0.5,16)
+    #plt.ylim(0,250)
+    plt.yscale('log')
+    plt.savefig('fig1_A_nobs.png')
+
+def fig1_1():
+    plt.figure()
+    plt.title('prior distribution of binned a values')
+    a = np.linspace(-3, 2, 1000)
+    plt.plot(a, A.density_under_gaussian(a, -3, 2)*200, label="prior a")
+    nobs = A.calc.nobs.ravel()
+    #nobs = Acount['counts'].ravel()
+    nobs=nobs[nobs>0]
+    plt.hist(np.log(nobs/A.BINSIZE**2)/np.log(10), bins=np.arange(-3,0,0.2), 
+             label='a per pixel')
+    plt.legend()
+    plt.savefig('fig1_1_hista.png')
 
 def fig2():
     plt.figure()
-    plt.title('prior distribution of n')
-    n = np.arange(8)
-    p = A.calc.prior_n_under_gaussian(pm=PRIOR_MEAN, pv2=PRIOR_VARIANCE, n=n)
+    plt.title('random prior')
+    n = np.arange(20)
+    p = A.calc.prior_n_under_gaussian(pm=A.f_from_a(PRIOR_AVALUE), pv2=PRIOR_VARIANCE, n=n)
     plt.plot(n[1:], p[1:], 'o')
     plt.xticks(n)
 
+def fig2_1():
+    plt.figure()
+    plt.title('binned catalog')
+    nobs = A.calc.nobs.ravel()
+    I = nobs>0
+    A.imshow( np.log((nobs+1) / A.BINSIZE**2)/np.log(10) , xylimext=A.binning_count)
+    plt.colorbar()
+    A.plot_coastlines(color='white', linewidth=2)
+    A.plot_event_locations(c='cyan', s=2)
+    plt.savefig('fig2_1_binned_data.png')
+
+def fig2_3():
+    PRIOR_VARIANCE=5
+    n=2
+    prior_mean=2
+    calc = pgd.ExponentialDensity2D()
+    # Laplace vs exact
+    plt.figure()
+    lam = np.linspace(0, 10, 10000)[1:]
+    f = calc.f_from_field(lam)
+    pr = calc.prior_single_observation_field(lam, 
+        mu = prior_mean,
+        #A.f_from_a(PRIOR_AVALUE), 
+        gamma2=PRIOR_VARIANCE)
+    plt.plot(lam, pr, label='prior')
+
+    pf = calc.posterior_single_observation_field(
+        lam,
+        prior_mean,
+        #A.f_from_a(PRIOR_AVALUE), 
+        PRIOR_VARIANCE, n)
+
+    plt.plot(lam, pf, label='exact')
+
+    #lh = calc.log_likelihood_single_observation_field(lam, n=n)
+    #plt.plot(lam, pgd.normalize_log(lh))
+
+
+    def laplace(f, pm, pv, n):
+        # n*f - exp( f  -mu + mu) -(f-mu)^2/(2 pv)
+        # n*f - e^mu (1 + (f-mu)) - (f-mu)^2 / (2 pv)
+        # n*f - e^mu f
+        pl = calc.posterior_single_obeservation_f(f, pm, pv, n)
+        i = np.argmax(pl)
+        mest = f[i]
+        ppml = -pv*n + pv*np.exp(mest) - mest
+        ppm = mest
+        ppv = 1/(np.exp(ppm) + 1/pv)
+        ppvl = 1/(np.exp(ppml) + 1/pv)
+
+        return ppm, ppv, ppml, ppvl 
+
+    ppm, ppv, ppml, ppvl  = laplace(f,  
+            pm = prior_mean,
+            #A.f_from_a(PRIOR_AVALUE), 
+            pv=PRIOR_VARIANCE, n=n)
+
+    print(ppm, ppv, ppml, ppvl)
+
+    pl = calc.prior_single_observation_field(lam, ppm, ppv)    
+
+    plt.plot(lam, pl, label='Laplace approximation')
+
+    pl = calc.prior_single_observation_field(lam, ppml, ppvl)    
+
+    plt.plot(lam, pl, label='Laplace approximation (linearized)')
+
+    plt.legend()
+
+    plt.xlabel('Poisson intensity')
+    plt.yticks([])
+
+    plt.savefig('laplaceapprox.pdf')
+
 
 def fig3():
-    plt.figure()
-    plt.title('random prior')
-    A.calc.imshow(A.a_from_f(A.calc.random_prior_parameters()))
-    plt.colorbar()
+
+    fig=plt.figure()
+    fig.subplots(2,2)
+    plt.title('poserior')
+    for i in range(4):
+        plt.subplot(2,2,i+1)
+        A.imshow(A.a_from_f(A.calc.random_prior_parameters()), xylimext=A.binning_count, 
+                 vmin=-5, vmax=0)
+        plt.colorbar()
+        A.plot_coastlines(color='white', linewidth=2)
+
+def fig3_1():
+
+    fig=plt.figure()
+    fig.subplots(2,2)
+    plt.title('random prior with no observations')
+    nobs = A.calc.nobs.ravel()
+    A.calc.nobs[:] = 0
+    for i in range(4):
+        plt.subplot(2,2,i+1)
+        A.imshow(A.a_from_f(A.calc.random_prior_parameters()), 
+                 xylimext=A.binning_count, vmin=-5, vmax=0)
+        plt.colorbar()
+        A.plot_coastlines(color='white', linewidth=2)
+
 
 
 def fig4():
-    plt.figure()
-    plt.title('a-value stretto di messina 2015-2025')
 
-    #compute a-value
-    a = A.a_from_f(A.calc.max_logposterior_estimator())
-    A.calc.imshow(a, 
+    for AAA, title in zip( (A, AS), ('grid 10', 'grid 2')):
+        plt.figure()
+        plt.title(f'a-value stretto di messina 2015-2025 {title}')
+
+        #compute a-value
+        a = AAA.a_from_f(AAA.calc.max_logposterior_estimator())
+        AAA.imshow(a, xylimext=A.binning_mag,  cmap='jet') #, vmin=-2.2, vmax=-1)
+        plt.colorbar()
+        AAA.plot_coastlines(color='white', linewidth=4)
+        x, y = AAA.xy
+        x += np.random.uniform(-AAA.BINSIZE/4, AAA.BINSIZE, size=len(x))
+        y += np.random.uniform(-AAA.BINSIZE/4, AAA.BINSIZE, size=len(x))
+        plt.scatter( x, y, c='cyan', s=2)
+
+def fig5():
+
+    gamma = 10
+
+    N = 10 #gamma * BBB.BINSIZE**2
+    for BBB in (B, BS):
+        """
+        nobs = BBB.calc.nobs.ravel()
+        i = int(BBB.ny/2)*BBB.nx +int(BBB.nx/2)
+        nobs[:] = 0
+        nobs[i] = N
+
+        magsum = BBB.binning_mag['counts'].copy().ravel()
+        magsum[:] = 0
+        magsum[i] = np.sum(np.log(1/np.random.uniform(size=N))+2.5)
+
+        BBB.calc.set_nobs(nobs)
+        BBB.calc.weight = magsum
+
+
+        """
+
+        plt.figure()
+        plt.title('b-value stretto di messina 2015-2025')
+
+        #compute b-value
+        b = BBB.b_from_f(BBB.calc.max_logposterior_estimator())
+        nobs = BBB.calc.nobs
+        magsum = BBB.binning_mag['counts'].ravel() - nobs *(BBB.Mc-BBB.magbinsize/2)
+        BBB.imshow( b, #BBB.b_from_beta(nobs / magsum),  
+               vmin=0.9, 
+               vmax=1.3,
+               xylimext = BBB.binning_mag,  
+               cmap='jet')
+        #plt.xlim(BBB.extent[0], BBB.extent[1])
+
+        BBB.plot_coastlines(color='white', linewidth=4)
+        BBB.plot_event_locations(c='cyan', s=4)
+        plt.colorbar()
+
+        """
+        plt.figure()
+        plt.title('counts stretto di messina 2015-2025')
+
+        #compute b-value
+        BBB.calc.imshow(BBB.calc.nobs,
                origin='lower', 
-               extent=A.extent, cmap='jet')
-    A.plot_coastlines(color='white', linewidth=4)
-    plt.colorbar()
+               extent=BBB.extent, cmap='jet')
+        #plt.xlim(BBB.extent[0], BBB.extent[1])
 
-    
+        BBB.plot_coastlines(color='white', linewidth=4)
+        BBB.plot_event_locations(color='black', marker='o', markersize=2)
+        plt.colorbar()
+        
+        plt.figure()
+        plt.title('bare-b-value stretto di messina 2015-2025')
+
+        #compute b-value
+        n, m = BBB.calc.n, BBB.calc.m
+
+        BBB.calc.imshow(np.where(BBB.calc.nobs > 0, BBB.calc.weight/BBB.calc.nobs, 0),
+               origin='lower', 
+               aspect='equal',
+               extent=BBB.extent, cmap='jet')
+        #plt.xlim(BBB.extent[0], BBB.extent[1])
+
+        BBB.plot_coastlines(color='white', linewidth=4)
+        BBB.plot_event_locations(color='black', marker='o', markersize=2)
+        plt.colorbar()
+        """
+  
+
+def fig6():
+
+    nobs = B.calc.scanorder_to_image(B.calc.nobs)
+    nobs[:,:] = 0
+    nobs[10,20] = 10
+
+    magsum = B.calc.scanorder_to_image(B.binning_mag['counts'])
+    magsum[:,:] = 0
+    magsum[10,20] = np.sum(np.log(1/np.random.uniform(size=10))+2.5)
+
+    B.calc.set_obs(nobs)
+    B.calc.weight = magsum
+
+
+
 """
-
-
 
 
 plt.rcParams.update(
@@ -585,10 +881,15 @@ def main():
 if __name__ == "__main__":
     
     import matplotlib.pyplot as plt
-    fig1()
-    fig2()
-    fig3()
+    fig1_0()
+    #fig1()
+    #fig2()
+    #fig2_1()
+    #fig2_3()
+    #fig3()
+    #fig3_1()
     fig4()
+    #fig5()
     plt.show()
 
 

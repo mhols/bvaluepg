@@ -39,7 +39,7 @@ import scipy.sparse as sps
 def single_square(n, m, nn, a, b):
 
     res = a * np.ones((n,m))
-    res[:nn, :nn] = b
+    res[:nn, :nn] = b # filling upper left corner
 
     return res
 

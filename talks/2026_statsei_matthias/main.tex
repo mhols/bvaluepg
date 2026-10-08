@@ -29,11 +29,11 @@ augmentation}
 \institute[UP]{University of Potsdam}
 \date[]{October 15, 2026}
 
-\AtBeginSection[]{
-\begin{frame}{Outline}
-\tableofcontents[currentsection]
-\end{frame}
-}
+%\AtBeginSection[]{
+%\begin{frame}{Outline}
+%\tableofcontents[currentsection]
+%\end{frame}
+%}
 
 \begin{document}
 
@@ -46,19 +46,23 @@ augmentation}
 %\end{frame}
 
 % -------------------------------------------------
-\section{Motivation}
+
+
+
+
+%\section{Motivation}
 
 
 \begin{frame}{Spatial Event Data}
 Typical examples:
 \begin{itemize}
-\item Earthquakes occurences
+\item Earthquakes occurences (seismicity, ETAS)
 \item Photon arrivals in imaging
 \item Disease outbreaks
 \item Crime hotspots
 \end{itemize}
 
-Observed data are often \textbf{point events}
+Observed data are \textbf{point events}
 
 Goal: infer an underlying smooth Poissonian intensity field.
 $$
@@ -81,6 +85,7 @@ Assumption $\Lambda(x)$ and $\Lambda(x,m)$ are smooth functions.
 
 
 \begin{frame}{Latent Gaussian Field}
+
 Latent Gaussian field $f(x)$ with prior Gaussian structur $\mathbb{P}(f)$
 $$
 \Lambda(x) =  L( f(x)), \quad f \sim \mathcal N(\mu(x),\Sigma(x,y))
@@ -89,15 +94,37 @@ with some \textbf{non-linear} link function $L(f)$. Choices are
 $$
 e^{ f},\quad \lambda \sigma(f) = \frac{\lambda}{1+e^{-f}} \quad \log(1+e^{ f}) 
 $$
-
-Bayesian posterior ( $\sim$ Likelihood $\times$ Prior) of $f$ 
-given a catalog of events $x_i$, $i=1,\dots, N$ is
+$\Lambda$ is random field. Given $\Lambda$ a the event locations $x_i$ are 
+distributed according to the Poissonian density $\Lambda(x)$
 $$
-\mathbb{P}(f(x)| x_i) \sim \prod_i L(f(x_i)) e^{-\int L(f(x)) dx} \times \mathbb{P}(f(x))
+\#\{\mbox{events in $Q$}\} \sim \mbox{Poisson}(\int_Q \Lambda(x) dx)
+$$
+Extension through hyper parameters $\theta$
+$$
+\Sigma_\theta,\quad \mu_\theta 
+$$
+All the pysics goes into this. After that it is numerics.
+\end{frame}
+
+\begin{frame}{Posterior}
+Bayesian posterior ($\sim$ Likelihood $\times$ Prior) of $f$ 
+given a catalog of events $x_i$, $i=1,\dots, N$ in measurement region $\Omega$ is
+$$
+\mathbb{P}(f(x)| x_i) \sim \prod_i \Lambda(x_i) e^{-\int_{\Omega} \Lambda(x) dx} 
+\times \mathbb{P}(f(x))
+$$
+with $\Lambda(x) = L(f(x))$ and $\mathbb{P}$ the Gaussian measure of the prior process.
+
+Point estimators
+$$
+MAP = \mbox{argmin} -\sum \Lambda(x_i) + \int_{\Omega} \Lambda(x) dx + \Vert f \Vert_{\cal{H}} 
+\quad \mathbb{E}_{\scriptstyle{Posterior}} (\Lambda(x))
 $$
 
-Goal: \textbf{efficient sampling} from this distribution.
-
+Full posterior information through \textbf{efficient sampling}
+$$
+\Lambda_n(x) \to \Lambda_{n+1}(x)\quad f_n(x) \to f_{n+1}(x)
+$$
 
 \end{frame}
 
@@ -112,48 +139,81 @@ $$
 \phi_k(x) = \mathbb{I}_{\Omega_k},\quad \mbox{piecewise constant appxoximation}
 $$
 
+General consideration:
+total estimation error is subject to tradeoff
+$$
+\mbox{total error} = \mbox{bias} + \mbox{variance}
+$$
+
 \end{frame}
 
-\begin{frame}{Discrete model for piecewise constant}
+\begin{frame}{Correlated Poissonian variables}
 
-Counts in cells $\Omega_i$ are Poissonian
+Collection of Poissonian random variables
+(e.g.~counts in cells $\Omega_i$)
 $$
-n_i = \#\{ \mbox{events in $\Omega_i$} \} \sim \mbox{Poisson}(\gamma_i) = 
+n_i = \sim \mbox{Poisson}(\gamma_i) = 
 \frac{\gamma_i^{n_i} e^{-\gamma_i}}{n_i!}
 $$
-Poissonian rates $\gamma_i$ are obtained from discrete latent variables $f_i$
+Poissonian rates $\gamma_i$ are obtained from discrete 
+latent variables $f_i$
 $$
 \gamma_i = \lambda_i \sigma(f_i) = \frac{\lambda_i}{1+e^{-f_i}}
 $$
-Scaling of amplitude $\lambda_i$ with size of region $|Q_i|$
-$$
-\lambda_i \sim |Q_i|.
-$$
-
-
 Discrete proxy process multivariate Gaussian 
 $$
 f = [f_1, f_2, \dots f_M]^T  \sim \mathcal N( \mu, \Sigma_{ij})
 $$
+\end{frame}
 
-$\Sigma(x,y)$ $\Leftrightarrow$ discrete matrix $\Sigma_{i, j}$
-valid for \textbf{correlation length $\gg$ size of pixel}
-\[
-\mu_i = \mu(x_i),\quad \Sigma_{i, j} \simeq \Sigma(x_i, x_j), \quad x_i\ \mbox{center of $Q_i$}
-\]
+% \begin{frame}{Continuous - discret mapping}
+
+% Mapping continuous $\Sigma$ to discrete matrix $\Sigma_{i, j}$ is 
+% not always straigthforward. For (exact) sampling from a proxy space
+%  and \textbf{correlation length $\gg$ size of pixel}
+% \[
+% \mu_i = \mu(x_i),\quad \Sigma_{i, j} \simeq \Sigma(x_i, x_j), \quad x_i\ \mbox{center of $Q_i$}
+% \]
+% But for the map estimator we rather need
+% $$
+% \Gamma_{i, j} = \langle \phi_i\,\phi_j \rangle_{\mathcal{H}}
+% $$
+% \end{frame}
+
+\begin{frame}{Posterior information through sampling}
+Posterior sampling of $f_i$ given $n_i$ 
+$$
+\log \mathbb{P}(f_i | n_i) = 
+\sum_i n_i \log L(f_i) - \sum_i L(f_i) - (f-\mu) \Sigma^{-1}(f-\mu) / 2
+$$
+
+Posterior is not Gaussian but Laplace apprximation is.
+\begin{columns}
+\begin{minipage}{0.7\textwidth}
+\begin{figure}
+   \centering 
+\includegraphics[width=\textwidth]{./figures/laplaceapprox.png}
+\end{figure}
+\end{minipage}
+\begin{minipage}{0.3\textwidth}
+Laplace approximation for $f_i$ 
+quadratic approx
+$$
+-\log\mathbb{P} =
+$$
+$$
+ (f-f_0)^T Q (f-f_0)/2 
+$$
+\end{minipage}
+\end{columns}
 
 \end{frame}
 
-\begin{frame}{Efficient posterior sampling}
+\begin{frame}{Data augmentation}
 
-Posterior of $f_i$ given $n_i$ 
-$$
-\mathbb{P}(f_i | n_i) \sim \prod_i \lambda_i \sigma(f_i)^{n_i} e^{-\lambda_i \sigma(f_i)} 
-e^{ -(f-\mu) \Sigma^{-1}(f-\mu) / 2}
-$$
-
-We propose \textbf{two stage data augmentation} scheme to \textbf{exactly} 
-sample from this distribution without approximation (= no Laplace sheme etc).
+We propose \textbf{two stage data augmentation} 
+scheme to \textbf{exactly} 
+sample from the posterior distribution without approximation (= no Laplace sheme etc).
 
 The exponential part can be rewritten as (for fixed $f_i$ ) using
 $$
@@ -182,7 +242,7 @@ k_i\mid f_i \sim \operatorname{Poisson}(\lambda_i\sigmoid(-f_i)).
 
 \end{frame}
 
-\begin{frame}
+\begin{frame}{Abstract model of correlated Poisson variables}
 Together with the observed counts this gives the augmented likelihood
 \[
 \mathbb{P}(f_i \mid n_i, k_i)
@@ -214,7 +274,8 @@ E.g. \textbf{polygamma.py or pypolyagamma.py} for Python package.
 
 \begin{frame}{The total scheme (exact!)}
 
-For observed bincounts $n_i$ choose arbitrrary initial $f_i$ and then iterate through
+For observed bincounts $n_i$ choose arbitrrary initial 
+$f_i$ and then iterate through
 
 $\bullet$ Sample \textbf{independent} auxiliary independent variables $k_i$
 $$
@@ -259,7 +320,8 @@ This unique invariant distribution is the Bayesian posterior distribution.
 
 \begin{frame}{Choice of prior covariance I}
 
-You may impose any prior covariance structure (either $\Sigma$ or $\Sigma^{-1}$)
+You may impose any prior covariance structure 
+(either $\Sigma$ or $\Sigma^{-1}$)
 
 Typical spatial kernels are ($r=|x_i-x_j|$)
 \[
@@ -287,7 +349,8 @@ h=\Sigma^{-1}\mu+\kappa,
 \qquad
 \Omega=\operatorname{diag}(\omega_1,\dots,\omega_N).
 \]
-And for sampling from the associated Gaussian $\mathcal{N}(h, Q^{-1})$
+And for sampling from the associated Gaussian 
+$\mathcal{N}(h, Q^{-1})$
 \[
 Q = L L^T\quad \mbox{Cholesky decomposition}
 \]
@@ -306,19 +369,56 @@ Therefore \textbf{sparsenesss} of precision matrix $\Sigma^{-1}$ is what pays of
 
 For Matern kernel
 $$
-\Sigma^{-1} = \gamma (\mathbb{I} - \alpha \Delta)
+\Sigma^{-1} = (\gamma (\mathbb{I} - \alpha \Delta))^2
 $$
-$\Delta$ discrete Laplacian (e.g $9$ point stencil).
+$\Delta$ approximated by discrete Laplacian (e.g $9$ point stencil).
 
-Correlation length in pixel $\rho\leftrightarrow\alpha$
+Width of kernel in pixel $\rho\leftrightarrow\alpha$
 $$
-\alpha = (\cosh(1/\rho) -1)/2
+\alpha = (\cosh(1/\rho) -1)/2 \sim \rho^{-2}
 $$
 
 \end{column}
 \end{columns}
 
+\end{frame}
 
+\begin{frame}{Synthetic tests}
+False inverse crime: choose reality. True inverse crime: sample "reality" 
+from the prior.
+
+\begin{figure}
+\includegraphics[width=0.4\textwidth]{./figures/Figure_9.png}
+\includegraphics[width=0.4\textwidth]{./figures/Figure_10.png}
+\end{figure}
+
+Low contrast data ($\lambda_1=5$, $\lambda_2=5.5$)
+\end{frame}
+
+\begin{frame}{samples}
+posterior samples
+\begin{figure}
+\includegraphics[width=0.8\textwidth]{./figures/Figure_13.png}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}{posterior mean}
+\begin{figure}
+\includegraphics[width=0.8\textwidth]{./figures/Figure_14.png}
+\end{figure}
+\end{frame}
+
+
+\begin{frame}{Stretto di Messina}
+INGV catalog events $>2.5$ over 10 years, BZ declustered, binsize $10x10 km$
+\begin{figure}
+\center
+\includegraphics[width=0.9\textwidth]{./figures/fig2_1_binned_data.png}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Basic statistics}
 
 \end{frame}
 

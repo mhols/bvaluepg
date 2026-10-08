@@ -46,13 +46,18 @@ class ItalyMxin(MapMixin, Catalog):
 
         self._coordinates = coordinates.Italy_Coordinates
 
-        #self.cache_file = self.REPO_ROOT / "experiments" / "cache" / "italy_coastlines.pkl"
+        # self.cache_file = self.REPO_ROOT / "experiments" / "cache" / "italy_coastlines.pkl"
 
     @property
     def coastlines(self):
+        print('self.polygons', self.polygons)
+        print('has attr', hasattr(self, 'polygons'))
         if not hasattr(self, 'polygons') or self.polygons is None:
 
-            if hasattr(self, 'cache_file') and self.cache_file.exists():
+            print(self.cache_file)
+
+            if self.cache_file and self.cache_file.exists():
+                print(self.cache_file)
                 print(f"Loading cached coastlines from {self.cache_file}")
                 with open(self.cache_file, "rb") as file:
                     cache = pickle.load(file)
@@ -62,6 +67,7 @@ class ItalyMxin(MapMixin, Catalog):
                     return self.polygons
 
             with zipfile.ZipFile(open(ITALYCOASTLINE, "rb")) as z:
+                print("extracting", ITALYCOASTLINE)
                 z.extractall(EXTRACTED_COASTLINE_DIR)
 
             coast = gpd.read_file(
@@ -109,8 +115,15 @@ class StrettoDiMessina(ItalyMxin):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.filter_xy( -275, -69, -590, -420)
-        self.downsample_catalog()
+        try:
+            self.filter_xy( -275, -69, -590, -420)
+            self.downsample_catalog()
+        except:
+            pass
+        self.xmin = -275
+        self.xmax = -69
+        self.ymin = -590
+        self.ymax = -420
 
 class ItalyBValue(pgd.KwargsUpdater, BValueMixin, ItalyMxin, pgd.KwargsSink):
     def __init__(self, **kwargs):
