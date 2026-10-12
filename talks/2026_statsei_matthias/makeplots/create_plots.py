@@ -29,6 +29,7 @@ import sys
 import warnings
 import pickle
 import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
 from matplotlib.colors import PowerNorm
 import numpy as np
 from scipy.special import expit
@@ -52,18 +53,19 @@ import italy_data as it
 # ---------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------
-LAMBDA = 25/16 ## peek intensity per pixel
+LAMBDA_PER_SURFACE = 10/25 ## peek intensity per pixel
 PICKLE = Path(__file__).resolve().parent / 'tmp.pickle'
 BIN_SIZE_KM = 5
-BIN_SIZE_KM_SMALL = 1 
+BIN_SIZE_KM_SMALL = 2 
 RHO_KM = 50
-PRIOR_VARIANCE = 2.0
-PRIOR_AVALUE = -2.5
+PRIOR_VARIANCE = 4
+PRIOR_VARIANCE_PER_SURFACE = 4/25
+PRIOR_AVALUE = -2   ### will simply set prior_f
 
 B_BIN_SIZE_KM = 9 
 B_BIN_SIZE_KM_SMALL = 1
 B_RHO_KM = 50
-B_PRIOR_VARIANCE = 0.1 
+B_PRIOR_VARIANCE = 0.01 
 B_PRIOR_BVALUE= 1
 
 MAG_MIN = 2.5
@@ -74,8 +76,9 @@ BOUNDARY = "symmetric" #"zero"
 
 #COVARCLASS=ck.precision_matern_9pt,
 PGCLASS=pgd.PolyaGammaDensity2D
+COVARIANZCLASS=ck.spatial_covariance_matern_3_5 #
 PRECISIONCLASS=ck.precision_matern
-SPARSE=True
+SPARSE=False
 MAGBINSIZE=0.1
 CATALOG = it.CATALOGS["INGV"]
 MAP_NITER = 3000
@@ -88,7 +91,7 @@ RESULTS_DIR = REPO_ROOT / "experiments" / "results" / "south_italy_simple_fixed_
 FIGURES_DIR = REPO_ROOT / "experiments" / "figures" / "south_italy_simple_fixed_lambda"
 SAMPLER_LOG = REPO_ROOT / "experiments" / "results" / "south_italy_simple_fixed_lambda" / "sampler.log"
 
-LOAD_PICKLE = False
+LOAD_PICKLE = True
 
 if LOAD_PICKLE:
     with open(PICKLE, 'rb') as f:
@@ -100,12 +103,14 @@ else:
             BINSIZE=BIN_SIZE_KM, 
             PGCLASS=PGCLASS,
             PRECISIONCLASS=PRECISIONCLASS,
+            #COVARIANZCLASS=COVARIANZCLASS,
             prior_avalue = PRIOR_AVALUE, 
             sparse=SPARSE,
             boundary=BOUNDARY,
-            v2=PRIOR_VARIANCE, 
-            rho=RHO_KM, 
-            lam=LAMBDA,
+            v2=PRIOR_VARIANCE,
+            v2ps=PRIOR_VARIANCE_PER_SURFACE, 
+            rhokm=RHO_KM, 
+            lamps=LAMBDA_PER_SURFACE,
             Mc=MAG_MIN,
             f_eta_0=DECLUSTER_ETA0
         )
@@ -114,21 +119,21 @@ else:
             BINSIZE=BIN_SIZE_KM_SMALL, 
             PGCLASS=PGCLASS,
             PRECISIONCLASS=PRECISIONCLASS,
+            #COVARIANZCLASS=COVARIANZCLASS,
             prior_avalue = PRIOR_AVALUE, 
             sparse=SPARSE,
             boundary=BOUNDARY,
+            v2ps=PRIOR_VARIANCE_PER_SURFACE,
             v2=PRIOR_VARIANCE, 
-            rho=RHO_KM, 
-            lam=LAMBDA,
+            rhokm=RHO_KM, 
+            lamps=LAMBDA_PER_SURFACE,
             Mc=MAG_MIN,
             f_eta_0=DECLUSTER_ETA0
         )
     with open(PICKLE, 'wb') as f:
-        pickle.dump((A, AS), f)
+        pickle.dump((A, AS ), f)
 
 
-
-"""
 B = it.StrettoDiMessinaBValue( 
         catalog=CATALOG, 
         BINSIZE=B_BIN_SIZE_KM, 
@@ -137,7 +142,7 @@ B = it.StrettoDiMessinaBValue(
         sparse=SPARSE,
         boundary=BOUNDARY,
         v2=B_PRIOR_VARIANCE,
-        rho=B_RHO_KM, 
+        rhokm=B_RHO_KM, 
         Mc=MAG_MIN,
         magbinsize=0.1,
     )
@@ -150,15 +155,15 @@ BS = it.StrettoDiMessinaBValue(
         sparse=SPARSE,
         boundary=BOUNDARY,
         v2=B_PRIOR_VARIANCE,
-        rho=B_RHO_KM, 
+        rhokm=B_RHO_KM, 
         Mc=MAG_MIN,
         magbinsize=MAGBINSIZE
     )
-"""
+
 def fig1_0():
     import scipy.sparse.linalg as sparse_linalg
 
-    for AAA in (A, AS):
+    for AAA, title in zip ( (A, AS), ('A', 'AS')):
         m, n = AAA.calc.m, AAA.calc.n
         e_ref=np.zeros(AAA.calc.prior_precision.shape[0])
         e_ref[(n//2)*m + m//2] = 1
@@ -166,11 +171,14 @@ def fig1_0():
 
         oneline = sparse_linalg.spsolve(AAA.calc.prior_precision, e_ref)
         plt.figure()
+        plt.title(title)
 
         AAA.imshow(oneline)
         plt.figure()
+        plt.title(title)
         AAA.imshow(e_ref)
         plt.figure()
+        plt.title(title)
         i = np.argmax(np.abs(oneline))
         jj = i // m
         ii = i % n
@@ -190,11 +198,11 @@ def fig1():
 
     plt.figure()
     plt.title('historgram of bins')
-    A.lam = LAMBDA
+    #A.lam = LAMBDA_PER_SURFACE * BIN_SIZE_KM**2 
     nobs= A.calc.nobs.ravel()
     #nobs = nobs[nobs>0].5
     #nobs = Acount['counts'].ravel()
-    A.prior_avalue = PRIOR_AVALUE * np.ones(nobs.shape)
+    #A.prior_avalue = PRIOR_AVALUE * np.ones(nobs.shape)
     res = []
     n = np.arange(16)
     for i in n:
@@ -205,7 +213,7 @@ def fig1():
     plt.hist(nobs, bins=bins, label='observd count')
     #plt.yscale('log')
 
-    p = A.calc.prior_n_under_gaussian(pm=A.prior_mean_value_f[0], pv2=PRIOR_VARIANCE, n=n)
+    p = A.calc.prior_n_under_gaussian(pm=A.f_from_a(PRIOR_AVALUE), pv2=PRIOR_VARIANCE, n=n)
 
     plt.plot(n, p*np.sum(nobs), 'ro')
     plt.plot(n, p*np.sum(nobs), 'r-', label='prior dist')
@@ -245,7 +253,7 @@ def fig2_1():
     A.imshow( np.log((nobs+1) / A.BINSIZE**2)/np.log(10) , xylimext=A.binning_count)
     plt.colorbar()
     A.plot_coastlines(color='white', linewidth=2)
-    A.plot_event_locations(c='cyan', s=2)
+    A.plot_event_locations(c='black', s=2)
     plt.savefig('fig2_1_binned_data.png')
 
 def fig2_3():
@@ -261,7 +269,7 @@ def fig2_3():
         mu = prior_mean,
         #A.f_from_a(PRIOR_AVALUE), 
         gamma2=PRIOR_VARIANCE)
-    plt.plot(lam, pr, label='prior')
+    plt.plot([0]+list(lam), [0]+list(pr), label='prior')
 
     pf = calc.posterior_single_observation_field(
         lam,
@@ -269,7 +277,7 @@ def fig2_3():
         #A.f_from_a(PRIOR_AVALUE), 
         PRIOR_VARIANCE, n)
 
-    plt.plot(lam, pf, label='exact')
+    plt.plot(lam, pf, label='exact posterior', color='black', linewidth=2)
 
     #lh = calc.log_likelihood_single_observation_field(lam, n=n)
     #plt.plot(lam, pgd.normalize_log(lh))
@@ -282,7 +290,11 @@ def fig2_3():
         pl = calc.posterior_single_obeservation_f(f, pm, pv, n)
         i = np.argmax(pl)
         mest = f[i]
-        ppml = -pv*n + pv*np.exp(mest) - mest
+
+        a = -n + np.exp(pm) - pm*np.exp(pm)
+        b = np.exp(pm) + pv
+
+        ppml = - a/b #    -pv*n + pv*np.exp(mest) - mest
         ppm = mest
         ppv = 1/(np.exp(ppm) + 1/pv)
         ppvl = 1/(np.exp(ppml) + 1/pv)
@@ -308,21 +320,54 @@ def fig2_3():
 
     plt.xlabel('Poisson intensity')
     plt.yticks([])
+    plt.xlim(-0.5, 6)
 
     plt.savefig('laplaceapprox.pdf')
 
 
-def fig3():
+# def fig3():
 
-    fig=plt.figure()
-    fig.subplots(2,2)
-    plt.title('poserior')
-    for i in range(4):
-        plt.subplot(2,2,i+1)
-        A.imshow(A.a_from_f(A.calc.random_prior_parameters()), xylimext=A.binning_count, 
-                 vmin=-5, vmax=0)
-        plt.colorbar()
+#     fig, axes = plt.subplots(2,2)
+#     plt.suptitle('random prior')
+#     for i in range(4):
+#         plt.subplot(2,2,i+1)
+#         A.imshow(A.a_from_f(A.calc.random_prior_parameters()), xylimext=A.binning_count, 
+#                  vmin=-2.6, vmax=0, cmap='jet')
+#         A.plot_coastlines(color='white', linewidth=2)
+    
+#     fig.colorbar()
+#     plt.savefig('fig3_random_prior.png')
+
+def fig3():
+    fig, axes = plt.subplots(2, 2, figsize=(12, 8))
+    fig.suptitle('Random prior')
+
+    for ax in axes.flat:
+        plt.sca(ax)
+        im = A.imshow(
+            A.a_from_f(A.calc.random_prior_parameters()),
+            xylimext=A.binning_count,
+            vmin=-2.5,
+            vmax=-0.5,
+            cmap='jet'
+        )
         A.plot_coastlines(color='white', linewidth=2)
+
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+    # Reserve space on the right for the colorbar
+    fig.subplots_adjust(right=0.87, wspace=0.15, hspace=0.15)
+
+    # Add one shared colorbar
+    cbar_ax = fig.add_axes([0.89, 0.15, 0.02, 0.7])
+    cbar = fig.colorbar(im, cax=cbar_ax, cmap='jet')
+
+    cbar.set_ticks(np.linspace(0, 1, 5))
+    cbar.set_ticklabels(['-2.5', '-2.0', '-1.5', '-1.0', '-0.5'])
+    cbar.ax.tick_params(labelsize=10)
+
+    fig.savefig('fig3_random_prior.png', dpi=300, bbox_inches='tight')
 
 def fig3_1():
 
@@ -342,19 +387,21 @@ def fig3_1():
 
 def fig4():
 
-    for AAA, title in zip( (A, AS), ('grid 10', 'grid 2')):
+    for AAA, title in zip( (A, AS), ('5x5', '2x2')):
+    #for AAA, title in zip( (A, ), ('grid 10',)):
         plt.figure()
-        plt.title(f'a-value stretto di messina 2015-2025 {title}')
+        #plt.title(f'a-value stretto di messina 2015-2025 {title}')
 
         #compute a-value
-        a = AAA.a_from_f(AAA.calc.max_logposterior_estimator())
-        AAA.imshow(a, xylimext=A.binning_mag,  cmap='jet') #, vmin=-2.2, vmax=-1)
+        a = AAA.a_from_f(AAA.max_logposterior_estimator())
+        AAA.imshow(a, xylimext=A.binning_mag,  cmap='jet', vmin=-2.5, vmax=-0.5)
         plt.colorbar()
         AAA.plot_coastlines(color='white', linewidth=4)
         x, y = AAA.xy
         x += np.random.uniform(-AAA.BINSIZE/4, AAA.BINSIZE, size=len(x))
         y += np.random.uniform(-AAA.BINSIZE/4, AAA.BINSIZE, size=len(x))
-        plt.scatter( x, y, c='cyan', s=2)
+        plt.scatter( x, y, c='black', s=2)
+        plt.savefig(f'fig4_mag_logposterior_{title}.png')
 
 def fig5():
 
@@ -362,21 +409,6 @@ def fig5():
 
     N = 10 #gamma * BBB.BINSIZE**2
     for BBB in (B, BS):
-        """
-        nobs = BBB.calc.nobs.ravel()
-        i = int(BBB.ny/2)*BBB.nx +int(BBB.nx/2)
-        nobs[:] = 0
-        nobs[i] = N
-
-        magsum = BBB.binning_mag['counts'].copy().ravel()
-        magsum[:] = 0
-        magsum[i] = np.sum(np.log(1/np.random.uniform(size=N))+2.5)
-
-        BBB.calc.set_nobs(nobs)
-        BBB.calc.weight = magsum
-
-
-        """
 
         plt.figure()
         plt.title('b-value stretto di messina 2015-2025')
@@ -393,7 +425,7 @@ def fig5():
         #plt.xlim(BBB.extent[0], BBB.extent[1])
 
         BBB.plot_coastlines(color='white', linewidth=4)
-        BBB.plot_event_locations(c='cyan', s=4)
+        BBB.plot_event_locations(c='black', s=2)
         plt.colorbar()
 
         """
@@ -426,7 +458,89 @@ def fig5():
         BBB.plot_event_locations(color='black', marker='o', markersize=2)
         plt.colorbar()
         """
-  
+def fig5_1():
+    import tracemalloc
+
+    for AAA, title in zip( (A, AS), ('large', 'small')):
+    #for AAA, title in zip( (A, ), ('large', )):
+        f = AAA.max_logposterior_estimator()
+
+        res = []
+        i = 1
+        mean = 0
+        niter = 2000
+        #tracemalloc.start()
+        #snap1=tracemalloc.take_snapshot()
+        for ff in AAA.sample_posterior(burn_in=50, n_iter=niter+50):
+            #res.append(ff)
+            mean += ff
+        #snap2=tracemalloc.take_snapshot()
+        #tracemalloc.stop()
+
+        #for stat in snap2.compare_to(snap1, 'lineno')[:10]:
+        #    print(stat)
+
+    #sys.exit(0)
+
+        mean /= niter
+        #print(mean.shape)
+
+        """ 
+        plt.figure()
+        for i in range(4):
+            plt.subplot(2,2,i+1)
+            AAA.imshow(A.a_from_f(res[50+i]), 
+                    xylimext=A.binning_count, vmin=-2.5, vmax=-0.5, cmap='jet')
+            AAA.plot_event_locations(c='black', s=2)
+            AAA.plot_coastlines(color='white', linewidth=2)
+            plt.xticks([])
+            plt.yticks([])
+        plt.savefig(f'fig5_1_rp_{title}.png')
+
+        plt.figure()
+        AAA.imshow(AAA.a_from_f(mean), 
+                    xylimext=AAA.binning_count, vmin=-2.5, vmax=-0.5, cmap='jet')
+        plt.colorbar()
+        AAA.plot_event_locations(c='black', s=1)
+        AAA.plot_coastlines(color='white', linewidth=2)
+        plt.xticks([])
+        plt.yticks([])
+
+        plt.savefig(f'fig5_1_rm_{title}.png')
+
+        """
+
+        plt.figure()
+        norm = mcolors.TwoSlopeNorm(vmin=-10, vcenter=0, vmax=1)
+        cmap = plt.get_cmap('RdBu_r')
+
+        vmin, vmax = -10, 10
+        # Position of 0 on a linear 0..1 scale
+        zero_pos = (0 - vmin) / (vmax - vmin)   # = 10/11 ≈ 0.909
+
+        # Build a colormap: dark red (negative) -> white at zero_pos -> dark blue (positive)
+        cmap = mcolors.LinearSegmentedColormap.from_list(
+            'centered_at_zero',
+            [(0.0, "#0A06F9"),      # most negative
+            (zero_pos, '#ffffff'), # zero, near the top
+            (1.0, "#F83606")],     # most positive
+        )
+
+        norm = mcolors.Normalize(vmin=vmin, vmax=vmax)  # plain linear norm
+
+        AAA.imshow(100*(f/mean-1), xylimext=AAA.binning_count, cmap=cmap, norm=norm)
+        AAA.plot_event_locations(c='black', s=1)
+        AAA.plot_coastlines(color='white', linewidth=2)
+        plt.xticks([])
+        plt.yticks([])
+        plt.colorbar()
+        
+        plt.savefig(f"diff_{title}.png")
+
+
+   
+
+
 
 def fig6():
 
@@ -881,15 +995,16 @@ def main():
 if __name__ == "__main__":
     
     import matplotlib.pyplot as plt
-    fig1_0()
-    #fig1()
+    #fig1_0()
+    fig1()
     #fig2()
     #fig2_1()
     #fig2_3()
     #fig3()
     #fig3_1()
-    fig4()
-    #fig5()
+    #fig4()
+    fig5()
+    #fig5_1()
     plt.show()
 
 

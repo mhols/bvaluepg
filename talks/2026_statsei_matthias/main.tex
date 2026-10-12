@@ -25,9 +25,11 @@ of Poissonian
 random fields using
 Polya Gamma data
 augmentation}
-\author[M. Holschneider, C. Chavez Chong, T. Luhdo, M. Opper]{Matthias Holschneider, Cristina Chavez Chong, Toni Luhdo, Mafred Opper}
+\author[M. Holschneider, C. Chavez Chong, 
+T. Luhdo, M. Opper]{Matthias Holschneider, Cristina Chavez Chong, \\
+Toni Luhdo, Manfred Opper}
 \institute[UP]{University of Potsdam}
-\date[]{October 15, 2026}
+\date[]{Statsei 2026 Santiago de Chile}
 
 %\AtBeginSection[]{
 %\begin{frame}{Outline}
@@ -47,7 +49,26 @@ augmentation}
 
 % -------------------------------------------------
 
+\begin{frame}{Goal}
 
+Correlated Poisson random variables (with marks) are central building block of 
+Seismic models
+
+\begin{itemize}
+\item seismicity (a value) is a region
+\item magnitude distribution b-value
+\item dynamic poisson intensity ETAS model
+\end{itemize}
+
+Full Bayesian inversion needs posterior sampling.
+
+Contribution of this work: 
+
+\textbf{efficient exact sampling from discrete proxy models}
+
+a plug in solution at essentially no extra extra cost
+
+\end{frame}
 
 
 %\section{Motivation}
@@ -411,7 +432,7 @@ posterior samples
 
 
 \begin{frame}{Stretto di Messina}
-INGV catalog events $>2.5$ over 10 years, BZ declustered, binsize $10x10 km$
+INGV catalog events $>2.5$ over 10 years, BZ declustered, binsize $5x5 km$
 \begin{figure}
 \center
 \includegraphics[width=0.9\textwidth]{./figures/fig2_1_binned_data.png}
@@ -420,7 +441,134 @@ INGV catalog events $>2.5$ over 10 years, BZ declustered, binsize $10x10 km$
 
 \begin{frame}{Basic statistics}
 
+    $667$ events in $344$ bins over an area of $37\,625\,\mathrm{km}^2$.
+
+    Choice of prior: $\lambda = 16$, $a_{\mathrm{prior}} = -2$,
+    $\gamma_{\mathrm{prior}} = \frac{100}{37\,625}\,\mathrm{km}^{-2}$.
+
+    Prior variance of $f$: $2$.
+
+    \vspace{0.3cm}
+
+    \begin{columns}[c,onlytextwidth]
+        \begin{column}{0.64\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{./figures/fig1_A_nobs.png}
+            \end{figure}
+        \end{column}
+
+        \begin{column}{0.36\textwidth}
+             \footnotesize
+             
+             \vfill
+
+            Expected distribution of $n$ under the prior:
+
+            \[
+                p(n) =
+                \int_0^\infty
+                \frac{\gamma^n e^{-\gamma}}{n!}
+                \, p(\gamma)\, \mathrm{d}\gamma.
+            \]
+            And 
+            \[
+                p(\gamma) \mathrm{d}\gamma = L(f)  \mathrm{d}f
+            \]
+            \[
+                L(f) = \frac{\lambda}{1+e^{-f}}
+            \]
+
+        \vfill
+
+        \end{column}
+    \end{columns}
+
 \end{frame}
+
+\begin{frame}{Discrete covariance prior}
+
+    Continuous model of seismcity
+    $$
+        \gamma(x) = 10^{a(x)}, \quad \mbox{Poissonian intensity}
+    $$
+    $$
+        \gamma(x) = \quad \frac{\lambda}{1+e^{-f}}
+    $$
+    With $f(x)$ Gaussian process prior
+    $$
+        \mathbb{E}(f(x)) = \mu(x), \quad  \mathbb{C}ov(f(x), f(x')) = K(x, x^\prime)
+    $$
+    Discrete proxy for pixel $Q_i$: \textbf{exact statistics} at the centers $x_i\in Q_i$
+    $$
+        \mu_i = \mu(x_i), \quad \Sigma_{i, j} =  K(x_i, x_j)
+    $$
+    \textbf{No scaling of $f_i$} with pixel size $|Q_i|$. Scaling of $\lambda_i$ 
+    $$
+        \gamma_i = \frac{\lambda_i |Q_i|}{1+e^{-f_i}}\quad \lambda_i = \lambda |Q_i|
+    $$
+
+\end{frame}
+
+
+    \begin{frame}{Random prior samples}
+
+    Width of kernel $\rho=50km$, binsize = $5 \times 5 km^2$
+
+    \begin{columns}[c,onlytextwidth]
+
+        \begin{column}{0.7\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{./figures/fig3_random_prior.png}
+            \end{figure}
+        \end{column}
+
+        \begin{column}{0.3\textwidth}
+
+
+             \footnotesize
+
+             \vfill
+
+            $a$ value at pixel $Q_i$ with center $x_i$:
+
+            \[
+                \gamma_i = 10^{a(x_i)} \times |Q_i|
+            \]
+
+            $\gamma_i$ is Poissonian rate of pixel $Q_i$
+
+            \vfill
+
+        \end{column}
+
+    \end{columns}
+
+\end{frame}
+
+\begin{frame}{Posterior samples}
+Posterior samples of $a$ value at binsize $5 \times 5 km^2$
+  \begin{figure}
+                \centering
+               \includegraphics[width=0.95\textwidth]{./figures/fig5_1_rp_large.png}
+   \end{figure}
+ 
+
+\end{frame}
+\begin{frame}{Posterior mean}
+Posterior mean and max MAP estimator of $a$ value
+\[
+    \mathbb{E} a(x) | \mbox{posterior} = \int a(f(x)) \mathbb{P}(f), \quad MAP = \mbox{argmin} \mathbb{P}(f| \{n_i\})
+\]
+  \begin{figure}
+                \centering
+               \includegraphics[width=0.49\textwidth]{./figures/fig5_1_rm_large.png}
+               \includegraphics[width=0.49\textwidth]{./figures/fig4_mag_logposterior_5x5.png}
+   \end{figure}
+
+\end{frame}
+
 
 \end{document}
 
