@@ -1,0 +1,38 @@
+{
+  "config": {
+    "truth_file": "/Users/toni/Library/Mobile Documents/com~apple~CloudDocs/UP/BvaluePG/bvaluepg/data/synthetic/bars_synthetic_catalog_truth.npz",
+    "output_dir": "/Users/toni/Library/Mobile Documents/com~apple~CloudDocs/UP/BvaluePG/bvaluepg/results/synthetic_gamma_reference",
+    "n_iter": 500,
+    "burn_in": 100,
+    "thin": 1,
+    "seed": 0,
+    "lam": 12.0,
+    "lam_prior_shape": 1.0,
+    "lam_prior_rate": 1.0,
+    "rho": 6.0,
+    "prior_mean": -3.7,
+    "prior_variance": 4.0,
+    "check_reproducibility": false
+  },
+  "boundary": "symmetric",
+  "exposure_per_cell": 1.0,
+  "truth_sha256": "42d8e33aecf477a6261893cc46e8ac294d70df18df071ff11b61261cc6055c1c",
+  "grid_shape": [
+    64,
+    64
+  ],
+  "events": 1404,
+  "retained_samples": 400,
+  "sampling_seconds": 8.956026167012169,
+  "lambda_mean": 5.346982494431725,
+  "lambda_sd": 0.895459461527138,
+  "lambda_quantiles": [
+    4.1532802725635705,
+    5.197746034588434,
+    7.380950548972641
+  ],
+  "rate_rmse": 0.33104685152717916,
+  "same_seed_exact_match": null,
+  "seed_note": "Core PG draws have no explicit random_state; seed alone does not guarantee reproduction.",
+  "convergence_note": "Single-chain reference run; convergence has not been established."
+}
