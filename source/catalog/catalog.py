@@ -1,8 +1,10 @@
 import pandas as pd
 import numpy as np
+import copy
 import sys
 from pathlib import Path
 from  polyagammapoisson.catalog import declustering as dc
+import polyagammapoisson.covariance_kernels as ck
 import scipy
 import matplotlib.pyplot as plt
 import pickle
@@ -11,18 +13,53 @@ import geopandas as gpd
 from shapely.geometry import box
 import polyagammapoisson.polyagammadensity as pgd
 import polyagammapoisson.catalog.coordinates as coord
+from scipy.stats import truncexpon
 import os
+from functools import cached_property
 
+def bin_indices(x, y, xedges, yedges):
+    nx, ny = len(xedges) - 1, len(yedges) - 1
 
+    # bin index along each axis: 0 .. n-1
+    ix = np.searchsorted(xedges, x, side="right") - 1
+    iy = np.searchsorted(yedges, y, side="right") - 1
 
-class Catalog:
+    # put points exactly on the last edge into the last bin
+    ix[x == xedges[-1]] = nx - 1
+    iy[y == yedges[-1]] = ny - 1
+
+    # keep only points inside the grid
+    ok = (ix >= 0) & (ix < nx) & (iy >= 0) & (iy < ny)
+    idx_ok = np.flatnonzero(ok)
+
+    flat = iy[ok] * nx + ix[ok]                 # row-major: x is the row, y the column
+
+    order = np.argsort(flat, kind="stable")     # stable keeps the original order within a bin
+    sorted_idx = idx_ok[order]
+    counts = np.bincount(flat, minlength=nx * ny)
+    splits = np.cumsum(counts)[:-1]
+    return np.split(sorted_idx, splits)
+
+def bin_indices_1d(x, edges):
+    n = len(edges) - 1
+    ix = np.digitize(x, edges) - 1
+    ix[x == edges[-1]] = n - 1                 # last edge belongs to the last bin (like np.histogram)
+
+    ok = (ix >= 0) & (ix < n)
+    idx_ok = np.flatnonzero(ok)
+
+    order = np.argsort(ix[ok], kind="stable")
+    counts = np.bincount(ix[ok], minlength=n)
+    return np.split(idx_ok[order], np.cumsum(counts)[:-1])
+
+class CatalogMixin(pgd.Mixin2D):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
         self._coordinates = None
 
-        if 'catalog' in kwargs and self.catpickle is None:
+        if 'catalog' in kwargs:
             self.load_catalog()
 
         else:
@@ -30,10 +67,10 @@ class Catalog:
                 self._catDataFrame = pickle.load(f)
 
     def load_catalog(self, **kwargs):
-        
-        self.catalog = kwargs.get('catalog', self.catalog)
 
-        path, kwargs, trans = self.catalog
+        catalog = self.kwargs.get('catalog')
+
+        path, kwargs, trans = catalog
         cata = pd.read_csv(path, **kwargs)
 
         self.original_catalog = cata
@@ -58,7 +95,7 @@ class Catalog:
         if self.f_eta_0:
             self.filter_decluster()
             self.downsample_catalog()
-        
+
 
 
     @property
@@ -75,7 +112,7 @@ class Catalog:
     @property
     def _lon(self):
         return self._catDataFrame['Lon']
-    
+
     @property
     def lat(self):
         return self._catDataFrame.loc[self.I, 'Lat'].to_numpy()
@@ -84,7 +121,7 @@ class Catalog:
     def _lat(self):
         return self._catDataFrame['Lat']
 
-    
+
     @property
     def time(self):
         return self._catDataFrame.loc[self.I, 'Time'].to_numpy()
@@ -103,10 +140,10 @@ class Catalog:
         return self._catDataFrame['MAG']
 
 
-    @property
+    @cached_property
     def coordinates(self):
         """
-        lazy and one time only evalutaion is important to avoid 
+        lazy and one time only evalutaion is important to avoid
         shrinking down on filtering
         """
         if not hasattr(self, '_coordinates') or self._coordinates is None:
@@ -115,14 +152,14 @@ class Catalog:
             angle = self.kwargs.get('ROTATION_ANGLE', 0)
             self._coordinates = coord.Coordinates(
                 center_lon=clon, center_lat=clat, rotation_angle=angle)
-        return self._coordinates        
+        return self._coordinates
 
-    @property
+    @cached_property
     def xy(self):
         """
         returns a cartesion mapping of the data
         """
-        return self.coordinates.lonlat_to_rotated_xy(self.lon, self.lat) 
+        return self.coordinates.lonlat_to_rotated_xy(self.lon, self.lat)
 
     @property
     def _xy(self):
@@ -179,25 +216,43 @@ class Catalog:
 
         return self._catDataFrame
 
-    
+
     @classmethod
     def binning(cls, x=None, y=None, xbins=None, ybins=None, binfunc=None):
+
+        """
+        I = bin_indices(x, y, xbins, ybins)
+        nbinx = len(xbins) - 1
+        nbiny = len(ybins) - 1
+        """
+
+
         i = np.digitize(x, xbins)
         j = np.digitize(y, ybins)
+
+        print('ijshape', i.shape, j.shape)
 
         nbinx = len(xbins) - 1
         nbiny = len(ybins) - 1
 
+        print(nbinx, nbiny)
+
         ## count the number of events in each bin
-        res = np.zeros((nbiny, nbinx), dtype=float)
+        resc = np.zeros((nbiny, nbinx), dtype=float)
+        resi = []
         for jj in range(nbiny):
             for ii in range(nbinx):
                 II = np.logical_and( jj+1 == j, ii+1 == i)
-                res[ nbiny - jj -1, ii] = binfunc( II )
+                resi.append(II)
+                resc[ nbiny - jj -1, ii] = binfunc( II )
+        '''
+        n = np.arange(nbinx*nbiny)
+        resi=[n[I[i]]==i for i in range(nbinx*nbiny) ]
+        resc=np.array([binfunc(resi[i]) for i in range(nbinx*nbiny) ])
+        '''
+        return {'counts' : resc, 'I': resi}
 
-        return res
 
- 
     '''
 
     @property
@@ -230,8 +285,6 @@ class Catalog:
         dkm = size if size else self.BINSIZE
 
         x_rot, y_rot = self.xy
-        x_rot = x_rot
-        y_rot = y_rot
 
         #if self.xmin is None:
         #    raise Exception('expected other ')
@@ -249,7 +302,7 @@ class Catalog:
         xbins = xmin + dkm * np.arange(nbinx+1)
         ybins = ymin + dkm * np.arange(nbiny+1)
 
-        res = Catalog.binning(
+        res = CatalogMixin.binning(
             x=x_rot, y=y_rot,
             xbins = xbins, ybins = ybins,
             binfunc = binfunc
@@ -258,28 +311,25 @@ class Catalog:
         return {
             'nbinx': nbinx,
             'nbiny': nbiny,
-            'counts': res,
+            'counts': res['counts'],
+            'I': res['I'],
             'xylimits':  (xmin, xmax, ymin, ymax),
             'extent': (xmin, xmin + nbinx * dkm, ymin, ymin+nbiny*dkm)
         }
-    
+
     @property
     def binning_count(self, size=None):
-        if hasattr(self, '_binning_count') and not self._binning_count is None:
-            return self._binning_count
-
         dkm = size if size else self.BINSIZE
-        self._binning_count = self.binning_of(size=dkm, binfunc=lambda I: sum(I))
-        return self._binning_count
+        tmp = self.binning_of(size=dkm, binfunc=lambda I: sum(I))
+        #self.n = tmp['nbiny']
+        #self.m = tmp['nbinx']
+        return tmp
 
     @property
     def binning_mag(self, size=None):
-        if hasattr(self, '_binning_mag') and not self._binning_mag is None:
-            return self._binning_mag
-        
+
         dkm = size if size else self.BINSIZE
-        self._binning_mag= self.binning_of(size=dkm, binfunc=lambda I: sum(self.mag[I]))
-        return self._binning_mag
+        return self.binning_of(size=dkm, binfunc=lambda I: sum(self.mag[I]))
 
     @property
     def extent(self):
@@ -290,12 +340,9 @@ class Catalog:
 
 
 
+
 class MapMixin(pgd.Mixin2D):
 
-
-    @property
-    def coastlines(self):
-        pass
 
 
     def plot_coastlines(self, color='red', linewidth=1, **kwargs):
@@ -326,91 +373,134 @@ class MapMixin(pgd.Mixin2D):
             ax.set_xlim(xmin, xmax)
             ax.set_ylim(ymin, ymax)
             extent = xylimext['extent']
-            print (xylimext)
-            print( xylimext['xylimits'])
         else:
-            extent = None 
+            extent = None
         super().imshow(d, extent=extent, **kwargs)
 
 
+class CatalogAnalyserMixin:
+    """
+    Shared base for spatial field analysers that work with a catalog.
+    Assumes self.catalog is provided — either by a catalog mixin in the MRO
+    or created explicitly in a subclass __init__.
+    """
 
+    def binning_count(self):
+        return self.catalog.binning_count
 
-class AValueMixin:
+    def imshow(self, pic, **kwargs):
+        self.catalog.imshow(pic, **kwargs)
 
-    def __init__(self, 
-                #COVARCLASS=None, 
-                #PGCLASS=pgd.PolyaGammaDensity2D,
-                #PRECISIONCLASS=None,
-                #prior_avalue=None,
-                #lam=None,
-                #v2=None,
-                #rho=None,
-                #sparse=False,
-                #boundary='zero',
-                #magbinsize=0.5
-                
-                 **kwargs):
-        super().__init__(**kwargs)
+    def plot_event_locations(self, **kwargs):
+        self.catalog.plot_event_locations(**kwargs)
 
-        #self.prior_avalue = self.kwargs.get(
-        #self.magbinsize = magbinsize
+    def plot_coastlines(self, **kwargs):
+        self.catalog.plot_coastlines(**kwargs)
 
+    def _setup_grid(self):
+        """Set m, n, rho from the current catalog binning."""
+        self.m = self.catalog.binning_count['nbinx']
+        self.n = self.catalog.binning_count['nbiny']
+        self.rho = self.rhokm / self.BINSIZE
 
-        self.m = self.binning_count['nbinx']
-        self.n = self.binning_count['nbiny']
-
-        self.calc = self.PGCLASS(**self.kwargs)
-        self.rho = self.rho / self.BINSIZE
-        self.h = self.BINSIZE
-
-        if self.prior_avalue:
-            pmean = np.full( self.n * self.m, self.f_from_a(self.prior_avalue))
-            self.prior_mean_value_f = pmean
-        else:
-            pmean = self.prior_mean_value_f
-
-        if self.COVARCLASS:
-            covar = self.COVARCLASS(**self.kwargs)
-            self.calc.set_prior_Gaussian(prior_mean=pmean, prior_covariance=covar)
+    def _apply_prior(self, calc, pmean, **kwargs):
+        """
+        Set Gaussian prior on calc via COVARIANCECLASS or PRECISIONCLASS.
+        Returns the covariance matrix (covariance path) or cholprec (precision path)
+        so the caller can derive submatrix priors for subsets of bins.
+        Extra kwargs (e.g. sparse=True) are forwarded to set_prior_Gaussian.
+        """
+        if self.COVARIANCECLASS:
             if self.PRECISIONCLASS:
                 raise Exception('too many covariance structures')
-        else: 
+            covar = self.COVARIANCECLASS(**self.kwargs)
+            calc.set_prior_Gaussian(prior_mean=pmean, prior_covariance=covar, **kwargs)
+            return covar
+        else:
             prec, cholprec = self.PRECISIONCLASS(cholesky=True, **self.kwargs)
-            self.calc.set_prior_Gaussian(prior_mean=pmean, prior_precision=prec)
-            self.calc.cholprec = cholprec
+            calc.set_prior_Gaussian(prior_mean=pmean, prior_precision=prec, **kwargs)
+            calc.cholprec = cholprec
+            return cholprec
 
 
+class AValueMixin(CatalogAnalyserMixin):
+    """
+    scaling with binsize h = BiNSIZE
+    lam  h^2
+    f    1   # represents the value of the latent field at grid points
+    a    1   # is independent on the bin size
+
+    gamma_i poisson rate is (lamda/surface) h^2 * 10^a
+    Covariance of f's is point evaluation at the grid cells
+    rho[pixel] = rho[km]/h
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(lam=1, **kwargs)
+        self.catalog = kwargs['catalogclass'](**kwargs)
+        self.update_calc()
+
+    def update_calc(self):
+        self._setup_grid()
+        self.calc = self.PGCLASS(**self.kwargs)
+        pmean = self.prior_mean_value_f
+        self._apply_prior(self.calc, pmean)
+        self.calc.set_nobs(self.catalog.binning_count['counts'])
         self.calc.alpha = 1
-        self.calc.beta = 1 #self.BINSIZE**2
-        self.calc.gamma = 0.00001 * self.BINSIZE**2 
-        self.calc.lam *= self.h**2
-        
-        self.set_data()
+        self.calc.beta = 1
+        self.calc.gamma = 1
+        self.calc.lam = self.lamps * self.BINSIZE**2
+
+    def max_logposterior_estimator(self, f0=None):
+        self.calc.alpha = 1
+        self.calc.beta = 1
+        self.calc.gamma = 1
+        self.calc.lam = self.lamps * self.BINSIZE**2
+        return self.calc.max_logposterior_estimator(f0)
+
+    def sample_posterior(self, **kwargs):
+        self.calc.alpha = 1
+        self.calc.beta = 1
+        self.calc.gamma = 1
+        self.calc.lam = self.lamps * self.BINSIZE**2
+        return self.calc.sample_posterior(**kwargs)
 
     @property
     def prior_mean_value_f(self):
         return np.full(self.n * self.m, self.f_from_a(self.prior_avalue))
 
-    def set_data(self):
+    def update_data(self):
         """
         ensures recomputation of binin from the catalog
         This allows modifications of the catalog
         """
-        self._binning_count = None       
-        self.calc.set_data(self.binning_count['counts'].ravel())
-
+        self.calc.set_data(self.catalog.binning_count['counts'].ravel())
 
     def f_from_a(self, a):
-        return self.calc.f_from_field(10**a)
-    
+        return self.calc.f_from_field(10**a*self.BINSIZE**2)
+
     def a_from_f(self, f):
         return np.log( self.calc.field_from_f(f)/self.BINSIZE**2) / np.log(10)
 
     def density_under_gaussian(self, a, m, v2):
-        return self.calc.prior_single_bin_field(10**a * self.BINSIZE**2, m, v2) * 10**a * np.log(10)*self.BINSIZE**2
-    
-    
-class BetaPolyaGammaDensity2D(pgd.KwargsUpdater, pgd.Mixin2D, pgd.BetaSigmoidMixin, pgd.KwargsSink):
+        return self.calc.prior_single_bin_field(
+            10**a * self.BINSIZE**2, m, v2
+        ) * 10**a * np.log(10)*self.BINSIZE**2
+
+class AValueAnalyser(pgd.KwargsUpdater, AValueMixin, pgd.KwargsSink):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+class BetaPolyaGammaDensity(pgd.KwargsUpdater, pgd.BetaSigmoidMixin, pgd.Density, pgd.KwargsSink):
+    """
+    Docstring for PolyGammaDensity
+    """
+    def __init__(self,  **kwargs):
+        super().__init__(
+            **kwargs
+        )
+
+class BetaPolyaGammaDensity2D(pgd.KwargsUpdater, pgd.Mixin2D, pgd.BetaSigmoidMixin, pgd.Density, pgd.KwargsSink):
     """
     Docstring for PolyGammaDensity2D
     specialized in 2Dimensional data
@@ -419,35 +509,96 @@ class BetaPolyaGammaDensity2D(pgd.KwargsUpdater, pgd.Mixin2D, pgd.BetaSigmoidMix
         super().__init__(
             **kwargs
         )
+rng = np.random.default_rng()
 
+def trunc_exp(m, D, lam):
+    m, D, lam = np.broadcast_arrays(m, D, lam)       # m, D, lam may be scalars or arrays
+    a = m - D/2
+    u = rng.random(m.shape)                          # one independent draw per element
+    with np.errstate(divide="ignore", invalid="ignore"):
+        x = a - np.log1p(u * np.expm1(-lam*D)) / lam
+    return np.where(lam == 0, a + D*u, x)            # uniform limit where lam == 0
 
-class BValueMixin(AValueMixin):
+class BValueMixin(CatalogAnalyserMixin):
 
     def __init__(self,  **kwargs):
         self.kwargs['PGCLASS'] = BetaPolyaGammaDensity2D
-        self.lam = 2*self.beta_from_b(self.prior_bvalue)
 
         super().__init__(**kwargs)
 
+        self.lam = 2*self.beta_from_b(self.prior_bvalue)
+        self.catalog.BINSIZE= kwargs['BINSIZE']
 
-        f = self.prior_mean_value_f
-        b = self.b_from_f(f)
-        b1, b2 = self.b_from_f(f-0.5), self.b_from_f(f+0.5)
-        print(f, b, b1, b2)
-        
-        
-        magsum = self.binning_mag['counts'].ravel()
-        nobs = self.calc.nobs.ravel()
+        self.update_data()
+        self.update_calc()
 
-        #weight = np.where(nobs > 0, magsum + nobs * self.magbinsize/2 - nobs * self.Mc, 0)
+        self.magnitudes = [ self.catalog.mag[I] for I in self.catalog.binning_count['I']]
 
-        self.calc.weight = magsum
+    @cached_property
+    def Ibool(self):
+        return self.calc.nobs > 0
 
-    
+    @cached_property
+    def I(self):
+        n = np.arange(self.calc.nbins)
+        return n[self.Ibool]
+
+    def resample_magnitudes(self, f):
+        beta = self.calc.field_from_f(f)
+        D = self.magbinsize
+        w = np.zeros(self.calcI.nbins)
+
+        for i, j in enumerate(self.I):
+            I = self.catalog.binning_count['I'][j]
+
+            #m = trunc_exp(self.catalog.mag[I], D, beta[i] )
+            m = self.catalog.mag[I]
+            w[i] = np.sum(m - self.Mc + D/2)
+        self.calcI.weight = w
+        return f
+
+    def sample_posterior(self, **kwargs):
+        return self.calcI.sample_posterior(after_cycle_method=self.resample_magnitudes, **kwargs)
+
+    def binning_mag(self):
+        return self.catalog.binning_mag
+
+    def update_data(self):
+        """
+        ensures recomputation of binin from the catalog
+        This allows modifications of the catalog
+        """
+        pass
+        #self.I = self.catalog.binning_count['counts'].ravel() > 0  # the set of active boxes
+
+    def update_calc(self):
+        self._setup_grid()
+
+        self.calc  = self.PGCLASS(**self.kwargs)
+        self.calcI = self.PGCLASS(**self.kwargs)
+
+        counts = self.catalog.binning_count['counts'].ravel()
+        self.calc.set_data(counts)
+        self.calcI.set_data(counts[self.Ibool])
+
+        pmean = self.prior_mean_value_f
+
+        result = self._apply_prior(self.calc, pmean, sparse=self.SPARSE)
+        if self.COVARIANCECLASS:
+            sub = result[np.ix_(self.Ibool, self.Ibool)]
+            self.calcI.set_prior_Gaussian(prior_mean=pmean[self.I],
+                                         prior_covariance=sub, sparse=self.SPARSE)
+        else:
+            covar = ck.inverse_sparse(result)
+            self.calcI.set_prior_Gaussian(prior_mean=pmean[self.Ibool],
+                                          prior_covariance=covar[np.ix_(self.Ibool, self.Ibool)], sparse=False)
+
+        self.calc.weight = self.calcI.weight = 1
+        self.calc.lam = self.calcI.lam = self.lam
+
     @property
     def prior_mean_value_f(self):
-        return 0 * self.f_from_b(self.prior_bvalue)
-
+        return np.zeros(self.n * self.m)
 
     def f_from_b(self, b):
         return self.calc.f_from_field(self.beta_from_b(b))
@@ -462,6 +613,9 @@ class BValueMixin(AValueMixin):
         return np.log(10) * b
 
 
+class BValueAnalyser(pgd.KwargsUpdater, BValueMixin, pgd.KwargsSink):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
 if __name__=='__main__':
     pass
