@@ -15,7 +15,7 @@ from pathlib import Path
 from matplotlib.colors import LogNorm
 from matplotlib.colors import PowerNorm
 from collections.abc import Iterable
-from sksparse.cholmod import cholesky
+from sksparse.cholmod import cholesky, CholeskyFactor
 from pathlib import Path
 
 from types import SimpleNamespace
@@ -101,14 +101,17 @@ def _as_cholmod_lower_factor(factor):
     """
     Normalize scikit-sparse/CHOLMOD return variants to (L, permutation).
 
-    Newer local builds can return (L, p) directly. Older scikit-sparse builds
-    return a Factor object.
+    Accept (L, p), the 0.5 CholeskyFactor API, and older Factor objects.
     """
     # Small adapter for different scikit-sparse versions:
     # some return (L, perm) directly, others return a Factor object.
     # In the end we always want the same format: sparse Cholesky L and perm.
     if isinstance(factor, tuple):
         return factor[0].tocsc(), np.asarray(factor[1], dtype=int)
+
+    if hasattr(factor, "get_factor"):
+        lower = factor.get_factor(kind="LL", lower=True).tocsc()
+        return lower, np.asarray(factor.get_perm(), dtype=int)
 
     lower = factor.L().tocsc()
     if hasattr(factor, "P"):
@@ -879,6 +882,8 @@ class SigmoidMixin(Density):
         elif self.mode == Density.PRECISION and self.sparse:
             print('case PRECISION sparse')
             Sigma0_inv_mu0 = self.prior_precision @ mu0
+            # Diagonal PG weights change values, not the prior's sparsity pattern.
+            factor = CholeskyFactor(self.prior_precision + np.eye(nbins), lower=True)
 
         else:
             raise Exception('not implemented yet')
@@ -943,12 +948,16 @@ class SigmoidMixin(Density):
             elif self.mode == Density.PRECISION and self.sparse:
                 A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
 
-                factor = cholesky(A, lower=True)
-                tmp = self.apply_cholesky_sparse_inverse(factor, b)
-                m = self.apply_cholesky_sparse_inverse_T(factor, tmp)
+                factor.factorize(A, ldl=False)
+                lower_factor = factor.get_factor(lower=True)
+                # lower_factor = _as_cholmod_lower_factor(factor)
+
+                m = factor.solve(b)
+                # tmp = self.apply_cholesky_sparse_inverse(lower_factor, b)
+                # m = self.apply_cholesky_sparse_inverse_T(lower_factor, tmp)
 
                 z = np.random.normal(size=nbins)
-                eps = self.apply_cholesky_sparse_inverse_T(factor, z)
+                eps = self.apply_cholesky_sparse_inverse_T(lower_factor, z)
 
                 f = m + eps
 
