@@ -19,6 +19,7 @@ Ansonsten ist rho mehr der besprochene Parameter.)
 
 from dataclasses import dataclass
 from pathlib import Path
+import importlib.util
 import math
 import sys
 
@@ -29,9 +30,16 @@ import scipy.sparse.linalg as sla
 
 
 SOURCE_DIR = Path(__file__).resolve().parents[1] / "source"
-sys.path.insert(0, str(SOURCE_DIR))
+# Der Quellordner heisst hier "source", interne Imports nutzen den Paketnamen.
+spec = importlib.util.spec_from_file_location(
+    "polyagammapoisson", SOURCE_DIR / "__init__.py",
+    submodule_search_locations=[str(SOURCE_DIR)],
+)
+package = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = package
+spec.loader.exec_module(package)
 
-from covariance_kernels import laplacian_2d
+from polyagammapoisson.covariance_kernels import laplacian_2d
 
 
 DIRECTIONS = {
