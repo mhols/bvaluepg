@@ -1121,7 +1121,401 @@ def experiment_subpixel_lambda():
 
     plt.tight_layout()
   
+def experiment_local_lambda():
 
+    np.random.seed(10)
+
+    # -------------------------------------------------------
+    # 1. Configuration
+    # -------------------------------------------------------
+
+    n = 16
+    m = 16
+    M = n * m
+
+    rho = 3
+    v2 = 0.4
+    prior_mean = -2.2
+
+    precision = ck.precision_matern(
+        n, m,
+        rho=rho,
+        v2=v2,
+        boundary="symmetric",
+    )
+
+
+    # -------------------------------------------------------
+    # 2. Create the true local lambda
+    # -------------------------------------------------------
+
+    true_lam = np.full(M, 12.0)
+
+    # Three isolated cells with large lambda values
+    true_lam[3*m + 4] = 50.0
+    true_lam[9*m + 11] = 75.0
+    true_lam[12*m + 6] = 100.0
+
+
+    # -------------------------------------------------------
+    # 3. Generate synthetic observations
+    # -------------------------------------------------------
+
+    generator = pgd.PolyaGammaDensity2D(
+        lam=true_lam,
+        local_lam=True,
+        n=n,
+        m=m,
+    )
+
+    generator.set_prior_Gaussian(
+        prior_mean=np.full(M, prior_mean),
+        prior_precision=precision,
+        sparse=True,
+    )
+
+    true_f = generator.random_prior_parameters()
+
+    true_rate = generator.field_from_f(true_f)
+
+    data = generator.random_events_from_field(true_rate)
+
+    print("Total observed events:", np.sum(data))
+    print("Maximum count:", np.max(data))
+
+
+    # -------------------------------------------------------
+    # 4. Set up the estimators for local and global lambda
+    # -------------------------------------------------------
+
+    lam_prior_shape = 0.1
+    lam_prior_rate = lam_prior_shape / 12.0
+
+    estim_local = pgd.PolyaGammaDensity2D(
+        lam=12.0,
+        local_lam=True,
+        lam_prior_shape=lam_prior_shape,
+        lam_prior_rate=lam_prior_rate,
+        n=n,
+        m=m,
+    )
+
+    estim_global = pgd.PolyaGammaDensity2D(
+        lam=12.0,
+        local_lam=False,
+        lam_prior_shape=lam_prior_shape,
+        lam_prior_rate=lam_prior_rate,
+        n=n,
+        m=m,
+    )
+
+    estim_local.set_prior_Gaussian(
+        prior_mean=np.full(M, prior_mean),
+        prior_precision=precision,
+        sparse=True,
+    )
+
+    estim_global.set_prior_Gaussian(
+        prior_mean=np.full(M, prior_mean),
+        prior_precision=precision,
+        sparse=True,
+    )
+
+    estim_local.set_nobs(data)
+    estim_global.set_nobs(data)
+
+
+    # -------------------------------------------------------
+    # 5. Gibbs sampling
+    # -------------------------------------------------------
+
+    posterior_f_sum = np.zeros(M)
+    posterior_lam_sum = np.zeros(M)
+    posterior_rate_sum = np.zeros(M)
+
+    nsamples = 0
+
+    for f, lam_sample in estim_local.sample_posterior(
+        initial_f=np.full(M, prior_mean),
+        n_iter=400,
+        burn_in=100,
+        random_seed=1,
+        sample_lam=True,
+        return_lam=True,
+    ):
+
+        rate_local = estim_local.field_from_f(f)
+
+        posterior_f_sum += f
+        posterior_lam_sum += lam_sample
+        posterior_rate_sum += rate_local
+
+        nsamples += 1
+
+
+    posterior_f_mean_local = posterior_f_sum / nsamples
+    posterior_lam_mean_local = posterior_lam_sum / nsamples
+    posterior_rate_mean_local = posterior_rate_sum / nsamples
+
+    # Reset accumulators before sampling the global model
+    posterior_f_sum = np.zeros(M)
+    posterior_lam_sum = np.zeros(M)
+    posterior_rate_sum = np.zeros(M)
+
+    nsamples = 0
+
+    for f, lam_sample in estim_global.sample_posterior(
+        initial_f=np.full(M, prior_mean),
+        n_iter=400,
+        burn_in=100,
+        random_seed=1,
+        sample_lam=True,
+        return_lam=True,
+    ):
+
+        rate_local = estim_global.field_from_f(f)
+
+        posterior_f_sum += f
+        posterior_lam_sum += lam_sample
+        posterior_rate_sum += rate_local
+
+        nsamples += 1
+
+
+    posterior_f_mean_global = posterior_f_sum / nsamples
+    posterior_lam_mean_global = posterior_lam_sum / nsamples
+    posterior_rate_mean_global = posterior_rate_sum / nsamples
+
+
+    # -------------------------------------------------------
+    # 6. Plot the results
+    # -------------------------------------------------------
+
+    fig, axes = plt.subplots(2, 3, figsize=(12, 7))
+
+    plots = [
+        (true_f, "True latent field"),
+        (true_lam, "True local lambda"),
+        (true_rate, "True Poisson intensity"),
+        (data, "Observed counts"),
+        (posterior_lam_mean_global, "Posterior mean lambda global"),
+        (posterior_rate_mean_global, "Posterior mean intensity global"),
+        (posterior_lam_mean_local, "Posterior mean lambda local"),
+        (posterior_rate_mean_local, "Posterior mean intensity local"),
+    ]
+
+    for ax, (values, title) in zip(axes.flat, plots):
+
+        im = ax.imshow(
+            values.reshape(n, m),
+            origin="lower",
+            cmap="viridis",
+        )
+
+        ax.set_title(title)
+
+        plt.colorbar(im, ax=ax)
+
+    plt.tight_layout()
+
+    fig, axes = plt.subplots(1, 3, figsize=(10, 4))
+
+    im0 = axes[0].imshow(
+        true_f.reshape(n, m),
+        origin="lower",
+        vmin=-4,
+        vmax=1,
+    )
+
+    axes[0].set_title("True latent field")
+    plt.colorbar(im0, ax=axes[0])
+
+    im1 = axes[1].imshow(
+        posterior_f_mean_global.reshape(n, m),
+        origin="lower",
+        vmin=-4,
+        vmax=1,
+    )
+
+    axes[1].set_title("Posterior mean latent field (global lambda)")
+    plt.colorbar(im1, ax=axes[1])
+
+    im2 = axes[2].imshow(
+        posterior_f_mean_local.reshape(n, m),
+        origin="lower",
+        vmin=-4,
+        vmax=1,
+    )
+
+    axes[2].set_title("Posterior mean latent field (local lambda)")
+    plt.colorbar(im2, ax=axes[2])
+
+
+    plt.tight_layout()
+
+    peak_positions = [
+        (3, 4),
+        (9, 11),
+        (12, 6),
+    ]
+
+    print("\nComparison at exceptional cells")
+    print("-" * 75)
+
+    for row, col in peak_positions:
+
+        i = row * m + col
+
+        print(f"\nCell ({row}, {col})")
+
+        print("Observed count:", data[i])
+
+        print("True f:", true_f[i])
+        print("Posterior mean f(global lambda):", posterior_f_mean_global[i])
+        print("Posterior mean f(local lambda):", posterior_f_mean_local[i])
+
+        print("True lambda:", true_lam[i])
+        print("Posterior mean lambda(global):", posterior_lam_mean_global[i])
+        print("Posterior mean lambda(local):", posterior_lam_mean_local[i])
+
+        print("True intensity:", true_rate[i])
+        print("Posterior mean intensity(global):", posterior_rate_mean_global[i])
+        print("Posterior mean intensity(local):", posterior_rate_mean_local[i])
+
+    # Identify the three exceptional cells
+    peak_indices = [
+        3 * m + 4,
+        9 * m + 11,
+        12 * m + 6,
+    ]
+
+    # Select all other cells
+    background = np.ones(M, dtype=bool)
+    background[peak_indices] = False
+
+    # Compare the estimated local scales
+    print("\nLocal lambda outside exceptional cells")
+
+    print(
+        "True mean lambda:",
+        np.mean(true_lam[background])
+    )
+
+    print(
+        "Posterior mean lambda (global):",
+        np.mean(posterior_lam_mean_global[background])
+    )
+
+    print(
+        "Posterior mean lambda (local):",
+        np.mean(posterior_lam_mean_local[background])
+    )
+
+    print(
+        "Posterior median lambda (global):",
+        np.median(posterior_lam_mean_global[background])
+    )
+
+    print(
+        "Posterior median lambda (local):",
+        np.median(posterior_lam_mean_local[background])
+    )
+
+    # Error in the Gaussian field
+    rmse_f_global = np.sqrt(
+        np.mean((posterior_f_mean_global - true_f)**2)
+    )
+
+    rmse_f_local = np.sqrt(
+        np.mean((posterior_f_mean_local - true_f)**2)
+    )
+
+    # Error if we simply estimate f using the prior mean
+    rmse_prior = np.sqrt(
+        np.mean((prior_mean - true_f)**2)
+    )
+
+    print("\nGaussian field reconstruction")
+
+    print("RMSE posterior f (global):", rmse_f_global)
+    print("RMSE posterior f (local):", rmse_f_local)
+    print("RMSE prior mean:", rmse_prior)
+
+    rmse_lambda_background_global = np.sqrt(
+        np.mean(
+            (posterior_lam_mean_global[background] - true_lam[background])**2
+        )
+    )
+
+    rmse_lambda_background_local = np.sqrt(
+        np.mean(
+            (posterior_lam_mean_local[background] - true_lam[background])**2
+        )
+    )
+
+    print(
+        "RMSE lambda outside peaks (global):",
+        rmse_lambda_background_global
+    )
+
+    print(
+        "RMSE lambda outside peaks (local):",
+        rmse_lambda_background_local
+    )
+
+    return {
+        "true_f": true_f,
+        "true_lam": true_lam,
+        "true_rate": true_rate,
+        "data": data,
+        "posterior_f_mean_global": posterior_f_mean_global,
+        "posterior_f_mean_local": posterior_f_mean_local,
+        "posterior_lam_mean_global": posterior_lam_mean_global,
+        "posterior_lam_mean_local": posterior_lam_mean_local,
+        "posterior_rate_mean_global": posterior_rate_mean_global,
+        "posterior_rate_mean_local": posterior_rate_mean_local,
+    }
+
+    # RMSE of the Poisson intensity over all cells
+
+    rmse_rate_global = np.sqrt(
+        np.mean(
+            (posterior_rate_mean_global - true_rate)**2
+        )
+    )
+
+    rmse_rate_local = np.sqrt(
+        np.mean(
+            (posterior_rate_mean_local - true_rate)**2
+        )
+    )
+
+    print("\nPoisson intensity reconstruction")
+
+    print("RMSE intensity (global):", rmse_rate_global)
+    print("RMSE intensity (local):", rmse_rate_local)
+
+    background = np.ones(M, dtype=bool)
+    background[peak_indices] = False
+
+    # RMSE of the intensity outside the exceptional cells
+
+    rmse_rate_background_global = np.sqrt(
+        np.mean(
+            (posterior_rate_mean_global[background] - true_rate[background])**2
+        )
+    )
+
+    rmse_rate_background_local = np.sqrt(
+        np.mean(
+            (posterior_rate_mean_local[background] - true_rate[background])**2
+        )
+    )
+
+    print("\nIntensity RMSE outside exceptional cells")
+
+    print("Global:", rmse_rate_background_global)
+    print("Local:", rmse_rate_background_local)
 
 
 if __name__ == "__main__":
@@ -1212,6 +1606,6 @@ if __name__ == "__main__":
 
     #experiment_subpixel()
 
-    experiment_subpixel_lambda()
+    experiment_local_lambda()
 
     plt.show()
