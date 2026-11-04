@@ -2,6 +2,8 @@ __doc__="a class to use the Polya-Gamma technique for density estimation"
 
 import numpy as np
 import scipy as sp
+import gc
+from sksparse.cholmod import cho_factor
 from scipy.linalg import cho_solve
 import scipy.linalg.blas as blas
 import scipy.linalg as spla
@@ -17,10 +19,11 @@ from matplotlib.colors import PowerNorm
 from collections.abc import Iterable
 from sksparse.cholmod import cholesky
 from pathlib import Path
-
+from functools import cached_property
 from types import SimpleNamespace
 import sys
-
+import os
+import psutil
 
 import polyagammapoisson.build_mix_explink as eme
 ### Experiments sollte unabhaengig sein von diesem Modul... 
@@ -30,6 +33,13 @@ from polyagamma import random_polyagamma
 
 #import syntheticdata as sd
 import matplotlib.pyplot as plt
+
+process = psutil.Process(os.getpid())
+
+def mem():
+    m = process.memory_info()
+    print(f"RSS: {m.rss / 1024**2:8.1f} MiB")
+    print(f"VMS: {m.vms / 1024**2:8.1f} MiB")
 
 
 def to_numpy(x, dtype=float):
@@ -71,7 +81,47 @@ def normalize_log(p):
 
     return tmp
 
+def sample_gaussian_precision(factor):
+    n = factor.L().shape[0]
+    z = np.random.normal(size=n)
 
+    # Solve L.T @ y = z
+    y = sparse_linalg.spsolve_triangular(factor.L().T.tocsc(), z, lower=False)
+
+    # Apply inverse permutation
+    x = np.empty_like(y)
+    x[factor.P()] = y
+
+    return x
+import numpy as np
+from scipy.sparse.linalg import spsolve_triangular
+
+
+def sample_from_gaussian_precision_b(factor, b):
+    """
+    Sample from density proportional to
+
+        exp(-0.5 * x.T @ A @ x + b.T @ x)
+
+    where P @ A @ P.T = L @ L.T.
+    """
+    L = factor.L
+    perm = np.asarray(factor.get_perm(), dtype=int)
+
+    # Mean: A^{-1} b
+    bp = b[perm]
+    y = spsolve_triangular(L, bp, lower=True)
+    mu = np.empty_like(y)
+    mu[perm] = y
+
+    # Gaussian noise with covariance A^{-1}
+    z = np.random.normal(size=len(b))
+    noise = spsolve_triangular(L.T.tocsc(), z, lower=False)
+
+    x_noise = np.empty_like(noise)
+    x_noise[perm] = noise
+
+    return mu + x_noise
 
 
 def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:
@@ -259,7 +309,7 @@ class Density:
     def set_prior_Gaussian(self, prior_mean=None, prior_covariance=None, prior_precision=None, sparse=False, **kwargs):
 
         if not prior_covariance is None:
-            self.prior_covariance = np.asarray(prior_covariance, dtype=float)
+            self.prior_covariance = prior_covariance
             n,m = prior_covariance.shape
             self.sparse = False
             self._Lprior = None
@@ -529,7 +579,9 @@ class Density:
         return normalize_log( self.log_prior_single_observation_f(f, mu, gamma2))
 
     def prior_single_observation_field(self, field, mu, gamma2):
-        return normalize_log(self.log_prior_single_observation_field(field, mu, gamma2))
+        return np.where(field>0, 
+                    normalize_log(self.log_prior_single_observation_field(field, mu, gamma2)),
+                    0)
     
     def posterior_single_observation_field(self, field, mu, gamma2, n):
         tmp = self.log_likelihood_single_observation_field(field, n)
@@ -599,8 +651,8 @@ class Density:
         """
         centered = f - self.prior_mean
         if self.mode == Density.PRECISION:
-            #prior_quad = np.sum(centered * (self.prior_precision @ centered))
-            prior_quad = np.sum( (self.cholprec @ centered)**2)
+            prior_quad = np.sum(centered * (self.prior_precision @ centered))
+            #prior_quad = np.sum( (self.cholprec @ centered)**2)
         
         elif self.mode == Density.COVARIANCE:
             prior_quad = np.sum(
@@ -611,7 +663,7 @@ class Density:
 
         llh = -self.loglikelihood(f)
 
-        print(llh, self.gamma*prior_quad/2)
+        #print(llh, self.gamma*prior_quad/2)
 
         return llh + self.gamma * prior_quad / 2
     
@@ -781,7 +833,7 @@ class SigmoidMixin(Density):
 
     @lam.setter
     def lam(self, value):
-        value = float(value)
+        #value = float(value)
 
         self.kwargs['lam'] = value
 
@@ -919,19 +971,22 @@ class SigmoidMixin(Density):
             raise Exception('not implemented yet')
         
 
-        
         # Gibbs loop
         for it in range(n_iter):
-            print('iteration ', it)
             if sample_lam:
                 self.lam = self.sample_lam_cond_f(f)
 
             if after_cycle_method is not None:
-                f = after_cycle_method(f)
+                f = after_cycle_method(f) # may have sideffects
 
             # --- Step 1: sample k gegenben f ---
             # Die Rate für die latenten „negativen“ Zählungen ist lam * sigmoid(-f)
-            rate_neg = self.field_from_f(-f)
+            print(it)
+            if self.weight is None:
+                weight = 1
+            else:
+                weight = self.weight
+            rate_neg = weight * self.field_from_f(-f)
             k = np.random.poisson(rate_neg)
 
             # --- Step 2: sample w gegeben f und counts ---
@@ -963,12 +1018,10 @@ class SigmoidMixin(Density):
                 rhs = spla.solve_triangular(chol, rhs, lower=True, trans=True)
                 m = self.Lprior @ rhs
 
-                print('m', m)
 
                 # sampling of new f 
                 z = np.random.normal(size=nbins)
 
-                print('z', z[:5])
                 eps = spla.solve_triangular(chol, z, lower=True, trans=True)
                 eps = self.Lprior @ eps
 
@@ -976,9 +1029,19 @@ class SigmoidMixin(Density):
                 f = m + eps
 
             elif self.mode == Density.PRECISION and self.sparse:
+                """
+                if it == 0:
+                    A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
+                    factor = cho_factor(A, lower=True)
+                else:
+                    A.setdiag(self.prior_precision.diagonal()+w)
+                    factor.factorize(A)
+                f = sample_from_gaussian_precision_b(factor, b)
+                """
+                
                 A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
-
                 factor = cholesky(A, lower=True)
+
                 tmp = self.apply_cholesky_sparse_inverse(factor, b)
                 m = self.apply_cholesky_sparse_inverse_T(factor, tmp)
 
@@ -986,6 +1049,10 @@ class SigmoidMixin(Density):
                 eps = self.apply_cholesky_sparse_inverse_T(factor, z)
 
                 f = m + eps
+
+                del A, tmp, m, z, eps
+                print (it)
+                
 
 
             elif self.mode == Density.PRECISION and not self.sparse:   
@@ -1028,29 +1095,26 @@ class BetaSigmoidMixin(SigmoidMixin):
         :param f: the paramters
         """
         I = self.nobs > 0
-        nobs = self.nobs[I]
-        beta = self.field_from_f(f)[I]
-        weight = self.weight[I] #(typically sum of magnitudes)
+        nobs = self.nobs
+        beta = self.field_from_f(f)
+        weight = self.weight if self.weight else 1 #(typically sum of magnitudes)
  
         Mc = self.Mc
         A = self.BINSIZE**2
 
         return np.sum(nobs * np.log(2 * np.sinh(beta*self.magbinsize/2)) \
-            - A * beta * (weight - nobs * Mc))
+            - beta * weight)
     
  
     def neg_grad_logposterior(self, f):
         """
         """
         nobs = self.nobs.ravel()
-        I = nobs > 0
         beta = self.field_from_f(f)
         dbetadf = self.derivative_field_from_f(f)
-        summag = self.weight
-        A = self.BINSIZE**2
-        res = ( np.where(I, 
-            ( self.magbinsize * self.nobs /  np.tanh(beta * self.magbinsize/2), 0) + \
-               + A * (summag - self.nobs * self.Mc) ) ) * dbetadf
+        weight = self.weight
+        res = self.magbinsize * nobs /  np.tanh(beta * self.magbinsize/2) + \
+               +  weight  * dbetadf
 
         if self.mode == Density.COVARIANCE:
 
@@ -1076,6 +1140,9 @@ class BetaSigmoidMixin(SigmoidMixin):
                     self.Lprior, centered, trans=False, lower=True)**2)
         else:
             raise Exception('not implemented yet')
+
+        negloglh = -self.loglikelihood(f)
+        print(negloglh, prior_quad / 2)
 
         return -self.loglikelihood(f) +  prior_quad / 2
  
@@ -1336,12 +1403,15 @@ class ExponentialMixin:
 
  
     
-class PolyaGammaDensity(SigmoidMixin, Density):
+class PolyaGammaDensityMixin(SigmoidMixin, Density):
 
     def __init__(self, **kwargs):
         super().__init__(
            **kwargs
         )
+
+
+
 
 class RampDensity(SmoothRampMixin, Density):
     def __init__(self,  **kwargs):
@@ -1372,6 +1442,23 @@ class Mixin2D:
     @property
     def ny(self):
         return self.n
+
+    def central_delta(self, iy=None, jx=None ):
+        if not self.sparse:
+            raise Exception('not implemented yet')
+
+        e_ref = np.zeros(self.prior_precision.shape[0])
+        n = self.ny
+        m = self.nx
+        if iy is None:
+            iy = n//2
+        if jx is None:
+            jx = m //2
+        e_ref[iy*m + jx] = 1
+
+        return sparse_linalg.spsolve(self.prior_precision, e_ref)   # kernel column of P0^{-1} corresponding to the reference cell
+
+
     
     @classmethod
     def image_to_scanorder(cls, image):
@@ -1393,8 +1480,9 @@ class Mixin2D:
             f'number of elements do not correspond {(ny, ny)}  {len(linear_image.ravel())}'
         return np.reshape(linear_image, (ny, nx), order="C")
 
-    def nx_ny_to_scanorder(self, ny=0, nx=0):
-        return self.nx* ny + nx 
+    def ny_nx_to_scanorder(self, ny=0, nx=0):
+        return self.nx* ny + nx
+
 
     def random_catalog_from_nobs(self, nobs):
 
@@ -1416,7 +1504,7 @@ class Mixin2D:
     def to_image(self, d):
         self.scanorder_to_image(d)
     
-    def imshow(self, d, **kwargs):
+    def imshow(self, d, ny=None, nx=None, **kwargs):
         d = np.array(d, dtype=float)
         kwargs.pop('origin', None)
         plt.imshow( self.scanorder_to_image(d), origin='upper', **kwargs)
@@ -1536,7 +1624,7 @@ class MixinSubPixel2D(Mixin2D, SubPixelMixin):
 
 
 
-class PolyaGammaDensity2D(KwargsUpdater, Mixin2D, PolyaGammaDensity, KwargsSink):
+class PolyaGammaDensity2D(KwargsUpdater, Mixin2D, PolyaGammaDensityMixin, KwargsSink):
     """
     Docstring for PolyGammaDensity2D
     specialized in 2Dimensional data
@@ -1549,6 +1637,10 @@ class PolyaGammaDensity2D(KwargsUpdater, Mixin2D, PolyaGammaDensity, KwargsSink)
             #sparse=sparse,
             **kwargs
         )
+
+class PolyaGammaDensity(KwargsUpdater, PolyaGammaDensityMixin, KwargsSink):
+    def __init__(self, **kwargs):
+        super().init(**kwargs)
 
    
 class RampDensity2D(KwargsUpdater, Mixin2D, RampDensity, KwargsSink):

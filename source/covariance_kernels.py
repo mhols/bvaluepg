@@ -2,6 +2,8 @@ import numpy as np
 from polyagammapoisson.polyagammadensity import Mixin2D 
 import scipy.sparse as sps
 import scipy.sparse.linalg as sparse_linalg
+import scipy.sparse.linalg as spla
+import scipy.sparse as sps
 
 import matplotlib.pyplot as plt
 
@@ -136,25 +138,47 @@ def precision_matern(n=None, m=None, rho=None, v2=None, h=None, boundary="zero",
     s_ref              Varianz dieser Referenzzelle   
     """
     laplacian = laplacian_2d(n, m, boundary=boundary)
-    alpha = 0.5 / (np.cosh(1/rho) -1)
-
     if h is None:
-        A = (sps.eye(n * m, format="csr") + alpha * laplacian).tocsc()
+        #alpha = 0.5 / (np.cosh(1/rho) -1)
+        alpha = 2 * (np.cosh(1/rho) -1) #  simeq 
     else:
-        A = h**2 * (sps.eye(n * m, format="csr") + h**(-2) * alpha * laplacian).tocsc()
-        P0 = A.T @ A
+        rho = rho / h
+        alpha = 2 * (np.cosh(1/rho) -1)
     if h is None:
-        e_ref = np.zeros(P0.shape[0])
-        e_ref[(n//2)*m + m//2] = 1
+        A = (alpha * sps.eye(n * m, format="csr") + laplacian).tocsc()
+        P0 = A.T @ A
+    else:
+        A = (h**2 * alpha * sps.eye(n * m, format="csr") +  laplacian).tocsc()
+        P0 = A.T @ A
+    e_ref = np.zeros(P0.shape[0])
+    e_ref[(n//2)*m + m//2] = 1
 
-        covariance_column = sparse_linalg.spsolve(P0, e_ref)   # kernel column of P0^{-1} corresponding to the reference cell
+    covariance_column = sparse_linalg.spsolve(P0, e_ref)   # kernel column of P0^{-1} corresponding to the reference cell
 
-        s_ref = np.sum(covariance_column * e_ref)
-        P0 = (s_ref / v2) * P0
+    s_ref = covariance_column[(n//2)*m + m//2] #np.sum(covariance_column * e_ref)
+    P0 = (s_ref / v2) * P0
     if cholesky:
-        return P0, A
+        return P0, np.sqrt(s_ref / v2) * A
     else:
         return P0
+
+def inverse_sparse(LQ):
+    LQ = sps.csr_matrix(LQ)
+    n = LQ.shape[0]
+    I = np.eye(n)                                         # dense (n, n)
+
+    X = spla.spsolve_triangular(LQ, I, lower=True)        # solves L X = I
+    return spla.spsolve_triangular(LQ.T.tocsr(), X, lower=False)  # solves Lᵀ Y = X
+
+
+def central_delta(n, m, covar):
+    e_ref = np.zeros(covar.shape[0])
+    e_ref[(n//2)*m + m//2] = 1
+
+    return sparse_linalg.spsolve(covar, e_ref)   # kernel column of P0^{-1} corresponding to the reference cell
+
+
+    
 
 def precision_matern_9pt(n=None, m=None, tau=1.0, alpha=0.2, v2=None, boundary="zero", rho=None, **kwargs):
     """

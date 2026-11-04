@@ -51,6 +51,11 @@ Toni Luhdo, Manfred Opper}
 
 \begin{frame}{Goal}
 
+\begin{block}{Spoiler}
+Spoiler: do not expext new results in seismology. Goal is to introduce an efficient
+sampling technique.
+\end{block}
+
 Correlated Poisson random variables (with marks) are central building block of 
 Seismic models
 
@@ -66,9 +71,571 @@ Contribution of this work:
 
 \textbf{efficient exact sampling from discrete proxy models}
 
-a plug in solution at essentially no extra extra cost
+a plug in solution at essentially no extra cost
 
 \end{frame}
+
+
+\begin{frame}{Correlated Poissonian variables}
+
+Collection of Poissonian random variables
+(e.g.~counts in cells $\Omega_i$)
+$$
+n_i  \sim \mbox{Poisson}(\gamma_i) = 
+\frac{\gamma_i^{n_i} e^{-\gamma_i}}{n_i!}
+$$
+Poissonian rates $\gamma_i$ are obtained from discrete 
+latent variables $f_i$
+$$
+\gamma_i = \lambda_i \sigma(f_i) = \frac{\lambda_i}{1+e^{-f_i}}
+$$
+
+\begin{figure}
+\center
+\includegraphics[width=0.6\textwidth]{figures/sigmoid.png}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}{Covariance structure}
+Discrete proxy process multivariate Gaussian 
+$$
+f = [f_1, f_2, \dots f_M]^T  \sim \mathcal N( \mu, \Sigma_{ij})
+$$
+
+\begin{figure}
+\centering
+\includegraphics[width=\textwidth]{./figures/priorillustration.png}
+\end{figure}
+
+\end{frame}
+
+
+% \begin{frame}{Continuous - discret mapping}
+
+% Mapping continuous $\Sigma$ to discrete matrix $\Sigma_{i, j}$ is 
+% not always straigthforward. For (exact) sampling from a proxy space
+%  and \textbf{correlation length $\gg$ size of pixel}
+% \[
+% \mu_i = \mu(x_i),\quad \Sigma_{i, j} \simeq \Sigma(x_i, x_j), \quad x_i\ \mbox{center of $Q_i$}
+% \]
+% But for the map estimator we rather need
+% $$
+% \Gamma_{i, j} = \langle \phi_i\,\phi_j \rangle_{\mathcal{H}}
+% $$
+% \end{frame}
+
+\begin{frame}{Posterior information through sampling}
+Posterior sampling of $f_i$ given $n_i$ 
+$$
+\log \mathbb{P}(f_i | n_i) = 
+\sum_i n_i \log L_i - \sum_i L_i \quad -\frac{1}{2}(f-\mu) \Sigma^{-1}(f-\mu)
+$$
+With nonlinear link function
+$$
+L_i(f_i) =  \frac{\lambda_i}{1+e^{-f_i}}
+$$
+
+Posterior not Gaussian. Diect computation not feasable.
+
+\begin{itemize}
+    \item Laplace approximation (=Gaussian approximation around MAP)
+    \item proxy Laplace through second order development (e.g.around prior mean)
+    \item \textbf{exact sampling through data augmentation} (this talk)
+\end{itemize}
+\end{frame}
+
+\begin{frame}{Laplace approximation}
+
+
+
+Posterior is not Gaussian but Laplace approximation is. Sampling is easy but
+we expect differences of $5$ to $10$ percent (at low intensity)
+
+\begin{columns}
+\begin{minipage}{0.7\textwidth}
+\begin{figure}
+   \centering 
+\includegraphics[width=\textwidth]{./figures/laplaceapprox.pdf}
+\end{figure}
+\end{minipage}
+\begin{minipage}{0.3\textwidth}
+    \footnotesize
+Laplace approximation of loglikelihood
+$$
+-\log\mathbb{L} =
+$$
+$$
+ (f-f_0)^T Q (f-f_0)/2 
+$$
+\end{minipage}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Data augmentation}
+
+Likelihood factor from the Poisson distribution (up to multiplicative constants 
+that only depend on the data or hyper parameters)
+$$
+    \sigma(f_i)^{n_i} e^{-\lambda_i \sigma(f_i)}
+$$
+Using symmetry
+$$
+\sigma(f_i) + \sigma(-f_i) = 1
+$$
+and thus at fixed $f_i$
+\[
+\begin{array}{rl}
+e^{-\lambda_i\sigma(f_i)} &= e^{-\lambda_i(1 - \sigma(-f_i))}\cr
+&= e^{-\lambda_i}\,e^{\lambda_i\sigma(-f_i)} \cr
+&= C_{te}(f_i,\lambda_i)\sum_{k=0}^\infty 
+\frac{(\lambda_i\sigma(-f_i))^k}{k!} e^{-\lambda_i\sigma(-f_i)}.
+\end{array}
+\]
+This suggests latent random counts given $f_i$
+\[
+k_i\mid f_i \sim \operatorname{Poisson}(\lambda_i\sigmoid(-f_i)).
+\]
+
+\end{frame}
+
+\begin{frame}{$k$ augented likelihood}
+Together with the observed counts and some fixed $k$
+ this gives the augmented likelihood
+\[
+\mathcal{L}_i = 
+\mathbb{L}(f_i \mid n_i, k_i)
+\propto
+\left(\sigmoid(f_i)\right)^{n_i}
+\left(\sigmoid(-f_i)\right)^{k_i}
+=
+\frac{e^{n_i f_i}}{(1+e^{f_i})^{n_i+k_i}}.
+\]
+The sceme so far a sigmoid mixture model with sampling strategy
+$$
+k | f  \sim \mbox{Poisson}(\lambda_i\sigma(-f_i)),\quad f | k \sim \mbox{uggly non product density}
+$$
+
+\end{frame}
+\begin{frame}{Gaussian mixture}
+\medskip
+This logistic form can be decomposed into Gaussians using the P\'olya--Gamma 
+variables $PG(\omega| b, 0)$ ($b=n_i+k_i$).\\
+Gaussian mixture model
+\[
+\frac{e^{n f}}{(1+e^{f})^{n+k}}
+= C_{te} e^{ (n-k) f / 2}
+\int_0^\infty
+\exp\left(
+-\frac12\omega f^2 
+\right)
+PG(\omega\mid b,0)\,d\omega.
+\]
+We therefore have to sample from the tilted P\'olya--Gamma distribution
+$$
+\omega_i| k_i, f_i  \sim PG(\omega_i| b_i, f_i) \propto e^{-\omega_i f_i^2/2} PG(\omega_i\mid b_i,0).
+$$
+E.g. \textbf{polygamma.py or pypolyagamma.py} for Python package.
+\end{frame}
+
+\begin{frame}{The total scheme (exact!)}
+
+For observed bincounts $n_i$ choose arbitrary initial 
+$f_i$ and then iterate through
+
+$\bullet$ Sample \textbf{independent} auxiliary independent variables $k_i$
+$$
+k_i | f_i, n_i \sim \mbox{Poisson} ( \lambda_i \sigmoid(-f_i)).
+$$
+$\bullet$ Define $b_i=n_i+k_i$, $\kappa_i=(n_i-k_i)/2$.
+Sample \textbf{independent} auxiliary random variables $\omega_i$ from the tilted Polyagamma distribution
+\[
+\omega_i\mid f_i,b_i,n_i \sim PG(b_i,f_i).
+\]
+$\bullet$ Sample the \textbf{collective/joint} $f_i$ from the modified Gaussian
+\[
+f\mid n,k,\omega \sim \mathcal N(m,Q^{-1}),
+\qquad
+m=Q^{-1}h.
+\]
+with (prior Gaussian $\mu$, $\Sigma$)
+\[
+Q=\Sigma^{-1}+\Omega,
+\qquad
+h=\Sigma^{-1}\mu+\kappa,
+\qquad
+\Omega=\operatorname{diag}(\omega_1,\dots,\omega_N).
+\]
+
+\end{frame}
+
+\begin{frame}{Uniform ergodicity}
+
+We can prove:
+
+\begin{block}{Theorem (C. Chavez-Chong et al.)}
+The sequence of samples $f^{(n)}$ are uniformly ergodic. 
+
+Their distribution  converges 
+exponentially fast to the invariant distribution of the chain.
+
+This unique invariant distribution is the  posterior distribution.
+\end{block}
+
+Numerical complexity 
+$$
+\sim \mbox{\# events}^0 \sim 1, \quad \sim \mbox{\# bins}^3
+$$
+Precomputations possible
+\end{frame}
+
+\begin{frame}{Sparsity}
+
+Only computational load is
+\[
+Q=\Sigma^{-1}+\Omega,
+\qquad
+m=Q^{-1}(\Sigma^{-1}\mu+\kappa),
+\qquad
+\Omega=\operatorname{diag}(\omega_1,\dots,\omega_N).
+\]
+And for sampling from the associated Gaussian 
+$\mathcal{N}(Q^{-1}h, Q^{-1})$
+\[
+Q = L L^T\quad \mbox{Cholesky decomposition}
+\]
+
+
+Therefore \textbf{sparsenesss} of precision matrix $\Sigma^{-1}$ is what pays off.
+
+\begin{columns}[T]
+\begin{column}{0.45\textwidth}
+\begin{center}
+\includegraphics[width=\textwidth]{figures/9-point_stencil.png}
+\end{center}
+\end{column}
+\begin{column}{0.55\textwidth}
+\small
+
+For Matern kernel (e.g.)
+$$
+\Sigma^{-1} = \gamma (\alpha\mathbb{I} - \Delta)^2
+$$
+$\Delta$ approximated by discrete Laplacian
+
+Width of kernel in pixel $\rho\leftrightarrow\alpha$
+$$
+\alpha = (\cosh(1/\rho) -1)/2 \sim \rho^{-2}
+$$
+Many more methods to construct "good" sparse precision matrices. Standard
+probelm in machine learning.
+
+\end{column}
+\end{columns}
+
+\end{frame}
+
+\begin{frame}{Synthetic tests}
+False inverse crime: choose reality. True inverse crime: sample "reality" 
+from the prior.
+
+
+
+\begin{figure}
+\includegraphics[width=0.4\textwidth]{./figures/Figure_9.png}
+\includegraphics[width=0.4\textwidth]{./figures/Figure_10.png}
+\end{figure}
+
+Low contrast data ($\lambda_1=5$, $\lambda_2=5.5$)
+The subbins are $8\times8$ for each square. We take $\rho=10$ pixel.
+\end{frame}
+
+\begin{frame}{samples}
+posterior samples
+\begin{figure}
+\includegraphics[width=0.8\textwidth]{./figures/Figure_13.png}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}{posterior mean}
+\begin{figure}
+\includegraphics[width=0.8\textwidth]{./figures/Figure_14.png}
+\end{figure}
+\end{frame}
+
+
+\begin{frame}{Stretto di Messina on $5\times5$ binning}
+INGV catalog events $>2.5$ over 10 years, Zaliapin et al. declustered, binsize $5x5 km$
+\begin{figure}
+\center
+\includegraphics[width=0.8\textwidth]{./figures/fig2_1_binned_data}
+\end{figure}
+\end{frame}
+
+\begin{frame}{Discrete covariance prior from continuous process prior}
+
+    Continuous model of seismcity ($f_i \mapsto f(x)$ )
+    $$
+        \gamma(x) = 10^{a(x)}, \quad a(x) = \log_{10} \gamma(x) \quad 
+        \mbox{Poissonian intensity}
+    $$
+    $$
+        \gamma(x) = \quad \frac{\lambda}{1+e^{-f}}
+    $$
+    With $f(x)$ Gaussian process prior
+    $$
+        \mathbb{E}(f(x)) = \mu(x), \quad  \mathbb{C}ov(f(x), f(x')) = K(x, x^\prime)
+    $$
+    Discrete proxy for pixel $Q_i$ of surface $h^2$. 
+    \textbf{exact statistics} at the centers $x_i\in Q_i$
+    $$
+        \mu_i = \mu(x_i), \quad \Sigma_{i, j} =  K(x_i, x_j)
+    $$
+    \textbf{No scaling of $f_i$} with pixel size $h^2$. Scaling of $\lambda_h$ 
+    $$
+        \gamma_i = \frac{ h^2 \lambda |Q_i|}{1+e^{-f_i}}\quad \lambda_h = h^2  \lambda
+    $$
+\end{frame}
+
+
+
+\begin{frame}{Basic statistics}
+
+    $667$ events in $344$ bins over an area of $37\,625\,\mathrm{km}^2$.
+
+    Choice of prior: $\lambda = 16$, $a_{\mathrm{prior}} = -2$ $\leftrightarrow$ $\bar{f}= -3.7$,
+    density = $\frac{25}{37\,625}\,\mathrm{km}^{-2}$ or average distance between events $39 km$.
+   
+     
+    Variance of $f$: $2$. Covariance kernel Matern,  $\nu=4$  with  "correlation length" $50 km$.
+    \vspace{-0.2cm}
+
+    \begin{columns}[c,onlytextwidth]
+        \begin{column}{0.64\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{./figures/fig1_A_nobs.png}
+            \end{figure}
+        \end{column}
+
+        \begin{column}{0.36\textwidth}
+             \footnotesize
+             
+             \vfill
+
+            Expected distribution of $n$ under the prior:
+
+            \[
+                p(n) =
+                \int_0^\infty
+                \frac{\gamma^n e^{-\gamma}}{n!}
+                \, p(\gamma)\, \mathrm{d}\gamma.
+            \]
+            And 
+            \[
+                p(\gamma) \mathrm{d}\gamma = L(f)  \mathrm{d}f
+            \]
+            \[
+                L(f) = \frac{\lambda}{1+e^{-f}}
+            \]
+
+        \vfill
+
+        \end{column}
+    \end{columns}
+
+\end{frame}
+
+
+    \begin{frame}{Random prior samples}
+
+    Width of kernel $\rho=50km$, binsize = $5 \times 5 km^2$
+
+    \begin{columns}[c,onlytextwidth]
+
+        \begin{column}{0.7\textwidth}
+            \begin{figure}
+                \centering
+                \includegraphics[width=\textwidth]{./figures/fig3_random_prior.png}
+            \end{figure}
+        \end{column}
+
+        \begin{column}{0.3\textwidth}
+
+
+             \footnotesize
+
+             \vfill
+
+            $a$ value at pixel $Q_i$ with center $x_i$:
+
+            \[
+                \gamma_i = 10^{a(x_i)} \times |Q_i|
+            \]
+
+            $\gamma_i$ is Poissonian rate of pixel $Q_i$
+
+            \vfill
+
+        \end{column}
+
+    \end{columns}
+
+\end{frame}
+
+\begin{frame}{Posterior samples}
+Posterior samples of $a$ value at binsize $5 \times 5 km^2$
+  
+    \vspace{-0.2cm}
+
+  \begin{figure}
+                \centering
+               \includegraphics[width=0.8\textwidth]{./figures/fig5_1_rp_large.png}
+   \end{figure}
+ 
+
+\end{frame}
+
+\begin{frame}{Posterior mean of $a$-value}
+Posterior mean and max MAP estimator of $a$ value
+\[
+    \mathbb{E} a(x) | \mbox{posterior} = \int a(f(x)) d\mathbb{P}(f) 
+\]
+  \begin{figure}
+                \centering
+               \includegraphics[width=0.7\textwidth]{./figures/fig5_2_rm_large.png}
+               %\includegraphics[width=0.49\textwidth]{./figures/fig5_2_map_large.png}
+   \end{figure}
+
+\end{frame}
+
+\begin{frame}{Posterior std of a-value}
+  \begin{figure}
+                \centering
+               \includegraphics[width=0.8\textwidth]{./figures/fig5_2_std_small.png}
+   \end{figure}
+
+\end{frame}
+
+\begin{frame}{Difference to MAP}
+
+The relative difference of Poissonian rates is of order of $5$ to $10$ percent 
+
+MAP tends to underestimate the rate in low seismicity regions
+
+  \begin{figure}
+                \centering
+               \includegraphics[width=0.7\textwidth]{./figures/diff_small.png}
+   \end{figure}
+
+\end{frame}
+
+\begin{frame}{Grid refinement}
+  $5\times5$ grid (left) and $2\times2$ grid are consistent
+
+  \begin{figure}
+                \centering
+               \includegraphics[width=0.49\textwidth]{./figures/fig5_2_rm_large.png}
+               \includegraphics[width=0.49\textwidth]{./figures/fig5_2_rm_small.png}
+   \end{figure}
+
+
+\end{frame}
+
+\begin{frame}{Hyper parameters / structures}
+Gibbs sampling for hyper parameters $\theta$
+$$
+\overbrace{\theta \quad \rightarrow\quad f}^{\mathbb{P}(f \mid \theta)} 
+\quad\rightarrow\quad \overbrace{f\quad \rightarrow\quad f}^{\scriptsize\mbox{augmentet scheme using $\theta$}}
+\quad \rightarrow \quad \overbrace{f \quad \rightarrow \quad \theta}^{\mathbb{P}(\theta \mid f)}
+$$
+Followed by data augmentation sampling
+
+Examples for $\theta$
+
+\begin{itemize}
+    \item $\lambda$ Gamma prior
+    \item $\rho$ Metropolis Hastings 
+    \item categorial variables (event probability detection rates) $n_i+\eta_i$
+    \item location uncertainties (location inside bin and bin crossing given $f$)
+    \item magnitude bining (magdistribution given $b(f)$)
+    \item ETAS: Poisson Bernulli sampling 
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{$b$-value estimation}
+
+Full seismicity (i.e. Poisson intensity in $x$ and $m$ ) 
+$$
+\gamma(x, m) = 10^{a(x) - b(x) m}
+$$
+\textbf{Nota no $m_0$}.
+Conditioned on $m>m_0$ we may write with modified definition for $a$ value
+$$
+\gamma(x, m) =  b(x) 10^{\tilde a(x) -  b(x) (m-m_0)}
+$$
+Original $a$ and $b$ values my be recovered
+$$
+a(x) = \tilde a(x) + \log_{10} b(x) -m_0 b(x) 
+$$
+Conditioned on $m>m_0$ may be estimated indepently (if prior factorizes)
+Likelihood function of $\beta=\log(10) \tilde b(x) $ 
+for binned data (in $x$) reads
+$$
+L(b(x)| x_i, m_i)  = \prod_{j=1}^{N} w_j^{n_j} e^{-\gamma_j \beta(x_j)},\quad
+w_j =  \sum_{x_i\in Q_j}(m_{i, j}-m_0) 
+$$
+\end{frame}
+
+\begin{frame}{Binned magnitudes}
+
+We write
+$$
+\beta_j = \lambda \sigma(f_j)
+$$
+
+    For magnitude bins of size $\Delta$ and center $m_c$ resample for each magnitude 
+     given $\beta_j=\gamma_j\sigma(f_j)$ in each surface bin
+$$
+m \sim \frac{\beta e^{-\beta m}}{e^{-\beta m_c +\Delta/2} - e^{-\beta m_c -\Delta/2}}
+ = \frac{2\beta e^{-\beta(m - m_c)}}{\sinh(\Delta/2)}
+$$
+Then use these magnitudes to compute weight $\gamma_j$ in each surface bin $Q_j$
+$$
+    w_j = \sum_{x_i\in Q_j}(m_{i, j}-m_0)
+$$
+Resample $f_j$ using the Polyagamma trick with $\gamma_j = \lambda w_j$. 
+\end{frame}
+
+\begin{frame}{b-value for a $5\times 5$ model}
+
+Consistency across scales needs location error induced correction
+  \begin{figure}
+                \centering
+               \includegraphics[width=0.7\textwidth]{./figures/b_value_large.png}
+   \end{figure}
+
+\end{frame}
+
+\begin{frame}{Conclusion}
+
+    \begin{itemize}
+        \item Polya gamma augmentation straight forward
+        \item For sparse precision matrices enormous speedup
+        \item Precomputation of sparsity structure possible
+        \item Consistent across scales for Poisson densities
+        \item More general link functions possible (e.g. $e^f$, $\log(1+e^{f})$)
+    \end{itemize}
+
+\end{frame}
+
+
+
+\end{document}
+
 
 
 %\section{Motivation}
@@ -168,176 +735,6 @@ $$
 
 \end{frame}
 
-\begin{frame}{Correlated Poissonian variables}
-
-Collection of Poissonian random variables
-(e.g.~counts in cells $\Omega_i$)
-$$
-n_i = \sim \mbox{Poisson}(\gamma_i) = 
-\frac{\gamma_i^{n_i} e^{-\gamma_i}}{n_i!}
-$$
-Poissonian rates $\gamma_i$ are obtained from discrete 
-latent variables $f_i$
-$$
-\gamma_i = \lambda_i \sigma(f_i) = \frac{\lambda_i}{1+e^{-f_i}}
-$$
-Discrete proxy process multivariate Gaussian 
-$$
-f = [f_1, f_2, \dots f_M]^T  \sim \mathcal N( \mu, \Sigma_{ij})
-$$
-\end{frame}
-
-% \begin{frame}{Continuous - discret mapping}
-
-% Mapping continuous $\Sigma$ to discrete matrix $\Sigma_{i, j}$ is 
-% not always straigthforward. For (exact) sampling from a proxy space
-%  and \textbf{correlation length $\gg$ size of pixel}
-% \[
-% \mu_i = \mu(x_i),\quad \Sigma_{i, j} \simeq \Sigma(x_i, x_j), \quad x_i\ \mbox{center of $Q_i$}
-% \]
-% But for the map estimator we rather need
-% $$
-% \Gamma_{i, j} = \langle \phi_i\,\phi_j \rangle_{\mathcal{H}}
-% $$
-% \end{frame}
-
-\begin{frame}{Posterior information through sampling}
-Posterior sampling of $f_i$ given $n_i$ 
-$$
-\log \mathbb{P}(f_i | n_i) = 
-\sum_i n_i \log L(f_i) - \sum_i L(f_i) - (f-\mu) \Sigma^{-1}(f-\mu) / 2
-$$
-
-Posterior is not Gaussian but Laplace apprximation is.
-\begin{columns}
-\begin{minipage}{0.7\textwidth}
-\begin{figure}
-   \centering 
-\includegraphics[width=\textwidth]{./figures/laplaceapprox.png}
-\end{figure}
-\end{minipage}
-\begin{minipage}{0.3\textwidth}
-Laplace approximation for $f_i$ 
-quadratic approx
-$$
--\log\mathbb{P} =
-$$
-$$
- (f-f_0)^T Q (f-f_0)/2 
-$$
-\end{minipage}
-\end{columns}
-
-\end{frame}
-
-\begin{frame}{Data augmentation}
-
-We propose \textbf{two stage data augmentation} 
-scheme to \textbf{exactly} 
-sample from the posterior distribution without approximation (= no Laplace sheme etc).
-
-The exponential part can be rewritten as (for fixed $f_i$ ) using
-$$
-\sigma(f_i) + \sigma(-f_i) = 1
-$$
-%and thus
-%\begin{array}
-%e^{-\lambda\sigmoid(f_i)} = e^{-\lmabda( 1 - \sigma(-f_i))}\\
-%= e^{-\lambda}\,e^{\lambda\sigmoid(-f_i)} \\
-%= C_{te}(f_i,\lambda)\sum_{k=0}^\infty \frac{(\lambda\sigmoid(-f_i))^k}{k!} e^{-\lambda\sigma(-f_i)}.
-%\end{array}
-
-and thus at fixed $f_i$
-\[
-\begin{array}{rl}
-e^{-\lambda_i\sigma(f_i)} &= e^{-\lambda_i(1 - \sigma(-f_i))}\cr
-&= e^{-\lambda_i}\,e^{\lambda_i\sigma(-f_i)} \cr
-&= C_{te}(f_i,\lambda_i)\sum_{k=0}^\infty 
-\frac{(\lambda_i\sigma(-f_i))^k}{k!} e^{-\lambda_i\sigma(-f_i)}.
-\end{array}
-\]
-This suggests latent counts
-\[
-k_i\mid f_i \sim \operatorname{Poisson}(\lambda_i\sigmoid(-f_i)).
-\]
-
-\end{frame}
-
-\begin{frame}{Abstract model of correlated Poisson variables}
-Together with the observed counts this gives the augmented likelihood
-\[
-\mathbb{P}(f_i \mid n_i, k_i)
-\propto
-\left(\sigmoid(f_i)\right)^{n_i}
-\left(\sigmoid(-f_i)\right)^{k_i}
-=
-\frac{e^{n_i f_i}}{(1+e^{f_i})^{n_i+k_i}}.
-\]
-
-\medskip
-This logistic form can be decomposed into Gaussians using the P\'olya--Gamma 
-variables $PG(\omega| b, 0)$ ($b=n_i+k_i$). Gaussian mixture model
-\[
-\frac{e^{n f}}{(1+e^{f})^{n+k}}
-= C_{te} e^{ (n-k) f / 2}
-\int_0^\infty
-\exp\left(
--\frac12\omega f^2 
-\right)
-PG(\omega\mid b,0)\,d\omega.
-\]
-We therefore have to sample from the tilted P\'olya--Gamma distribution
-$$
-\omega_i| k_i, f_i  \sim PG(\omega_i| b_i, f_i) \propto e^{-\omega_i f_i^2/2} PG(\omega_i\mid b_i,0).
-$$
-E.g. \textbf{polygamma.py or pypolyagamma.py} for Python package.
-\end{frame}
-
-\begin{frame}{The total scheme (exact!)}
-
-For observed bincounts $n_i$ choose arbitrrary initial 
-$f_i$ and then iterate through
-
-$\bullet$ Sample \textbf{independent} auxiliary independent variables $k_i$
-$$
-k_i | f_i, n_i \sim \mbox{Poisson} ( \lambda_i \sigmoid(-f_i)).
-$$
-$\bullet$ Define $b_i=n_i+k_i$, $\kappa_i=(n_i-k_i)/2$.
-Sample \textbf{independent} auxiliary random variables $\omega_i$ from the tilted Polyagamma distribution
-\[
-\omega_i\mid f_i,b_i,n_i \sim PG(b_i,f_i).
-\]
-$\bullet$ Sample the \textbf{collective/joint} $f_i$ from the modified Gaussian
-\[
-f\mid n,k,\omega \sim \mathcal N(m,Q^{-1}),
-\qquad
-m=Q^{-1}h.
-\]
-with (prior Gaussian $\mu$, $\Sigma$)
-\[
-Q=\Sigma^{-1}+\Omega,
-\qquad
-h=\Sigma^{-1}\mu+\kappa,
-\qquad
-\Omega=\operatorname{diag}(\omega_1,\dots,\omega_N).
-\]
-
-\end{frame}
-
-\begin{frame}{Uniform ergodicity}
-
-We can prove:
-
-\begin{block}{Theorem (C. Chavez-Chong et al.)}
-The sequence of samples $f^{(n)}$ are uniformly ergodic. 
-
-Their distribution  converges 
-exponentially fast to the invariant distribution of the chain.
-
-This unique invariant distribution is the Bayesian posterior distribution.
-\end{block}
-\end{frame}
-
 
 \begin{frame}{Choice of prior covariance I}
 
@@ -360,217 +757,7 @@ where
 
 \end{frame}
 
-\begin{frame}{Sparsity}
 
-Only computational load is
-\[
-Q=\Sigma^{-1}+\Omega,
-\qquad
-h=\Sigma^{-1}\mu+\kappa,
-\qquad
-\Omega=\operatorname{diag}(\omega_1,\dots,\omega_N).
-\]
-And for sampling from the associated Gaussian 
-$\mathcal{N}(h, Q^{-1})$
-\[
-Q = L L^T\quad \mbox{Cholesky decomposition}
-\]
-
-
-Therefore \textbf{sparsenesss} of precision matrix $\Sigma^{-1}$ is what pays off.
-
-\begin{columns}[T]
-\begin{column}{0.45\textwidth}
-\begin{center}
-\includegraphics[width=\textwidth]{figures/9-point_stencil.png}
-\end{center}
-\end{column}
-\begin{column}{0.55\textwidth}
-\small
-
-For Matern kernel
-$$
-\Sigma^{-1} = (\gamma (\mathbb{I} - \alpha \Delta))^2
-$$
-$\Delta$ approximated by discrete Laplacian (e.g $9$ point stencil).
-
-Width of kernel in pixel $\rho\leftrightarrow\alpha$
-$$
-\alpha = (\cosh(1/\rho) -1)/2 \sim \rho^{-2}
-$$
-
-\end{column}
-\end{columns}
-
-\end{frame}
-
-\begin{frame}{Synthetic tests}
-False inverse crime: choose reality. True inverse crime: sample "reality" 
-from the prior.
-
-\begin{figure}
-\includegraphics[width=0.4\textwidth]{./figures/Figure_9.png}
-\includegraphics[width=0.4\textwidth]{./figures/Figure_10.png}
-\end{figure}
-
-Low contrast data ($\lambda_1=5$, $\lambda_2=5.5$)
-\end{frame}
-
-\begin{frame}{samples}
-posterior samples
-\begin{figure}
-\includegraphics[width=0.8\textwidth]{./figures/Figure_13.png}
-\end{figure}
-
-\end{frame}
-
-\begin{frame}{posterior mean}
-\begin{figure}
-\includegraphics[width=0.8\textwidth]{./figures/Figure_14.png}
-\end{figure}
-\end{frame}
-
-
-\begin{frame}{Stretto di Messina}
-INGV catalog events $>2.5$ over 10 years, BZ declustered, binsize $5x5 km$
-\begin{figure}
-\center
-\includegraphics[width=0.9\textwidth]{./figures/fig2_1_binned_data.png}
-\end{figure}
-\end{frame}
-
-\begin{frame}{Basic statistics}
-
-    $667$ events in $344$ bins over an area of $37\,625\,\mathrm{km}^2$.
-
-    Choice of prior: $\lambda = 16$, $a_{\mathrm{prior}} = -2$,
-    $\gamma_{\mathrm{prior}} = \frac{100}{37\,625}\,\mathrm{km}^{-2}$.
-
-    Prior variance of $f$: $2$.
-
-    \vspace{0.3cm}
-
-    \begin{columns}[c,onlytextwidth]
-        \begin{column}{0.64\textwidth}
-            \begin{figure}
-                \centering
-                \includegraphics[width=\textwidth]{./figures/fig1_A_nobs.png}
-            \end{figure}
-        \end{column}
-
-        \begin{column}{0.36\textwidth}
-             \footnotesize
-             
-             \vfill
-
-            Expected distribution of $n$ under the prior:
-
-            \[
-                p(n) =
-                \int_0^\infty
-                \frac{\gamma^n e^{-\gamma}}{n!}
-                \, p(\gamma)\, \mathrm{d}\gamma.
-            \]
-            And 
-            \[
-                p(\gamma) \mathrm{d}\gamma = L(f)  \mathrm{d}f
-            \]
-            \[
-                L(f) = \frac{\lambda}{1+e^{-f}}
-            \]
-
-        \vfill
-
-        \end{column}
-    \end{columns}
-
-\end{frame}
-
-\begin{frame}{Discrete covariance prior}
-
-    Continuous model of seismcity
-    $$
-        \gamma(x) = 10^{a(x)}, \quad \mbox{Poissonian intensity}
-    $$
-    $$
-        \gamma(x) = \quad \frac{\lambda}{1+e^{-f}}
-    $$
-    With $f(x)$ Gaussian process prior
-    $$
-        \mathbb{E}(f(x)) = \mu(x), \quad  \mathbb{C}ov(f(x), f(x')) = K(x, x^\prime)
-    $$
-    Discrete proxy for pixel $Q_i$: \textbf{exact statistics} at the centers $x_i\in Q_i$
-    $$
-        \mu_i = \mu(x_i), \quad \Sigma_{i, j} =  K(x_i, x_j)
-    $$
-    \textbf{No scaling of $f_i$} with pixel size $|Q_i|$. Scaling of $\lambda_i$ 
-    $$
-        \gamma_i = \frac{\lambda_i |Q_i|}{1+e^{-f_i}}\quad \lambda_i = \lambda |Q_i|
-    $$
-
-\end{frame}
-
-
-    \begin{frame}{Random prior samples}
-
-    Width of kernel $\rho=50km$, binsize = $5 \times 5 km^2$
-
-    \begin{columns}[c,onlytextwidth]
-
-        \begin{column}{0.7\textwidth}
-            \begin{figure}
-                \centering
-                \includegraphics[width=\textwidth]{./figures/fig3_random_prior.png}
-            \end{figure}
-        \end{column}
-
-        \begin{column}{0.3\textwidth}
-
-
-             \footnotesize
-
-             \vfill
-
-            $a$ value at pixel $Q_i$ with center $x_i$:
-
-            \[
-                \gamma_i = 10^{a(x_i)} \times |Q_i|
-            \]
-
-            $\gamma_i$ is Poissonian rate of pixel $Q_i$
-
-            \vfill
-
-        \end{column}
-
-    \end{columns}
-
-\end{frame}
-
-\begin{frame}{Posterior samples}
-Posterior samples of $a$ value at binsize $5 \times 5 km^2$
-  \begin{figure}
-                \centering
-               \includegraphics[width=0.95\textwidth]{./figures/fig5_1_rp_large.png}
-   \end{figure}
- 
-
-\end{frame}
-\begin{frame}{Posterior mean}
-Posterior mean and max MAP estimator of $a$ value
-\[
-    \mathbb{E} a(x) | \mbox{posterior} = \int a(f(x)) \mathbb{P}(f), \quad MAP = \mbox{argmin} \mathbb{P}(f| \{n_i\})
-\]
-  \begin{figure}
-                \centering
-               \includegraphics[width=0.49\textwidth]{./figures/fig5_1_rm_large.png}
-               \includegraphics[width=0.49\textwidth]{./figures/fig4_mag_logposterior_5x5.png}
-   \end{figure}
-
-\end{frame}
-
-
-\end{document}
 
 \begin{frame}{Choice of prior covariance III}
 

@@ -1,4 +1,4 @@
-from polyagammapoisson.catalog.catalog import Catalog, MapMixin, BValueMixin, AValueMixin
+from polyagammapoisson.catalog.catalog import CatalogMixin, MapMixin, BValueMixin, AValueMixin
 from polyagammapoisson.catalog import coordinates
 from pathlib import Path
 import zipfile
@@ -39,7 +39,7 @@ CATALOGS = {
 
 
 
-class ItalyMxin(MapMixin, Catalog):
+class ItalyMxin(MapMixin, CatalogMixin):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -50,8 +50,8 @@ class ItalyMxin(MapMixin, Catalog):
 
     @property
     def coastlines(self):
-        print('self.polygons', self.polygons)
-        print('has attr', hasattr(self, 'polygons'))
+        #print('self.polygons', self.polygons)
+        #print('has attr', hasattr(self, 'polygons'))
         if not hasattr(self, 'polygons') or self.polygons is None:
 
             print(self.cache_file)
@@ -111,7 +111,7 @@ class SicilyCalabria(ItalyMxin):
         self.downsample_catalog()
 
 
-class StrettoDiMessina(ItalyMxin):
+class StrettoDiMessina(pgd.KwargsUpdater, ItalyMxin, pgd.KwargsSink):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -130,16 +130,6 @@ class ItalyBValue(pgd.KwargsUpdater, BValueMixin, ItalyMxin, pgd.KwargsSink):
         super().__init__(**kwargs)
 
 class SicilyCalabriaBValue(pgd.KwargsUpdater, BValueMixin,  SicilyCalabria, pgd.KwargsSink ):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-class StrettoDiMessinaBValue(pgd.KwargsUpdater, BValueMixin, StrettoDiMessina, pgd.KwargsSink):
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-class StrettoDiMessinaAValue(pgd.KwargsUpdater, AValueMixin, StrettoDiMessina, pgd.KwargsSink):
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 

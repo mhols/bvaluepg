@@ -123,6 +123,14 @@ class CatalogMixin(pgd.Mixin2D):
 
 
     @property
+    def depth(self):
+        return self._catDataFrame.loc[self.I, 'Depth'].to_numpy()
+
+    @property
+    def _depth(self):
+        return self._catDataFrame['Depth']
+
+    @property
     def time(self):
         return self._catDataFrame.loc[self.I, 'Time'].to_numpy()
 
@@ -317,15 +325,13 @@ class CatalogMixin(pgd.Mixin2D):
             'extent': (xmin, xmin + nbinx * dkm, ymin, ymin+nbiny*dkm)
         }
 
-    @property
     def binning_count(self, size=None):
         dkm = size if size else self.BINSIZE
         tmp = self.binning_of(size=dkm, binfunc=lambda I: sum(I))
-        #self.n = tmp['nbiny']
-        #self.m = tmp['nbinx']
+        self.n = tmp['nbiny']
+        self.m = tmp['nbinx']
         return tmp
 
-    @property
     def binning_mag(self, size=None):
 
         dkm = size if size else self.BINSIZE
@@ -354,16 +360,16 @@ class MapMixin(pgd.Mixin2D):
             poly = np.column_stack((x, y))
             ax.plot(poly[:, 0], poly[:, 1], color=color, linewidth=linewidth, **kwargs)
 
-        #ax.set_aspect("equal")
-        #ax.set_xlim(self.xmin, self.xmax)
-        #ax.set_ylim(self.xmin, self.xmax)
+        ax.set_aspect("equal")
+        ax.set_xlim(self.xmin, self.xmax)
+        ax.set_ylim(self.ymin, self.ymax)
 
     def plot_event_locations(self, **kwargs):
         ax = plt.gca()
         ax.scatter(*self.xy, **kwargs)
-        #ax.set_aspect("equal")
-        #ax.set_xlim(self.xmin, self.xmax)
-        #ax.set_ylim(self.xmin, self.xmax)
+        ax.set_aspect("equal")
+        ax.set_xlim(self.xmin, self.xmax)
+        ax.set_ylim(self.xmin, self.xmax)
 
     def imshow(self, d, xylimext=None, **kwargs):
         ax = plt.gca()
@@ -375,7 +381,7 @@ class MapMixin(pgd.Mixin2D):
             extent = xylimext['extent']
         else:
             extent = None
-        super().imshow(d, extent=extent, **kwargs)
+        super().imshow(d,  extent=extent, **kwargs)
 
 
 class CatalogAnalyserMixin:
@@ -385,8 +391,23 @@ class CatalogAnalyserMixin:
     or created explicitly in a subclass __init__.
     """
 
+    def __init__(self, **kwargs):
+        self.catalog = kwargs['catalogclass'](**kwargs)
+
+    @cached_property
     def binning_count(self):
         return self.catalog.binning_count
+
+    @property
+    def ny(self):
+        return self.binning_count['nbiny']
+
+    @property
+    def nx(self):
+        return self.binning_count['nbinx']
+
+
+
 
     def imshow(self, pic, **kwargs):
         self.catalog.imshow(pic, **kwargs)
@@ -436,20 +457,20 @@ class AValueMixin(CatalogAnalyserMixin):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(lam=1, **kwargs)
-        self.catalog = kwargs['catalogclass'](**kwargs)
+        super().__init__(**kwargs)
         self.update_calc()
 
     def update_calc(self):
         self._setup_grid()
         self.calc = self.PGCLASS(**self.kwargs)
-        pmean = self.prior_mean_value_f
-        self._apply_prior(self.calc, pmean)
-        self.calc.set_nobs(self.catalog.binning_count['counts'])
         self.calc.alpha = 1
         self.calc.beta = 1
         self.calc.gamma = 1
         self.calc.lam = self.lamps * self.BINSIZE**2
+
+        pmean = self.prior_mean_value_f
+        self._apply_prior(self.calc, pmean)
+        self.calc.set_nobs(self.catalog.binning_count['counts'])
 
     def max_logposterior_estimator(self, f0=None):
         self.calc.alpha = 1
