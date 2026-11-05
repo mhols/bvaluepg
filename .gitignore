@@ -17,6 +17,11 @@ data/*.csv
 data/*.zip
 
 # figures
+*.png
+
+# binary files
+*.npz
+
 
 
 # Local test/debug outputs

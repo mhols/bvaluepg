@@ -1,0 +1,16 @@
+SOUTH ITALY FIXED-LAMBDA EXPERIMENT
+============================================================
+Events before declustering : 3932
+Events after declustering  : 2592
+Grid shape                 : (139, 92)
+Observed total N           : 2592
+Fixed lambda               : 100
+rho [km]                   : 40
+Prior variance parameter   : 6
+Prior mean                 : -5.3
+MCMC iterations            : 10
+Burn-in                    : 3
+Retained samples           : 7
+MAP total intensity        : 2570.524461
+Posterior mean total rate  : 2667.007761
+Posterior SD total rate    : 74.696355
