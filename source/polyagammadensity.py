@@ -828,14 +828,26 @@ class SigmoidMixin(Density):
         self.last_sample = None
 
     @property
+    def local_lam(self):
+        return bool(self.kwargs.get('local_lam', False))
+
+    @property
     def lam(self):
         return self.kwargs['lam']
 
     @lam.setter
     def lam(self, value):
-        #value = float(value)
 
-        self.kwargs['lam'] = value
+        value = np.asarray(value, dtype=float)
+
+        if self.local_lam:
+
+            self.kwargs['lam'] = value.copy()
+
+        else:
+
+            self.kwargs['lam'] = float(value)
+
 
     @property
     def lam_prior_shape(self): 
@@ -864,8 +876,12 @@ class SigmoidMixin(Density):
 
     def sample_lam_cond_f(self, f):
         #f = np.array(f, dtype=float)
-        shape = self.lam_prior_shape + np.sum(self.nobs)
-        rate = self.lam_prior_rate + np.sum(sigmoid(f))
+        if self.local_lam:
+            shape = self.lam_prior_shape + self.nobs
+            rate = self.lam_prior_rate + sigmoid(f)
+        else:
+            shape = self.lam_prior_shape + np.sum(self.nobs)
+            rate = self.lam_prior_rate + np.sum(sigmoid(f))
         return np.random.gamma(shape, 1/rate)
     
     def field_from_f(self, f):
@@ -923,6 +939,9 @@ class SigmoidMixin(Density):
 
         nbins = self.nbins
         mu0 = self.prior_mean
+
+        if self.local_lam and np.ndim(self.lam) == 0:
+            self.lam = np.ones(nbins) * self.lam
 
         # if self.mode == Density.COVARIANCE:
         #     # Avoid forming Sigma0^{-1} explicitly.  We only need products
@@ -1076,7 +1095,8 @@ class SigmoidMixin(Density):
                 self.last_sample = f
 
                 if return_lam:
-                    yield f, self.lam
+                    lam_sample = self.lam if not self.local_lam else self.lam.copy()
+                    yield f, lam_sample
                 else:
                     yield f
 
