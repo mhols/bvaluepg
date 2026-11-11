@@ -46,8 +46,8 @@ PRIOR_MEAN = 10**PRIOR_AVALUE * BIN_SIZE_KM **2 #-5.3
 BOUNDARY = "symmetric"
 
 MAP_NITER = 3000
-N_ITER = 100
-BURN_IN = 30
+N_ITER = 3000
+BURN_IN = 100
 THIN = 1
 RANDOM_SEED = 101
 N_POSTERIOR_SAMPLES_TO_PLOT = 4
@@ -249,7 +249,9 @@ def run_posterior(sampler, initial_f):
 
     count = 0
     with open(SAMPLER_LOG, "w") as log_handle, redirect_stdout(log_handle):
+        i = 0
         for f in generator:
+            i+=1
             f = np.asarray(f, dtype=float)
             #rate = sampler.a_from_f(f) # LAMBDA * expit(f)
             rate = LAMBDA * expit(f)
@@ -273,6 +275,8 @@ def run_posterior(sampler, initial_f):
 
     if count < 2:
         raise RuntimeError("Too few retained posterior samples.")
+
+    print ('comuted ', i, ' samples')
 
     return {
         "n_kept": count,
