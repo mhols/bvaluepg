@@ -1562,10 +1562,15 @@ class Mixin2D:
     def to_image(self, d):
         self.scanorder_to_image(d)
     
-    def imshow(self, d, ny=None, nx=None, **kwargs):
+    def imshow(self, d, ny=None, nx=None, axis=None, **kwargs):
         d = np.array(d, dtype=float)
         kwargs.pop('origin', None)
-        plt.imshow( self.scanorder_to_image(d), origin='upper', **kwargs)
+
+        if axis is None:
+            return plt.imshow( self.scanorder_to_image(d), origin='upper', **kwargs)
+        else:
+            return axis.imshow( self.scanorder_to_image(d), origin='upper', **kwargs)
+
 
 
 class Density2D(Mixin2D, Density):

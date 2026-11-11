@@ -342,7 +342,7 @@ class CatalogMixin(pgd.Mixin2D):
         """
         for plotting a 2D image
         """
-        return self.binning_count['extent']
+        return self.binning_count()['extent']
 
 
 
@@ -351,8 +351,9 @@ class MapMixin(pgd.Mixin2D):
 
 
 
-    def plot_coastlines(self, color='red', linewidth=1, **kwargs):
-        ax = plt.gca()
+    def plot_coastlines(self, axis=None, color='red', linewidth=1, **kwargs):
+
+        ax = axis if axis else plt.gca()
 
         for poly in self.coastlines:
             lon, lat = poly[:, 0], poly[:, 1]
@@ -365,8 +366,8 @@ class MapMixin(pgd.Mixin2D):
         ax.set_xlim(self.xmin, self.xmax)
         ax.set_ylim(self.ymin, self.ymax)
 
-    def plot_event_locations(self, **kwargs):
-        ax = plt.gca()
+    def plot_event_locations(self, axis=None, **kwargs):
+        ax = axis if axis else plt.gca()
         ax.scatter(*self.xy, **kwargs)
         ax.set_aspect("equal")
         ax.set_xlim(self.xmin, self.xmax)
@@ -382,7 +383,7 @@ class MapMixin(pgd.Mixin2D):
             extent = xylimext['extent']
         else:
             extent = None
-        super().imshow(d,  extent=extent, **kwargs)
+        return super().imshow(d,  extent=extent, **kwargs)
 
 
 class CatalogAnalyserMixin:
@@ -400,6 +401,7 @@ class CatalogAnalyserMixin:
     def binning_count(self):
         return self.catalog.binning_count()
 
+
     @property
     def ny(self):
         return self.binning_count['nbiny']
@@ -412,7 +414,7 @@ class CatalogAnalyserMixin:
 
 
     def imshow(self, pic, **kwargs):
-        self.catalog.imshow(pic, **kwargs)
+        return self.catalog.imshow(pic, xylimext=self.binning_count, **kwargs)
 
     def plot_event_locations(self, **kwargs):
         self.catalog.plot_event_locations(**kwargs)
@@ -474,12 +476,12 @@ class AValueMixin(CatalogAnalyserMixin):
         self._apply_prior(self.calc, pmean)
         self.calc.set_nobs(self.binning_count['counts'])
 
-    def max_logposterior_estimator(self, f0=None):
+    def max_logposterior_estimator(self, f0=None, **kwargs):
         self.calc.alpha = 1
         self.calc.beta = 1
         self.calc.gamma = 1
         self.calc.lam = self.lamps * self.BINSIZE**2
-        return self.calc.max_logposterior_estimator(f0)
+        return self.calc.max_logposterior_estimator(f0, **kwargs)
 
     def sample_posterior(self, **kwargs):
         self.calc.alpha = 1

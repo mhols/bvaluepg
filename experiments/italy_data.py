@@ -103,12 +103,16 @@ class ItalyMxin(MapMixin, CatalogMixin):
 
         return self.polygons
 
-class SicilyCalabria(ItalyMxin):
+class SicilyCalabria(pgd.KwargsUpdater, ItalyMxin, pgd.KwargsSink):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.filter_xy( -450, 250, -650, -190)
         self.downsample_catalog()
+        self.xmin = -450
+        self.xmax = 250
+        self.ymin = -590
+        self.ymax = -190
 
 
 class StrettoDiMessina(pgd.KwargsUpdater, ItalyMxin, pgd.KwargsSink):
@@ -125,13 +129,6 @@ class StrettoDiMessina(pgd.KwargsUpdater, ItalyMxin, pgd.KwargsSink):
         self.ymin = -590
         self.ymax = -420
 
-class ItalyBValue(pgd.KwargsUpdater, BValueMixin, ItalyMxin, pgd.KwargsSink):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-class SicilyCalabriaBValue(pgd.KwargsUpdater, BValueMixin,  SicilyCalabria, pgd.KwargsSink ):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
 
 
 

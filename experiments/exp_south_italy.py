@@ -37,18 +37,24 @@ MAG_MIN = 2.5
 DECLUSTER_ETA0 = -6.2
 
 LAMBDA = 100.0
+LAMBDA_PER_SURFACE = 100 / (5 * 5)
 
-RHO_KM = 40.0
-PRIOR_VARIANCE = 6.0
-PRIOR_MEAN = -5.3
+RHO_KM = 50.0
+PRIOR_VARIANCE = 4.0
+PRIOR_AVALUE = -2
+PRIOR_MEAN = 10**PRIOR_AVALUE * BIN_SIZE_KM **2 #-5.3
 BOUNDARY = "symmetric"
 
 MAP_NITER = 3000
-N_ITER = 10
-BURN_IN = 3
+N_ITER = 100
+BURN_IN = 30
 THIN = 1
 RANDOM_SEED = 101
 N_POSTERIOR_SAMPLES_TO_PLOT = 4
+
+PRECISIONCLASS = ck.precision_matern
+SPARSE = True
+BOUNDARY = 'symmetric'
 
 RESULTS_DIR = REPO_ROOT / "experiments" / "results" / "south_italy_simple_fixed_lambda"
 FIGURES_DIR = REPO_ROOT / "experiments" / "figures" / "south_italy_simple_fixed_lambda"
@@ -95,24 +101,38 @@ def add_coastlines(ax, cat):
 
 
 def vector_to_image(x, nbinx, nbiny):
-    return np.asarray(x).reshape(nbinx, nbiny, order="C").T
+    return np.asarray(x).reshape(nbinx, nbiny, order="C")
 
 
-def plot_map(ax, x, cat, nbinx, nbiny, title, cbar_label, cmap="viridis", norm=None):
-    im = ax.imshow(
-        vector_to_image(x, nbinx, nbiny),
-        extent=cat.extent,
-        origin="lower",
+def plot_map(fig, ax, x, A, nbinx, nbiny, title, cbar_label, cmap="viridis", norm=None):
+    im = A.imshow(
+        x,
+        axis=ax,
         interpolation="nearest",
         cmap=cmap,
         norm=norm,
         zorder=1,
     )
-    add_coastlines(ax, cat)
+
+    #im = ax.imshow(
+    #    vector_to_image(x, nbinx, nbiny),
+    #    extent=A.catalog.extent,
+    #    origin="upper",
+    #    interpolation="nearest",
+    #    cmap=cmap,
+    #    norm=norm,
+    #    zorder=1,
+    #)
+    A.plot_coastlines(axis=ax, color='white')
+
+
+    #add_coastlines(ax, cat)
     ax.set_title(title)
-    ax.set_xlabel(r"$x$ [km]")
-    ax.set_ylabel(r"$y$ [km]")
-    cbar = plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    ax.set_xlabel(r"longitude [km]")
+    ax.set_ylabel(r"latitude [km]")
+    ax.set_xticks([])
+    ax.set_yticks([])
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, cmap=cmap)
     cbar.set_label(cbar_label)
 
 
@@ -120,26 +140,47 @@ def plot_map(ax, x, cat, nbinx, nbiny, title, cbar_label, cmap="viridis", norm=N
 
 def prepare_catalogue():
     # SicilyCalabria already applies the fixed rotated-coordinate spatial cut.
-    cat = italy_data.SicilyCalabria(catalog=italy_data.CATALOGS["INGV"], BINSIZE=BIN_SIZE_KM)
-    n_before = len(cat.catDataFrame)
+
+    A = catalog.AValueAnalyser(
+        catalogclass=italy_data.StrettoDiMessina,
+        catalog=italy_data.CATALOGS["INGV"],
+        f_eta_0=DECLUSTER_ETA0,
+        BINSIZE=BIN_SIZE_KM, 
+        PGCLASS=pgd.PolyaGammaDensity2D,
+        PRECISIONCLASS=PRECISIONCLASS,
+        prior_avalue = PRIOR_AVALUE, 
+        sparse=SPARSE,
+        boundary=BOUNDARY,
+        v2=PRIOR_VARIANCE,
+        rhokm=RHO_KM, 
+        lamps=LAMBDA_PER_SURFACE,
+        Mc=MAG_MIN,
+    )
+
+
+    #cat = italy_data.SicilyCalabria(catalog=italy_data.CATALOGS["INGV"], BINSIZE=BIN_SIZE_KM)
+    cat = A.catalog
+
+    n_before = len(cat.original_catalog)
 
     # Keep non-child events according to the NND declustering rule.
-    cat.filter_decluster(Mc=MAG_MIN, f_eta_0=DECLUSTER_ETA0)
+    #cat.filter_decluster(Mc=MAG_MIN, f_eta_0=DECLUSTER_ETA0)
     n_after = len(cat.catDataFrame)
 
-    binned = cat.binning_count
+    binned = cat.binning_count()
     counts = np.asarray(binned["counts"], dtype=int)
     nbinx = int(binned["nbinx"])
     nbiny = int(binned["nbiny"])
 
-    if counts.shape != (nbinx, nbiny):
+    if counts.shape != (nbiny, nbinx):
         raise ValueError(
             f"Count-grid shape {counts.shape} does not match ({nbinx}, {nbiny})."
         )
 
-    return cat, counts, nbinx, nbiny, n_before, n_after
+    return A, counts, nbinx, nbiny, n_before, n_after
 
 
+"""
 def prepare_sampler(counts, nbinx, nbiny):
     prior_precision = ck.precision_matern(
         n=nbinx,
@@ -162,18 +203,18 @@ def prepare_sampler(counts, nbinx, nbiny):
     sampler.set_nobs(counts.ravel(order="C"))
     return sampler
 
-
+"""
 
 
 def compute_map(sampler):
-    print(f"\nComputing MAP with fixed lambda={LAMBDA:g}...")
+    print(f"\nComputing MAP with fixed lambda per surface={LAMBDA_PER_SURFACE:g}...")
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message="Method TNC does not use Hessian information")
         warnings.filterwarnings("ignore", message="Unknown solver options")
         f_map = sampler.max_logposterior_estimator(niter=MAP_NITER)
 
     f_map = np.asarray(f_map, dtype=float)
-    rate_map = LAMBDA * expit(f_map)
+    rate_map = sampler.a_from_f(f_map) # LAMBDA * expit(f_map)    ## as a-value
     return f_map, rate_map
 
 
@@ -210,6 +251,7 @@ def run_posterior(sampler, initial_f):
     with open(SAMPLER_LOG, "w") as log_handle, redirect_stdout(log_handle):
         for f in generator:
             f = np.asarray(f, dtype=float)
+            #rate = sampler.a_from_f(f) # LAMBDA * expit(f)
             rate = LAMBDA * expit(f)
             count += 1
 
@@ -244,7 +286,8 @@ def run_posterior(sampler, initial_f):
 
 
 
-def make_main_figure(cat, counts, nbinx, nbiny, posterior):
+def make_main_figure(A, counts, nbinx, nbiny, posterior):
+    cat = A.catalog
     observed = counts.ravel(order="C")
     rate_mean = posterior["rate_mean"]
     rate_sd = posterior["rate_sd"]
@@ -255,6 +298,7 @@ def make_main_figure(cat, counts, nbinx, nbiny, posterior):
         vmin=0.0,
         vmax=max(float(observed.max()), float(rate_mean.max())),
     )
+
     sd_norm = PowerNorm(
         gamma=0.7,
         vmin=0.0,
@@ -264,26 +308,27 @@ def make_main_figure(cat, counts, nbinx, nbiny, posterior):
     fig, axes = plt.subplots(1, 3, figsize=(14.5, 4.8), constrained_layout=True)
 
     plot_map(
-        axes[0], observed, cat, nbinx, nbiny,
+        fig, axes[0], observed, A, nbinx, nbiny,
         "(a) Observed counts", "Count per cell",
-        cmap="viridis", norm=intensity_norm,
+        cmap='jet', norm=intensity_norm,
     )
     plot_map(
-        axes[1], rate_mean, cat, nbinx, nbiny,
+        fig, axes[1], rate_mean, A, nbinx, nbiny,
         "(b) Posterior mean intensity", r"$E[\nu_i\mid n]$",
-        cmap="viridis", norm=intensity_norm,
+        cmap='jet', norm=intensity_norm,
     )
     plot_map(
-        axes[2], rate_sd, cat, nbinx, nbiny,
+        fig, axes[2], rate_sd, A, nbinx, nbiny,
         "(c) Posterior SD", r"$\mathrm{SD}(\nu_i\mid n)$",
-        cmap="magma", norm=sd_norm,
+        cmap='jet', norm=sd_norm,
     )
 
     save_figure(fig, "south_italy_simple_main")
     plt.close(fig)
 
 
-def make_map_comparison(cat, rate_map, posterior, nbinx, nbiny):
+def make_map_comparison(A, rate_map, posterior, nbinx, nbiny):
+    cat = A.catalog
     rate_mean = posterior["rate_mean"]
     norm = PowerNorm(
         gamma=0.5,
@@ -294,13 +339,15 @@ def make_map_comparison(cat, rate_map, posterior, nbinx, nbiny):
     fig, axes = plt.subplots(1, 2, figsize=(10.0, 4.7), constrained_layout=True)
 
     plot_map(
-        axes[0], rate_map, cat, nbinx, nbiny,
+        fig, axes[0], rate_map, A, nbinx, nbiny,
         "(a) MAP intensity", r"$\nu_i^{\mathrm{MAP}}$",
+        cmap='jet',
         norm=norm,
     )
     plot_map(
-        axes[1], rate_mean, cat, nbinx, nbiny,
+        fig, axes[1], rate_mean, A, nbinx, nbiny,
         "(b) Posterior mean intensity", r"$E[\nu_i\mid n]$",
+        cmap='jet',
         norm=norm,
     )
 
@@ -371,7 +418,8 @@ def make_total_intensity_figure(total_count, posterior):
     plt.close(fig)
 
 
-def make_sample_figure(cat, posterior, nbinx, nbiny):
+def make_sample_figure(A, posterior, nbinx, nbiny):
+
     samples = posterior["posterior_rate_samples"]
     if not samples:
         return
@@ -386,9 +434,9 @@ def make_sample_figure(cat, posterior, nbinx, nbiny):
 
     for j, (ax, sample) in enumerate(zip(axes.ravel(), samples), start=1):
         plot_map(
-            ax, sample, cat, nbinx, nbiny,
+            fig, ax, sample, A, nbinx, nbiny,
             f"Posterior draw {j}", r"$\nu_i$",
-            norm=norm,
+            norm=norm, cmap='jet'
         )
 
     save_figure(fig, "south_italy_simple_samples")
@@ -438,7 +486,7 @@ def main():
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     FIGURES_DIR.mkdir(parents=True, exist_ok=True)
 
-    cat, counts, nbinx, nbiny, n_before, n_after = prepare_catalogue()
+    A, counts, nbinx, nbiny, n_before, n_after = prepare_catalogue()
     total_count = int(counts.sum())
 
     print("\n" + "=" * 60)
@@ -457,9 +505,9 @@ def main():
     print(f"Prior mean                 : {PRIOR_MEAN:g}")
     print("=" * 60)
 
-    sampler = prepare_sampler(counts, nbinx, nbiny)
-    f_map, rate_map = compute_map(sampler)
-    posterior = run_posterior(sampler, f_map)
+    #sampler = prepare_sampler(counts, nbinx, nbiny)
+    f_map, rate_map = compute_map(A)
+    posterior = run_posterior(A, f_map)
 
     print(f"Retained posterior draws   : {posterior['n_kept']}")
     total_intensity = posterior["total_rate_trace"]
@@ -474,9 +522,9 @@ def main():
     print(f"Observed total count       : {total_count}")
     print(f"Low-level sampler log      : {SAMPLER_LOG}")
 
-    make_main_figure(cat, counts, nbinx, nbiny, posterior)
-    make_map_comparison(cat, rate_map, posterior, nbinx, nbiny)
-    make_sample_figure(cat, posterior, nbinx, nbiny)
+    make_main_figure(A, counts, nbinx, nbiny, posterior)
+    make_map_comparison(A, rate_map, posterior, nbinx, nbiny)
+    make_sample_figure(A, posterior, nbinx, nbiny)
     make_total_intensity_figure(total_count, posterior)
     save_results(counts, f_map, rate_map, posterior, n_before, n_after)
 
