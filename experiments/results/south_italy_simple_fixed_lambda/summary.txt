@@ -4,13 +4,13 @@ Events before declustering : 11435
 Events after declustering  : 667
 Grid shape                 : (35, 43)
 Observed total N           : 667
-Fixed lambda               : 100
+Fixed lambda               : 20
 rho [km]                   : 50
 Prior variance parameter   : 4
 Prior mean                 : 0.25
 MCMC iterations            : 3000
 Burn-in                    : 100
 Retained samples           : 2900
-MAP total intensity        : 664.971511
-Posterior mean total rate  : 671.317890
-Posterior SD total rate    : 25.913656
+MAP total intensity        : 656.032530
+Posterior mean total rate  : 660.401703
+Posterior SD total rate    : 25.524951
