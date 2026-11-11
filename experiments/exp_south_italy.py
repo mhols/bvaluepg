@@ -36,8 +36,8 @@ BIN_SIZE_KM = 5.0
 MAG_MIN = 2.5
 DECLUSTER_ETA0 = -6.2
 
-LAMBDA = 100.0
 LAMBDA_PER_SURFACE = 100 / (5 * 5)
+LAMBDA = LAMBDA_PER_SURFACE * BIN_SIZE_KM**2
 
 RHO_KM = 50.0
 PRIOR_VARIANCE = 4.0
@@ -214,7 +214,7 @@ def compute_map(sampler):
         f_map = sampler.max_logposterior_estimator(niter=MAP_NITER)
 
     f_map = np.asarray(f_map, dtype=float)
-    rate_map = sampler.a_from_f(f_map) # LAMBDA * expit(f_map)    ## as a-value
+    rate_map = LAMBDA * expit(f_map)    ## as a-value
     return f_map, rate_map
 
 

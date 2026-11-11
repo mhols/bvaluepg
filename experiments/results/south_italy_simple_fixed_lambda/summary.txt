@@ -11,6 +11,6 @@ Prior mean                 : 0.25
 MCMC iterations            : 3000
 Burn-in                    : 100
 Retained samples           : 2900
-MAP total intensity        : -3097.354996
-Posterior mean total rate  : 668.193313
-Posterior SD total rate    : 27.887130
+MAP total intensity        : 664.971511
+Posterior mean total rate  : 671.317890
+Posterior SD total rate    : 25.913656

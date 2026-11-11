@@ -11,7 +11,7 @@ import scipy.linalg as spla
 import scipy.sparse as sps
 import scipy.sparse.linalg as sparse_linalg
 from scipy.stats import poisson 
-from scipy.special import roots_hermite
+from scipy.special import roots_hermite, expit
 import matplotlib.pyplot as plt
 from . import gibbs_softplus_mixture as gsm
 from pathlib import Path
@@ -53,7 +53,7 @@ def to_numpy(x, dtype=float):
     return np.array([x], dtype=dtype)
 
 def sigmoid(f):
-    return 1/(1+np.exp(-f))   #TODO what if f gets big ????
+    return expit(f)   # numerically stable for large |f|
 
 def inv_sigmoid(u):
     return np.log(u/(1-u))
@@ -737,7 +737,7 @@ class Density:
 
 
     def first_guess_estimator(self, f=None, s2=None):
-        """
+        r"""
         Uses a Gaussian approximation of the pixelwise f to obtain a first  
         guess for f. Take this as a noise measurement of f and then do the Bayesian
         inversion using the prior mean and covariance for f.
