@@ -27,7 +27,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.colors import PowerNorm
 
 from polyagamma import random_polyagamma
-from polyagammadensity import PolyaGammaDensity, inv_sigmoid
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity, inv_sigmoid
 
 
 HERE = Path(__file__).resolve().parent          # .../bvaluepg/source

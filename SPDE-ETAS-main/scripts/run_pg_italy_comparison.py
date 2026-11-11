@@ -19,12 +19,9 @@ import numpy as np
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 BVALUEPG_ROOT = PROJECT_ROOT.parent
-SOURCE_DIR = BVALUEPG_ROOT / "source"
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
 
-from covariance_kernels import precision_matern
-from polyagammadensity import PolyaGammaDensity2D, inv_sigmoid
+from polyagammapoisson.covariance_kernels import precision_matern
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity2D, inv_sigmoid
 
 
 DEFAULT_INPUT = PROJECT_ROOT / "data" / "italy_mc3_comparison" / "count_grids.npz"

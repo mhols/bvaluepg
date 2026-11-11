@@ -24,12 +24,9 @@ import scipy.sparse as sps
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = REPO_ROOT / "source"
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
 
-import covariance_kernels as ck
-import polyagammadensity as pgd
+from polyagammapoisson import covariance_kernels as ck
+from polyagammapoisson import polyagammadensity as pgd
 
 
 # ============================================================

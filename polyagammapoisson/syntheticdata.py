@@ -1,8 +1,8 @@
 __doc__="A collection of simples synthetic data and some helper methods"
 
 import matplotlib.pyplot as plt
-import polyagammadensity as pgd
-import covariance_kernels as ck
+import polyagammapoisson.polyagammadensity as pgd
+import polyagammapoisson.covariance_kernels as ck
 import numpy as np
 import scipy.sparse as sps
 

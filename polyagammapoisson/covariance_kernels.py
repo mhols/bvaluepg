@@ -1,5 +1,5 @@
 import numpy as np
-from polyagammapoisson.polyagammadensity import Mixin2D 
+from .polyagammadensity import Mixin2D 
 import scipy.sparse as sps
 import scipy.sparse.linalg as sparse_linalg
 import scipy.sparse.linalg as spla
@@ -162,7 +162,6 @@ def precision_matern(n=None, m=None, rho=None, v2=None, h=None, boundary="zero",
     else:
         return P0
 
-<<<<<<< HEAD
 def inverse_sparse(LQ):
     LQ = sps.csr_matrix(LQ)
     n = LQ.shape[0]
@@ -181,15 +180,12 @@ def central_delta(n, m, covar):
 
     
 
-def precision_matern_9pt(n=None, m=None, tau=1.0, alpha=0.2, v2=None, boundary="zero", rho=None, **kwargs):
-=======
 def laplacian_9pt_2d(ny, nx, boundary="zero"):
     """Positive 9-point Laplacian for row-major order and unit grid spacing.
 
     The interior stencil is (20 * center - 4 * cardinal - diagonal) / 6.
     Boundary handling matches laplacian_2d(): zero extension or repetition
     of the boundary cell, including diagonal neighbours at edges and corners.
->>>>>>> origin/main
     """
     Ly = laplacian_1d(ny, boundary=boundary)
     Lx = laplacian_1d(nx, boundary=boundary)

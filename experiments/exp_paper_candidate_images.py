@@ -33,9 +33,6 @@ from matplotlib.colors import SymLogNorm
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = REPO_ROOT / "source"
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
 
 EXPERIMENTS_DIR = REPO_ROOT / "experiments"
 if str(EXPERIMENTS_DIR) not in sys.path:
@@ -43,8 +40,8 @@ if str(EXPERIMENTS_DIR) not in sys.path:
 
 import exp_italy_nnd_pipeline_diagnostics as italy_diag
 import exp_single_bin_laplace_vs_pg as single_bin
-from covariance_kernels import precision_matern
-from polyagammadensity import PolyaGammaDensity2D, inv_sigmoid
+from polyagammapoisson.covariance_kernels import precision_matern
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity2D, inv_sigmoid
 
 
 # Main input from the decluster -> rotate -> cut -> grid/counts pipeline.

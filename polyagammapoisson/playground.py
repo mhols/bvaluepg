@@ -1,8 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-import covariance_kernels as ck
-import polyagammadensity as pgd
+from polyagammapoisson import covariance_kernels as ck
+from polyagammapoisson import polyagammadensity as pgd
 
 ny, nx = 20, 35
 

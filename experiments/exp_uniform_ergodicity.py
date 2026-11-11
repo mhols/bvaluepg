@@ -19,9 +19,6 @@ import numpy as np
 # ---------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SOURCE_DIR = REPO_ROOT / "source"
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
 
 PLOTS_DIR = REPO_ROOT / "Plots" / "uniform_ergodicity" / "figures"
 PLOTS_DIR.mkdir(parents=True, exist_ok=True)

@@ -1,7 +1,7 @@
-import polyagammadensity as pg
-import syntheticdata as sd
+from polyagammapoisson import polyagammadensity as pg
+from polyagammapoisson import syntheticdata as sd
 import matplotlib.pyplot as plt
-import covariance_kernels as ck
+from polyagammapoisson import covariance_kernels as ck
 import numpy as np
 import scipy.sparse.linalg as sparse_linalg
 

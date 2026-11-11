@@ -14,15 +14,12 @@ import sys
 import warnings
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = PROJECT_ROOT / "source"
 
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from polyagammadensity import PolyaGammaDensity, sigmoid
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity, sigmoid
 
 
 LAM = 50.0

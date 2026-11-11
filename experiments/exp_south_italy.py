@@ -22,9 +22,6 @@ import italy_data
 # ---------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SOURCE_DIR = REPO_ROOT / "source"
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
 
 import polyagammapoisson.catalog.catalog as catalog
 import polyagammapoisson.covariance_kernels as ck

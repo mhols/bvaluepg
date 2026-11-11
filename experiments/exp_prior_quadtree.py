@@ -25,8 +25,8 @@ from matplotlib.patches import Rectangle
 import numpy as np
 import pandas as pd
 
-from quadtree import QuadTree
-from polyagammadensity import PolyaGammaDensity, inv_sigmoid, sigmoid
+from polyagammapoisson.quadtree import QuadTree
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity, inv_sigmoid, sigmoid
 
 
 HERE = Path(__file__).resolve().parent

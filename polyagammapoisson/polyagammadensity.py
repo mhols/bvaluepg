@@ -3,6 +3,7 @@ __doc__="a class to use the Polya-Gamma technique for density estimation"
 import numpy as np
 import scipy as sp
 import gc
+import time
 from sksparse.cholmod import cho_factor
 from scipy.linalg import cho_solve
 import scipy.linalg.blas as blas
@@ -12,12 +13,12 @@ import scipy.sparse.linalg as sparse_linalg
 from scipy.stats import poisson 
 from scipy.special import roots_hermite
 import matplotlib.pyplot as plt
-import polyagammapoisson.gibbs_softplus_mixture as gsm
+from . import gibbs_softplus_mixture as gsm
 from pathlib import Path
 from matplotlib.colors import LogNorm
 from matplotlib.colors import PowerNorm
 from collections.abc import Iterable
-from sksparse.cholmod import cholesky
+from sksparse.cholmod import cholesky, CholeskyFactor
 from pathlib import Path
 from functools import cached_property
 from types import SimpleNamespace
@@ -25,7 +26,7 @@ import sys
 import os
 import psutil
 
-import polyagammapoisson.build_mix_explink as eme
+from . import build_mix_explink as eme
 ### Experiments sollte unabhaengig sein von diesem Modul... 
 ### dieser Modul kann importiert werden aber er kennt nichts von den Experimenten
 
@@ -161,14 +162,17 @@ def _as_cholmod_lower_factor(factor):
     """
     Normalize scikit-sparse/CHOLMOD return variants to (L, permutation).
 
-    Newer local builds can return (L, p) directly. Older scikit-sparse builds
-    return a Factor object.
+    Accept (L, p), the 0.5 CholeskyFactor API, and older Factor objects.
     """
     # Small adapter for different scikit-sparse versions:
     # some return (L, perm) directly, others return a Factor object.
     # In the end we always want the same format: sparse Cholesky L and perm.
     if isinstance(factor, tuple):
         return factor[0].tocsc(), np.asarray(factor[1], dtype=int)
+
+    if hasattr(factor, "get_factor"):
+        lower = factor.get_factor(kind="LL", lower=True).tocsc()
+        return lower, np.asarray(factor.get_perm(), dtype=int)
 
     lower = factor.L().tocsc()
     if hasattr(factor, "P"):
@@ -925,8 +929,21 @@ class SigmoidMixin(Density):
         random_seed: int | None = None,
         after_cycle_method=None,
         sample_lam: bool = False,
-        return_lam: bool = False
+        return_lam: bool = False,
+        sparse_method: str = 'a'
     ):
+        """
+        sparse_method: only used for a sparse precision matrix.  How f is drawn
+        from N(A^-1 b, A^-1) with A = Q + diag(w):
+          'a'  mean via factor.solve, noise via a triangular solve with L^T
+          'b'  one factor.solve on the perturbed rhs b + N(0,Q) + N(0,diag(w))
+               (needs an additional, fixed factorization of Q)
+          'c'  time a and b on the first iteration and keep the faster one
+        The method actually used is stored in self.sparse_method_used.
+        """
+        if sparse_method not in ('a', 'b', 'c'):
+            raise ValueError("sparse_method must be 'a', 'b' or 'c'")
+
         if random_seed is not None:
             np.random.seed(random_seed)
 
@@ -985,6 +1002,33 @@ class SigmoidMixin(Density):
         elif self.mode == Density.PRECISION and self.sparse:
             print('case PRECISION sparse')
             Sigma0_inv_mu0 = self.prior_precision @ mu0
+            # Diagonal PG weights change values, not the prior's sparsity pattern.
+            Q = sps.csc_matrix(self.prior_precision)
+            factor = CholeskyFactor(Q + sps.identity(nbins, format="csc"), lower=True)
+
+            factor_Q = None
+            if sparse_method in ('b', 'c'):
+                # fixed factorization of the prior, used to draw N(0, Q)
+                factor_Q = CholeskyFactor(Q, lower=True)
+                factor_Q.factorize(Q, ldl=False)
+
+            def _factorize(w):
+                factor.factorize((Q + sps.diags(w, format="csc")).tocsc(), ldl=False)
+
+            def draw_a(w, b):
+                _factorize(w)
+                m = factor.solve(b)
+                z = np.random.normal(size=nbins)
+                return m + self.apply_cholesky_sparse_inverse_T(factor, z)
+
+            def draw_b(w, b):
+                _factorize(w)
+                # Q = C C^T with C = P^T L, so C z ~ N(0, Q)
+                z1 = apply_cholesky_sparse(factor_Q, np.random.normal(size=nbins))
+                z2 = np.sqrt(w) * np.random.normal(size=nbins)
+                return factor.solve(b + z1 + z2)
+
+            sparse_draw = None   # chosen on the first iteration
 
         else:
             raise Exception('not implemented yet')
@@ -1048,30 +1092,24 @@ class SigmoidMixin(Density):
                 f = m + eps
 
             elif self.mode == Density.PRECISION and self.sparse:
-                """
-                if it == 0:
-                    A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
-                    factor = cho_factor(A, lower=True)
-                else:
-                    A.setdiag(self.prior_precision.diagonal()+w)
-                    factor.factorize(A)
-                f = sample_from_gaussian_precision_b(factor, b)
-                """
-                
-                A = (self.prior_precision + sps.diags(w, format="csc")).tocsc()
-                factor = cholesky(A, lower=True)
+                if sparse_draw is None:
+                    if sparse_method == 'c':
+                        timings = {}
+                        for name, fn in (('a', draw_a), ('b', draw_b)):
+                            best = np.inf
+                            for _ in range(3):
+                                t0 = time.perf_counter()
+                                fn(w, b)
+                                best = min(best, time.perf_counter() - t0)
+                            timings[name] = best
+                        chosen = min(timings, key=timings.get)
+                        self.sparse_timings = timings
+                    else:
+                        chosen = sparse_method
+                    self.sparse_method_used = chosen
+                    sparse_draw = draw_a if chosen == 'a' else draw_b
 
-                tmp = self.apply_cholesky_sparse_inverse(factor, b)
-                m = self.apply_cholesky_sparse_inverse_T(factor, tmp)
-
-                z = np.random.normal(size=nbins)
-                eps = self.apply_cholesky_sparse_inverse_T(factor, z)
-
-                f = m + eps
-
-                del A, tmp, m, z, eps
-                print (it)
-                
+                f = sparse_draw(w, b)
 
 
             elif self.mode == Density.PRECISION and not self.sparse:   

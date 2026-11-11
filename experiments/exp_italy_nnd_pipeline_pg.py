@@ -14,12 +14,9 @@ from matplotlib.colors import SymLogNorm
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = REPO_ROOT / "source"
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
 
-from covariance_kernels import precision_matern
-from polyagammadensity import PolyaGammaDensity2D, inv_sigmoid
+from polyagammapoisson.covariance_kernels import precision_matern
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity2D, inv_sigmoid
 
 
 # Experiment parameters. Change values here before running the script.

@@ -7,12 +7,9 @@ import numpy as np
 import re
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = REPO_ROOT / "source"
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
 
-from covariance_kernels import precision_matern
-from polyagammadensity import RampDensity2D, inv_softplus
+from polyagammapoisson.covariance_kernels import precision_matern
+from polyagammapoisson.polyagammadensity import RampDensity2D, inv_softplus
 
 
 # ============================================================

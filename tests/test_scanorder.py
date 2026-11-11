@@ -6,8 +6,6 @@ import pytest
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = REPO_ROOT / "source"
-sys.path.insert(0, str(SOURCE_DIR))
 
 from polyagammapoisson.polyagammadensity import Mixin2D
 

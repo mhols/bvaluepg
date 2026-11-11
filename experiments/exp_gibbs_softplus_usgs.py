@@ -14,17 +14,14 @@ import pickle
 from pathlib import Path
 import sys
 
-SOURCE_ROOT = Path(__file__).resolve().parents[1] / "source"
-if str(SOURCE_ROOT) not in sys.path:
-    sys.path.insert(0, str(SOURCE_ROOT))
 
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import PowerNorm
 
-import syntheticdata as sd
+from polyagammapoisson import syntheticdata as sd
 
-from gibbs_softplus_mixture import (
+from polyagammapoisson.gibbs_softplus_mixture import (
     SoftplusMixtureDensity2D,
     gibbs_sampler, load_or_build_mix
 )

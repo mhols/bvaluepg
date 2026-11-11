@@ -67,9 +67,9 @@ except Exception:
     sys.modules.setdefault("matplotlib", _mpl)
     sys.modules.setdefault("matplotlib.pyplot", _pyplot)
 
-import syntheticdata as sd
-import covariance_kernels as ck
-import polyagammadensity as pgd
+from polyagammapoisson import syntheticdata as sd
+from polyagammapoisson import covariance_kernels as ck
+from polyagammapoisson import polyagammadensity as pgd
 
 
 @dataclass(frozen=True)

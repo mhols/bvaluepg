@@ -3,16 +3,16 @@ import numpy as np
 import copy
 import sys
 from pathlib import Path
-from  polyagammapoisson.catalog import declustering as dc
-import polyagammapoisson.covariance_kernels as ck
+from . import declustering as dc
+from .. import covariance_kernels as ck
 import scipy
 import matplotlib.pyplot as plt
 import pickle
 import zipfile
 import geopandas as gpd
 from shapely.geometry import box
-import polyagammapoisson.polyagammadensity as pgd
-import polyagammapoisson.catalog.coordinates as coord
+from .. import polyagammadensity as pgd
+from . import coordinates as coord
 from scipy.stats import truncexpon
 import os
 from functools import cached_property
@@ -361,6 +361,7 @@ class MapMixin(pgd.Mixin2D):
             ax.plot(poly[:, 0], poly[:, 1], color=color, linewidth=linewidth, **kwargs)
 
         ax.set_aspect("equal")
+
         ax.set_xlim(self.xmin, self.xmax)
         ax.set_ylim(self.ymin, self.ymax)
 
@@ -369,7 +370,7 @@ class MapMixin(pgd.Mixin2D):
         ax.scatter(*self.xy, **kwargs)
         ax.set_aspect("equal")
         ax.set_xlim(self.xmin, self.xmax)
-        ax.set_ylim(self.xmin, self.xmax)
+        ax.set_ylim(self.ymin, self.ymax)
 
     def imshow(self, d, xylimext=None, **kwargs):
         ax = plt.gca()
@@ -392,11 +393,12 @@ class CatalogAnalyserMixin:
     """
 
     def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.catalog = kwargs['catalogclass'](**kwargs)
 
     @cached_property
     def binning_count(self):
-        return self.catalog.binning_count
+        return self.catalog.binning_count()
 
     @property
     def ny(self):
@@ -420,8 +422,8 @@ class CatalogAnalyserMixin:
 
     def _setup_grid(self):
         """Set m, n, rho from the current catalog binning."""
-        self.m = self.catalog.binning_count['nbinx']
-        self.n = self.catalog.binning_count['nbiny']
+        self.m = self.binning_count['nbinx']
+        self.n = self.binning_count['nbiny']
         self.rho = self.rhokm / self.BINSIZE
 
     def _apply_prior(self, calc, pmean, **kwargs):
@@ -470,7 +472,7 @@ class AValueMixin(CatalogAnalyserMixin):
 
         pmean = self.prior_mean_value_f
         self._apply_prior(self.calc, pmean)
-        self.calc.set_nobs(self.catalog.binning_count['counts'])
+        self.calc.set_nobs(self.binning_count['counts'])
 
     def max_logposterior_estimator(self, f0=None):
         self.calc.alpha = 1
@@ -553,7 +555,7 @@ class BValueMixin(CatalogAnalyserMixin):
         self.update_data()
         self.update_calc()
 
-        self.magnitudes = [ self.catalog.mag[I] for I in self.catalog.binning_count['I']]
+        self.magnitudes = [ self.catalog.mag[I] for I in self.binning_count['I']]
 
     @cached_property
     def Ibool(self):
@@ -570,7 +572,7 @@ class BValueMixin(CatalogAnalyserMixin):
         w = np.zeros(self.calcI.nbins)
 
         for i, j in enumerate(self.I):
-            I = self.catalog.binning_count['I'][j]
+            I = self.binning_count['I'][j]
 
             #m = trunc_exp(self.catalog.mag[I], D, beta[i] )
             m = self.catalog.mag[I]
@@ -598,7 +600,7 @@ class BValueMixin(CatalogAnalyserMixin):
         self.calc  = self.PGCLASS(**self.kwargs)
         self.calcI = self.PGCLASS(**self.kwargs)
 
-        counts = self.catalog.binning_count['counts'].ravel()
+        counts = self.binning_count['counts'].ravel()
         self.calc.set_data(counts)
         self.calcI.set_data(counts[self.Ibool])
 

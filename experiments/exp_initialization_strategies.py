@@ -1,5 +1,5 @@
-from polyagammadensity import PolyaGammaDensity
-import syntheticdata as sd
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity
+from polyagammapoisson import syntheticdata as sd
 import numpy as np
 import matplotlib.pyplot as plt
 

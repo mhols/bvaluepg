@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-import polyagammadensity as pgd
-import covariance_kernels as ck
-import syntheticdata as sd
+from polyagammapoisson import polyagammadensity as pgd
+from polyagammapoisson import covariance_kernels as ck
+from polyagammapoisson import syntheticdata as sd
 
 # ---------------------------------------------------------------------
 # Compatibility patch for scikit-sparse / CHOLMOD

@@ -28,8 +28,8 @@ from matplotlib.colors import PowerNorm
 
 
 from polyagamma import random_polyagamma
-from polyagammadensity import PolyaGammaDensity, inv_sigmoid
-import syntheticdata as sd
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity, inv_sigmoid
+from polyagammapoisson import syntheticdata as sd
 
 from pathlib import Path
 

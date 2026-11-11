@@ -42,9 +42,6 @@ from polyagammapoisson.catalog.catalog import AValueAnalyser, BValueAnalyser
 # ---------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SOURCE_DIR = REPO_ROOT / "source"
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
 
 #import polyagammapoisson.catalog.catalog as catalog
 import polyagammapoisson.covariance_kernels as ck
@@ -92,7 +89,7 @@ RESULTS_DIR = REPO_ROOT / "experiments" / "results" / "south_italy_simple_fixed_
 FIGURES_DIR = REPO_ROOT / "experiments" / "figures" / "south_italy_simple_fixed_lambda"
 SAMPLER_LOG = REPO_ROOT / "experiments" / "results" / "south_italy_simple_fixed_lambda" / "sampler.log"
 
-LOAD_PICKLE = True
+LOAD_PICKLE = False
 
 CATALOG = it.StrettoDiMessina(
     catalog=it.CATALOGS["INGV"],
@@ -465,7 +462,7 @@ def fig4():
 
         #compute a-value
         a = AAA.a_from_f(AAA.max_logposterior_estimator())
-        AAA.imshow(a, xylimext=A.catalog.binning_mag,  cmap='jet', vmin=-2.5, vmax=-0.5)
+        AAA.imshow(a, xylimext=A.binning_count,  cmap='jet', vmin=-2.5, vmax=-0.5)
         plt.colorbar()
         AAA.plot_coastlines(color='white', linewidth=4)
         x, y = AAA.catalog.xy
@@ -481,18 +478,19 @@ def fig5():
     gamma = 10
 
     N = 10 #gamma * BBB.BINSIZE**2
-    for BBB, title in zip((B, ), ('large', )):
+    for BBB, title in zip((B, BS), ('large', 'small')):
     #for BBB, title in zip((B, BS), ('large', 'small')):
 
 
         plt.figure()
         plt.title('b-value stretto di messina 2015-2025')
 
-        niter = 100
+        niter = 10
+        burn_in = 0
         mean = 0
         var  = 0 
 
-        for f in BBB.sample_posterior(n_iter=niter+50, burn_in=50):
+        for f in BBB.sample_posterior(n_iter=niter+burn_in, burn_in=burn_in):
             f = BBB.b_from_f(f)
             mean += f
             var += f**2
@@ -503,10 +501,12 @@ def fig5():
         b = mean
         bb = np.ones(BBB.calc.nbins)
         bb[BBB.I] = b
+
+
         BBB.imshow( bb.T.ravel(), #BBB.b_from_beta(nobs / magsum),  
                vmin=0.9, 
                vmax=1.5,
-               xylimext = BBB.catalog.binning_count,  
+               xylimext = BBB.binning_count,  
                cmap='jet')
         #plt.xlim(BBB.extent[0], BBB.extent[1])
 
@@ -577,7 +577,7 @@ def fig5_1():
         for i in range(4):
             plt.subplot(2,2,i+1)
             AAA.imshow(A.a_from_f(res[50+i*(niter//4)-1]), 
-                    xylimext=A.catalog.binning_count, vmin=-2.5, vmax=-0.5, cmap='jet')
+                    xylimext=A.binning_count, vmin=-2.5, vmax=-0.5, cmap='jet')
             #AAA.plot_event_locations(c='black', s=2)
             AAA.plot_coastlines(color='white', linewidth=2)
             plt.xticks([])

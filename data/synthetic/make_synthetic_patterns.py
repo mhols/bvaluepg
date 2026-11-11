@@ -16,12 +16,9 @@ import numpy as np
 
 THIS_FILE = Path(__file__).resolve()
 REPO_ROOT = THIS_FILE.parents[2]
-SOURCE_DIR = REPO_ROOT / "source"
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
 
-import polyagammadensity as pgd
-import covariance_kernels as ck
+from polyagammapoisson import polyagammadensity as pgd
+from polyagammapoisson import covariance_kernels as ck
 
 
 # --- Parameters -----------------------------------------------------------

@@ -23,8 +23,8 @@ import matplotlib.pyplot as plt
 import math
 from matplotlib.colors import PowerNorm
 from matplotlib.patches import Rectangle
-from polyagammadensity import  inv_softplus, RampDensity
-from quadtree import QuadTree
+from polyagammapoisson.polyagammadensity import  inv_softplus, RampDensity
+from polyagammapoisson.quadtree import QuadTree
 
 # ============================================================
 # PARAMETERS

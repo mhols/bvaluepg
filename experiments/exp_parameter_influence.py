@@ -26,8 +26,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 try:
-    from polyagammadensity import inv_sigmoid as logit
-    from polyagammadensity import sigmoid, softplus
+    from polyagammapoisson.polyagammadensity import inv_sigmoid as logit
+    from polyagammapoisson.polyagammadensity import sigmoid, softplus
 except Exception:
     def sigmoid(x: np.ndarray | float) -> np.ndarray:
         x = np.asarray(x, dtype=float)
@@ -58,10 +58,10 @@ except Exception:
         return np.exp(-0.5 * z * z) / (math.sqrt(2.0 * math.pi) * sigma)
 
 try:
-    from covariance_kernels import spatial_covariance_gaussian
-    from covariance_kernels import spatial_covariance_matern_1_2
-    from covariance_kernels import spatial_covariance_matern_2_3
-    from covariance_kernels import spatial_covariance_matern_3_5
+    from polyagammapoisson.covariance_kernels import spatial_covariance_gaussian
+    from polyagammapoisson.covariance_kernels import spatial_covariance_matern_1_2
+    from polyagammapoisson.covariance_kernels import spatial_covariance_matern_2_3
+    from polyagammapoisson.covariance_kernels import spatial_covariance_matern_3_5
 except Exception:
     spatial_covariance_gaussian = None
     spatial_covariance_matern_1_2 = None

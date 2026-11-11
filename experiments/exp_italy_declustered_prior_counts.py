@@ -12,17 +12,14 @@ import math
 import sys
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = PROJECT_ROOT / "source"
 DATA_DIR = PROJECT_ROOT / "data"
 
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
 
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from polyagammadensity import PolyaGammaDensity, inv_sigmoid
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity, inv_sigmoid
 
 
 CATALOG_CSV = DATA_DIR / "italy_ingv_rotated_rect_events_declustered_Mc_2.5_eta_-4.60.csv"

@@ -9,11 +9,10 @@ import pickle
 import psutil
 
 import sys
-sys.path.append(str(Path(__file__).resolve().parent.parent / "source"))
 
 from coordinates import Italy_Coordinates as IC
-import polyagammadensity as pgd
-import covariance_kernels as ck
+from polyagammapoisson import polyagammadensity as pgd
+from polyagammapoisson import covariance_kernels as ck
 
 # the coastline files are assumed to be in the "data" directory at the root of the repository, they can be downloaded from the following link:
 # https://www.naturalearthdata.com/http//www.naturalearthdata.com/download/10m/physical/ne_10m_coastline.zip

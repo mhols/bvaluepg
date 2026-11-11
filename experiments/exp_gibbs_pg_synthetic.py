@@ -23,17 +23,14 @@ Der Kernidee besteht aus drei Schritten pro Iteration:
 from pathlib import Path
 import sys
 
-SOURCE_ROOT = Path(__file__).resolve().parents[1] / "source"
-if str(SOURCE_ROOT) not in sys.path:
-    sys.path.insert(0, str(SOURCE_ROOT))
 
 import numpy as np
 import scipy.linalg as spla
 import matplotlib.pyplot as plt
 
 from polyagamma import random_polyagamma
-from polyagammadensity import PolyaGammaDensity, PolyaGammaDensity2D
-import covariance_kernels as ck
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity, PolyaGammaDensity2D
+from polyagammapoisson import covariance_kernels as ck
 
 
 def sample_polya_gamma(b: np.ndarray, c: np.ndarray) -> np.ndarray:

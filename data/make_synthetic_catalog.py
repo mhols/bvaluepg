@@ -21,13 +21,10 @@ import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parent
-SOURCE_DIR = REPO_ROOT / "source"
 SYNTHETIC_DIR = SCRIPT_DIR / "synthetic"
 
-if str(SOURCE_DIR) not in sys.path:
-    sys.path.insert(0, str(SOURCE_DIR))
-import polyagammadensity as pgd
-import syntheticdata as sd
+from polyagammapoisson import polyagammadensity as pgd
+from polyagammapoisson import syntheticdata as sd
 
 
 # ============================================================

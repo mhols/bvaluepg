@@ -22,10 +22,8 @@ import numpy as np
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = REPO_ROOT / "source"
-sys.path.insert(0, str(SOURCE_DIR))
 
-import covariance_kernels as ck 
+from polyagammapoisson import covariance_kernels as ck 
 
 
 def symbol_5pt(kx: np.ndarray, ky: np.ndarray) -> np.ndarray:

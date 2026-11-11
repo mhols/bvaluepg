@@ -9,16 +9,7 @@ import numpy as np
 from scipy.special import expit
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SOURCE_DIR = REPO_ROOT / "source"
 
-# Internal imports expect this package name
-spec = importlib.util.spec_from_file_location(
-    "polyagammapoisson", SOURCE_DIR / "__init__.py",
-    submodule_search_locations=[str(SOURCE_DIR)],
-)
-package = importlib.util.module_from_spec(spec)
-sys.modules[spec.name] = package
-spec.loader.exec_module(package)
 
 from polyagammapoisson import covariance_kernels as ck
 from polyagammapoisson import polyagammadensity as pgd

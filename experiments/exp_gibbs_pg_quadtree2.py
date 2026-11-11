@@ -31,8 +31,8 @@ from matplotlib.patches import Rectangle
 from matplotlib.colors import PowerNorm
 
 from polyagamma import random_polyagamma
-from polyagammadensity import PolyaGammaDensity, inv_sigmoid
-from quadtree import QuadTree
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity, inv_sigmoid
+from polyagammapoisson.quadtree import QuadTree
 
 
 HERE = Path(__file__).resolve().parent          # .../bvaluepg/source

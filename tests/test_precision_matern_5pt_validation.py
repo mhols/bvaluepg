@@ -16,7 +16,7 @@ from exp_validate_precision_matern_5pt import (
     alpha_from_rho,
     first_efolding_crossing,
 )
-import covariance_kernels as ck
+from polyagammapoisson import covariance_kernels as ck
 
 
 def test_alpha_formula():

@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from polyagammadensity import PolyaGammaDensity, sigmoid
-import syntheticdata as sd
+from polyagammapoisson.polyagammadensity import PolyaGammaDensity, sigmoid
+from polyagammapoisson import syntheticdata as sd
 import polyagamma as pg
 import scipy.linalg as la
 

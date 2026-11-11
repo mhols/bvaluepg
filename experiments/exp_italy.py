@@ -8,12 +8,11 @@ from geodatasets import get_path
 import pickle
 
 import sys
-sys.path.append(str(Path(__file__).resolve().parent.parent / "source"))
 sys.path.append(str(Path(__file__).resolve().parent.parent / "data"))
 
 from coordinates import Italy_Coordinates as IC
-import polyagammadensity as pgd
-import covariance_kernels as ck
+from polyagammapoisson import polyagammadensity as pgd
+from polyagammapoisson import covariance_kernels as ck
 from preprocess_nnd_rot_cut_bin import *
 
 # the coastline files are assumed to be in the "data" directory at the root of the repository, they can be downloaded from the following link:
