@@ -214,7 +214,7 @@ def compute_map(sampler):
         f_map = sampler.max_logposterior_estimator(niter=MAP_NITER)
 
     f_map = np.asarray(f_map, dtype=float)
-    rate_map = sampler.a_from_f(f_map) # LAMBDA * expit(f_map)    ## as a-value
+    rate_map = LAMBDA * expit(f_map)    ## as a-value
     return f_map, rate_map
 
 
@@ -359,7 +359,7 @@ def make_map_comparison(A, rate_map, posterior, nbinx, nbiny):
     plt.close(fig)
 
 
-def make_total_intensity_figure(total_count, posterior):
+def make_total_intensity_figure(total_count, posterior, rate_map):
     total_intensity = np.asarray(
         posterior["total_rate_trace"],
         dtype=float,
@@ -371,7 +371,17 @@ def make_total_intensity_figure(total_count, posterior):
         [0.025, 0.975],
     )
 
+    map_total = float(np.sum(rate_map))
+
     fig, ax = plt.subplots(figsize=(7.0, 4.3))
+
+    ax.axvline(
+        map_total,
+        color="tab:green",
+        linestyle="-.",
+        linewidth=1.8,
+        label=rf"MAP total intensity = {map_total:.1f}",
+    )
 
     ax.hist(
         total_intensity,
@@ -529,7 +539,7 @@ def main():
     make_main_figure(A, counts, nbinx, nbiny, posterior)
     make_map_comparison(A, rate_map, posterior, nbinx, nbiny)
     make_sample_figure(A, posterior, nbinx, nbiny)
-    make_total_intensity_figure(total_count, posterior)
+    make_total_intensity_figure(total_count, posterior, rate_map)
     save_results(counts, f_map, rate_map, posterior, n_before, n_after)
 
     print("\nSOUTH ITALY experiment completed.")
