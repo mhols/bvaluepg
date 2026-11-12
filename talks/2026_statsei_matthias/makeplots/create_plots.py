@@ -119,7 +119,6 @@ else:
             sparse=SPARSE,
             boundary=BOUNDARY,
             v2=PRIOR_VARIANCE,
-            v2ps=PRIOR_VARIANCE_PER_SURFACE, 
             rhokm=RHO_KM, 
             lamps=LAMBDA_PER_SURFACE,
             Mc=MAG_MIN,
@@ -506,7 +505,7 @@ def fig5():
         BBB.imshow( bb.T.ravel(), #BBB.b_from_beta(nobs / magsum),  
                vmin=0.9, 
                vmax=1.5,
-               xylimext = BBB.binning_count,  
+               #`:wxylimext = BBB.binning_count,  
                cmap='jet')
         #plt.xlim(BBB.extent[0], BBB.extent[1])
 
