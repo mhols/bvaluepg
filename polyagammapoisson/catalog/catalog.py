@@ -210,6 +210,8 @@ class CatalogMixin(pgd.Mixin2D):
         MMc = Mc if not self.Mc else self.Mc
         ff_eta_0 = f_eta_0 if not self.f_eta_0 else self.f_eta_0
 
+        print( 'ff_eta', ff_eta_0 )
+
         I = dc.decluster(self._catDataFrame, MMc, ff_eta_0)
         self.I = I & self.I
         return I

@@ -399,18 +399,18 @@ def get_background_events(file_in, Mc=None, f_eta_0=None):
     #     f_eta_0 = -4.6
     #     print( 'could not find eta_0 file', eta_0_file, 'use value: ', f_eta_0)
 
-    #fig, ax = plt.subplots()
-    #ax.plot( vBin, vHist, 'ko')
-    #ax.bar( aBins, aHist, width =.8*dPar['eta_binsize'], align = 'edge', color = '.5', label = 'Mc = %.1f'%( dPar['Mc']))
-    #ax.plot( [f_eta_0, f_eta_0], ax.get_ylim(), 'w-',  lw = 2, label = '$N_\mathrm{tot}$=%i'%( eqCat.size()))
-    #ax.plot( [f_eta_0, f_eta_0], ax.get_ylim(), 'r--', lw = 2, label = '$N_\mathrm{cl}$=%i'%( dNND['aNND'][dNND['aNND']<1e-5].shape[0]))
+    fig, ax = plt.subplots()
+    ax.plot( vBin, vHist, 'ko')
+    ax.bar( aBins, aHist, width =.8*dPar['eta_binsize'], align = 'edge', color = '.5', label = 'Mc = %.1f'%( dPar['Mc']))
+    ax.plot( [f_eta_0, f_eta_0], ax.get_ylim(), 'w-',  lw = 2, label = '$N_\mathrm{tot}$=%i'%( eqCat.size()))
+    ax.plot( [f_eta_0, f_eta_0], ax.get_ylim(), 'r--', lw = 2, label = '$N_\mathrm{cl}$=%i'%( dNND['aNND'][dNND['aNND']<1e-5].shape[0]))
 
-    #plt.show()
-    # ax.legend( loc = 'upper left')
-    # ax.set_xlabel( 'NND, log$_{10} \eta$')
-    # ax.set_ylabel( 'Number of Events')
-    # ax.grid( 'on')
-    # ax.set_xlim( dPar['xmin'], dPar['xmax'])
+    plt.show()
+    ax.legend( loc = 'upper left')
+    ax.set_xlabel( 'NND, log$_{10} \eta$')
+    ax.set_ylabel( 'Number of Events')
+    ax.grid( 'on')
+    ax.set_xlim( dPar['xmin'], dPar['xmax'])
 
 
 
