@@ -9,6 +9,7 @@ https://zaliapin.github.io/pubs/Zaliapin_Ben-Zion_JGR20.pdf
 """
 
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,13 +17,6 @@ import pandas as pd
 from .tgoebel_clustering_analysis import clustering, EqCat
 import os
 import scipy
-
-# #------------------------------clustering modules-------------------------------------- 
-# # EqCat is a Python object that is used for catlog processing
-# from src.EqCat import EqCat
-eqCat = EqCat.EqCat( )
-
-
 
 def load_horus(df):
     #df = pd.read_csv(path, low_memory=False, sep='|', skiprows=0)
@@ -283,6 +277,7 @@ def save_eqcat_mat(df, output_file):
 
 
 def get_background_events(file_in, Mc=None, f_eta_0=None):
+    eqCat = EqCat.EqCat()
 
     #file_in = "italy_ingv_rotated_rect_events.mat"
     # Mmin, Mmax = 2.5, None
@@ -366,8 +361,12 @@ def get_background_events(file_in, Mc=None, f_eta_0=None):
     #================================================================================
     #eqCat.data['Z'] = eqCat.data['Depth']
     #print('depth range: ', eqCat.data['Z'].min(), eqCat.data['Z'].max())
-    dNND = clustering.NND_eta( eqCat, dPar,  
-                                correct_co_located = True, verbose= True)
+    # Give co-located events distinct longitudes in the temporary catalogue.
+    # The vendored correction replaces longitudes, so leave it disabled.
+    locations = pd.DataFrame({"lon": eqCat.data["Lon"], "lat": eqCat.data["Lat"]})
+    offsets = locations.groupby(["lon", "lat"], sort=False).cumcount().to_numpy()
+    eqCat.data["Lon"] = eqCat.data["Lon"] + offsets * 1e-10
+    dNND = clustering.NND_eta(eqCat, dPar, verbose=True)
     ###histogram
     aBins        = np.arange( -13, 1, dPar['eta_binsize'], dtype = float)
     aHist, aBins = np.histogram( np.log10( dNND['aNND'][dNND['aNND']>0]), aBins)
@@ -425,17 +424,14 @@ def get_background_events(file_in, Mc=None, f_eta_0=None):
     # clust_file = f"{catalog_stem}_Mc_{dPar['Mc']:.1f}_clusters.mat"
     
     dNND['aNND'] = np.log10( dNND['aNND'])
-    # clustering according to eta_0 similarity criteria
-    dClust = clustering.compileClust( dNND, f_eta_0, useLargerEvents = False)
-
-    # IDs of child events to skip
+    # Keep cluster roots and independent events by excluding linked children.
     a_ID_skip = np.unique(dNND['aEqID_c'][dNND['aNND'] < dPar['eta_0']])
 
     # Boolean masks on the selected catalogue
     is_skip = np.isin(eqCat.data['N'], a_ID_skip)
     is_keep = ~is_skip
 
-    return is_keep    ### the mainshocks
+    return is_keep
 
     # print("Kept events   :", is_keep.sum())
     # print("Skipped events:", is_skip.sum())
@@ -553,9 +549,19 @@ def get_background_events(file_in, Mc=None, f_eta_0=None):
 
 
 def decluster(df, Mc, f_eta_0):
+    events = df.reset_index(drop=True)
+    events = load_horus(events)
+    events["source_row"] = events.index
+    events = add_time_fields(events)
+    keep = np.zeros(len(df), dtype=bool)
+    source_rows = events["source_row"].to_numpy(dtype=int)
+    if len(events) < 2:
+        keep[source_rows] = True
+        return keep
 
-    df = load_horus(df)
-    df = add_time_fields(df)
-    save_eqcat_mat(df, 'sprout.mat')
-    return get_background_events('sprout.mat', Mc, f_eta_0)
+    with TemporaryDirectory() as directory:
+        path = Path(directory) / "catalog.mat"
+        save_eqcat_mat(events, path)
+        keep[source_rows] = get_background_events(path, Mc, f_eta_0)
+    return keep
 

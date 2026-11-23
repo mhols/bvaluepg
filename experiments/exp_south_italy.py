@@ -45,9 +45,9 @@ PRIOR_AVALUE = -2
 PRIOR_MEAN = 10**PRIOR_AVALUE * BIN_SIZE_KM **2 #-5.3
 BOUNDARY = "symmetric"
 
-MAP_NITER = 3000
+MAP_NITER = 10000
 N_ITER = 3000
-BURN_IN = 100
+BURN_IN = 1000
 THIN = 1
 RANDOM_SEED = 101
 N_POSTERIOR_SAMPLES_TO_PLOT = 4
@@ -139,10 +139,9 @@ def plot_map(fig, ax, x, A, nbinx, nbiny, title, cbar_label, cmap="viridis", nor
 
 
 def prepare_catalogue():
-    # SicilyCalabria already applies the fixed rotated-coordinate spatial cut.
-
+    # Declustering runs during catalogue loading before the regional cut.
     A = catalog.AValueAnalyser(
-        catalogclass=italy_data.StrettoDiMessina,
+        catalogclass=italy_data.SicilyCalabria,
         catalog=italy_data.CATALOGS["INGV"],
         f_eta_0=DECLUSTER_ETA0,
         BINSIZE=BIN_SIZE_KM, 
@@ -158,13 +157,9 @@ def prepare_catalogue():
     )
 
 
-    #cat = italy_data.SicilyCalabria(catalog=italy_data.CATALOGS["INGV"], BINSIZE=BIN_SIZE_KM)
     cat = A.catalog
 
     n_before = len(cat.original_catalog)
-
-    # Keep non-child events according to the NND declustering rule.
-    #cat.filter_decluster(Mc=MAG_MIN, f_eta_0=DECLUSTER_ETA0)
     n_after = len(cat.catDataFrame)
 
     binned = cat.binning_count()
