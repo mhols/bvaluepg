@@ -8,9 +8,7 @@ Model (Gamma shape/rate):
 Three Gibbs chains share the SAME synthetic dataset but start from different
 constant latent fields.  In every chain, ALL local scales are sampled anew.
 
-Requires the local-Gamma version of polyagammapoisson.polyagammadensity.
-This numerical experiment illustrates convergence from different starts; it
-is not a proof of uniform ergodicity.
+
 """
 
 from __future__ import annotations
@@ -21,13 +19,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize, PowerNorm
 from scipy.special import expit
+import arziv as az
 
 import polyagammapoisson.covariance_kernels as ck
 import polyagammapoisson.polyagammadensity as pgd
 
 
 # ---------------------------------------------------------------------
-# Configuration -- deliberately close to exp_uniform_ergodicity_styled.py
+# Configuration 
 # ---------------------------------------------------------------------
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PLOTS_DIR = REPO_ROOT / "Plots" / "uniform_ergodicity_local_lambda" / "figures"
@@ -354,6 +353,47 @@ def main():
     print(f"Figures and traces: {PLOTS_DIR}")
     if not SAVE_PLOTS:
         plt.show()
+
+    
+    # -----------------------------------------------------------
+    # MCMC convergence diagnostics
+    # -----------------------------------------------------------
+
+    quantities = {
+        "mean_f": "mean_f_trace",
+        "mean_lambda": "mean_lambda_trace",
+        "total_intensity": "total_rate_trace",
+    }
+
+    # Combine the three chains, removing burn-in
+    posterior = {
+        name: np.stack([
+            chains[label][trace][SUMMARY_BURN_IN:]
+            for label in ["low", "medium", "high"]
+        ])
+        for name, trace in quantities.items()
+    }
+
+    # Convert to ArviZ format
+    try:
+        idata = az.from_dict({"posterior": posterior})
+    except TypeError:
+        idata = az.from_dict(posterior=posterior)
+
+    # Calculate R-hat, ESS and MCSE
+    diagnostics = az.summary(
+        idata,
+        kind="diagnostics"
+    )
+
+    print("\nMCMC convergence diagnostics:")
+    print(diagnostics.to_string())
+
+    # Save results to a CSV file
+    diagnostics.to_csv(
+        PLOTS_DIR / "mcmc_convergence_diagnostics.csv"
+    )
+
 
 
 if __name__ == "__main__":
