@@ -77,6 +77,7 @@ class CatalogMixin(pgd.Mixin2D):
 
         self._catDataFrame = pd.DataFrame()
 
+
         if 'type_to_keep' in trans  and not trans['type_to_keep'] is None:
             k, v = trans['type_to_keep']
             I = cata[k] == v
@@ -88,6 +89,9 @@ class CatalogMixin(pgd.Mixin2D):
                 self._catDataFrame[k] = cata[trans[k]]
             else: # use callable
                 self._catDataFrame[k] = trans[k](cata)
+
+        self._catDataFrame = self._catDataFrame.dropna(subset=["Time"]).copy()
+        self._catDataFrame = self._catDataFrame.sort_values("Time").reset_index(drop=True)
 
         #: selected elements after filtering
         self.I = np.array(len(self._catDataFrame) * [True])
@@ -209,6 +213,8 @@ class CatalogMixin(pgd.Mixin2D):
     def filter_decluster(self, Mc = None, f_eta_0=None):
         MMc = Mc if not self.Mc else self.Mc
         ff_eta_0 = f_eta_0 if not self.f_eta_0 else self.f_eta_0
+
+        print( 'ff_eta', ff_eta_0 )
 
         I = dc.decluster(self._catDataFrame, MMc, ff_eta_0)
         self.I = I & self.I
