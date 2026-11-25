@@ -111,7 +111,7 @@ class SicilyCalabria(pgd.KwargsUpdater, ItalyMxin, pgd.KwargsSink):
         self.downsample_catalog()
         self.xmin = -450
         self.xmax = 250
-        self.ymin = -590
+        self.ymin = -650
         self.ymax = -190
 
 

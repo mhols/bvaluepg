@@ -1,5 +1,5 @@
 """
-Simple South Italy earthquake experiment with fixed lambda.
+South Italy earthquake experiment with fixed lambda 
 
 """
 
@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from contextlib import redirect_stdout
 from pathlib import Path
-import sys
 import warnings
 
 import matplotlib.pyplot as plt
@@ -42,22 +41,23 @@ LAMBDA = LAMBDA_PER_SURFACE * BIN_SIZE_KM**2
 RHO_KM = 50.0
 PRIOR_VARIANCE = 4.0
 PRIOR_AVALUE = -2
-PRIOR_MEAN = 10**PRIOR_AVALUE * BIN_SIZE_KM **2 #-5.3
-BOUNDARY = "symmetric"
+PRIOR_MEAN = 10**PRIOR_AVALUE * BIN_SIZE_KM**2  # prior expected count/cell, NOT mean of f
 
-MAP_NITER = 3000
+MAP_NITER = 10000
 N_ITER = 3000
-BURN_IN = 100
+BURN_IN = 1000
 THIN = 1
 RANDOM_SEED = 101
 N_POSTERIOR_SAMPLES_TO_PLOT = 4
 
 PRECISIONCLASS = ck.precision_matern
 SPARSE = True
-BOUNDARY = 'symmetric'
+BOUNDARY = "symmetric"
 
-RESULTS_DIR = REPO_ROOT / "experiments" / "results" / "south_italy_simple_fixed_lambda"
-FIGURES_DIR = REPO_ROOT / "experiments" / "figures" / "south_italy_simple_fixed_lambda"
+# Include rho and v2 so sensitivity runs do not overwrite each other.
+RUN_NAME = f"south_italy_fixed_lambda_{LAMBDA:g}_rho_{RHO_KM:g}_v2_{PRIOR_VARIANCE:g}"
+RESULTS_DIR = REPO_ROOT / "experiments" / "results" / RUN_NAME
+FIGURES_DIR = REPO_ROOT / "experiments" / "figures" / RUN_NAME
 SAMPLER_LOG = RESULTS_DIR / "sampler.log"
 
 
@@ -76,73 +76,47 @@ plt.rcParams.update(
 )
 
 
-# ---------------------------------------------------------------------
-# Small plotting utilities
-# ---------------------------------------------------------------------
-
 def save_figure(fig, name):
+    """Save each figure as a vector PDF and a 300-dpi PNG."""
     pdf = FIGURES_DIR / f"{name}.pdf"
     png = FIGURES_DIR / f"{name}.png"
     fig.savefig(pdf, bbox_inches="tight")
     fig.savefig(png, dpi=300, bbox_inches="tight")
+    plt.close(fig)
     print(f"Saved figure: {pdf}")
 
 
-def add_coastlines(ax, cat):
-    for poly in cat.coastlines:
-        lon, lat = poly[:, 0], poly[:, 1]
-        x, y = cat.coordinates.lonlat_to_rotated_xy(lon, lat)
-        ax.plot(x, y, color="white", linewidth=0.65, zorder=3)
+def plot_map(fig, ax, values, A, title, colorbar_label,
+             cmap="viridis", norm=None, vmin=None, vmax=None):
+    """Use the catalogue's verified row order and map extent.
 
-    xmin, xmax, ymin, ymax = cat.extent
-    ax.set_xlim(xmin, xmax)
-    ax.set_ylim(ymin, ymax)
-    ax.set_aspect("equal")
+    A.imshow already transforms the scan-order vector into the correctly
+    oriented (ny, nx) image.  No extra transpose or origin change is needed.
+    """
+    options = {"axis": ax, "interpolation": "nearest",
+               "cmap": cmap, "zorder": 1}
+    if norm is not None:
+        options["norm"] = norm
+    else:
+        if vmin is not None:
+            options["vmin"] = vmin
+        if vmax is not None:
+            options["vmax"] = vmax
 
-
-def vector_to_image(x, nbinx, nbiny):
-    return np.asarray(x).reshape(nbinx, nbiny, order="C")
-
-
-def plot_map(fig, ax, x, A, nbinx, nbiny, title, cbar_label, cmap="viridis", norm=None):
-    im = A.imshow(
-        x,
-        axis=ax,
-        interpolation="nearest",
-        cmap=cmap,
-        norm=norm,
-        zorder=1,
-    )
-
-    #im = ax.imshow(
-    #    vector_to_image(x, nbinx, nbiny),
-    #    extent=A.catalog.extent,
-    #    origin="upper",
-    #    interpolation="nearest",
-    #    cmap=cmap,
-    #    norm=norm,
-    #    zorder=1,
-    #)
-    A.plot_coastlines(axis=ax, color='white')
-
-
-    #add_coastlines(ax, cat)
+    im = A.imshow(np.asarray(values).ravel(order="C"), **options)
+    A.plot_coastlines(axis=ax, color="white", linewidth=0.65)
     ax.set_title(title)
-    ax.set_xlabel(r"longitude [km]")
-    ax.set_ylabel(r"latitude [km]")
-    ax.set_xticks([])
-    ax.set_yticks([])
-    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04, cmap=cmap)
-    cbar.set_label(cbar_label)
-
-
+    ax.set_xlabel(r"$x$ [km]")
+    ax.set_ylabel(r"$y$ [km]")
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label(colorbar_label)
+    return im
 
 
 def prepare_catalogue():
-    # SicilyCalabria already applies the fixed rotated-coordinate spatial cut.
-
+    # Declustering runs during catalogue loading before the regional cut.
     A = catalog.AValueAnalyser(
-        catalogclass=italy_data.StrettoDiMessina,
+        catalogclass=italy_data.SicilyCalabria,
         catalog=italy_data.CATALOGS["INGV"],
         f_eta_0=DECLUSTER_ETA0,
         BINSIZE=BIN_SIZE_KM, 
@@ -158,13 +132,9 @@ def prepare_catalogue():
     )
 
 
-    #cat = italy_data.SicilyCalabria(catalog=italy_data.CATALOGS["INGV"], BINSIZE=BIN_SIZE_KM)
     cat = A.catalog
 
     n_before = len(cat.original_catalog)
-
-    # Keep non-child events according to the NND declustering rule.
-    #cat.filter_decluster(Mc=MAG_MIN, f_eta_0=DECLUSTER_ETA0)
     n_after = len(cat.catDataFrame)
 
     binned = cat.binning_count()
@@ -176,34 +146,14 @@ def prepare_catalogue():
         raise ValueError(
             f"Count-grid shape {counts.shape} does not match ({nbinx}, {nbiny})."
         )
+    if int(counts.sum()) != n_after:
+        raise ValueError(
+            f"Retained {n_after} events but binned {int(counts.sum())}. "
+            "Check the spatial selection and grid extent."
+        )
 
     return A, counts, nbinx, nbiny, n_before, n_after
 
-
-"""
-def prepare_sampler(counts, nbinx, nbiny):
-    prior_precision = ck.precision_matern(
-        n=nbinx,
-        m=nbiny,
-        rho=RHO_KM / BIN_SIZE_KM,
-        v2=PRIOR_VARIANCE,
-        boundary=BOUNDARY,
-    )
-    prior_mean = np.full(nbinx * nbiny, PRIOR_MEAN, dtype=float)
-
-    sampler = pgd.PolyaGammaDensity2D(
-        prior_precision=prior_precision,
-        prior_mean=prior_mean,
-        sparse=True,
-        lam=LAMBDA,
-        n=nbinx,
-        m=nbiny,
-        seed=RANDOM_SEED,
-    )
-    sampler.set_nobs(counts.ravel(order="C"))
-    return sampler
-
-"""
 
 
 def compute_map(sampler):
@@ -291,170 +241,79 @@ def run_posterior(sampler, initial_f):
 
 
 def make_main_figure(A, counts, nbinx, nbiny, posterior):
-    cat = A.catalog
     observed = counts.ravel(order="C")
-    rate_mean = posterior["rate_mean"]
-    rate_sd = posterior["rate_sd"]
+    rate_mean, rate_sd = posterior["rate_mean"], posterior["rate_sd"]
 
-    # Same scale for observed counts and posterior mean.
+    # Shared color normalization: observed and posterior mean are comparable.
     intensity_norm = PowerNorm(
-        gamma=0.5,
-        vmin=0.0,
+        gamma=0.5, vmin=0.0,
         vmax=max(float(observed.max()), float(rate_mean.max())),
     )
-
-    sd_norm = PowerNorm(
-        gamma=0.7,
-        vmin=0.0,
-        vmax=float(rate_sd.max()),
-    )
-
-    fig, axes = plt.subplots(1, 3, figsize=(14.5, 4.8), constrained_layout=True)
-
-    plot_map(
-        fig, axes[0], observed, A, nbinx, nbiny,
-        "(a) Observed counts", "Count per cell",
-        cmap='jet', norm=intensity_norm,
-    )
-    plot_map(
-        fig, axes[1], rate_mean, A, nbinx, nbiny,
-        "(b) Posterior mean intensity", r"$E[\nu_i\mid n]$",
-        cmap='jet', norm=intensity_norm,
-    )
-    plot_map(
-        fig, axes[2], rate_sd, A, nbinx, nbiny,
-        "(c) Posterior SD", r"$\mathrm{SD}(\nu_i\mid n)$",
-        cmap='jet', norm=sd_norm,
-    )
-
+    sd_norm = PowerNorm(gamma=0.7, vmin=0.0, vmax=float(rate_sd.max()))
+    fig, axes = plt.subplots(1, 3, figsize=(14.5, 4.8),
+                             constrained_layout=True)
+    plot_map(fig, axes[0], observed, A,
+             "(a) Observed counts", "Events/cell", norm=intensity_norm)
+    plot_map(fig, axes[1], rate_mean, A,
+             "(b) Posterior mean intensity", r"$E[\nu_i\mid n]$",
+             norm=intensity_norm)
+    plot_map(fig, axes[2], rate_sd, A,
+             "(c) Posterior intensity SD", r"$\mathrm{SD}(\nu_i\mid n)$",
+             cmap="magma", norm=sd_norm)
     save_figure(fig, "south_italy_simple_main")
-    plt.close(fig)
 
 
 def make_map_comparison(A, rate_map, posterior, nbinx, nbiny):
-    cat = A.catalog
     rate_mean = posterior["rate_mean"]
-    norm = PowerNorm(
-        gamma=0.5,
-        vmin=0.0,
-        vmax=max(float(rate_map.max()), float(rate_mean.max())),
-    )
-
-    fig, axes = plt.subplots(1, 2, figsize=(10.0, 4.7), constrained_layout=True)
-
-    plot_map(
-        fig, axes[0], rate_map, A, nbinx, nbiny,
-        "(a) MAP intensity", r"$\nu_i^{\mathrm{MAP}}$",
-        cmap='jet',
-        norm=norm,
-    )
-    plot_map(
-        fig, axes[1], rate_mean, A, nbinx, nbiny,
-        "(b) Posterior mean intensity", r"$E[\nu_i\mid n]$",
-        cmap='jet',
-        norm=norm,
-    )
-
+    norm = PowerNorm(gamma=0.5, vmin=0.0,
+                     vmax=max(float(rate_map.max()), float(rate_mean.max())))
+    fig, axes = plt.subplots(1, 2, figsize=(10.0, 4.7),
+                             constrained_layout=True)
+    plot_map(fig, axes[0], rate_map, A,
+             "(a) Fixed-lambda MAP intensity", "Expected events/cell", norm=norm)
+    plot_map(fig, axes[1], rate_mean, A,
+             "(b) Posterior mean intensity", "Expected events/cell", norm=norm)
     save_figure(fig, "south_italy_simple_map_vs_posterior")
-    plt.close(fig)
-
-
-def make_total_intensity_figure(total_count, posterior, rate_map):
-    total_intensity = np.asarray(
-        posterior["total_rate_trace"],
-        dtype=float,
-    )
-
-    posterior_mean = float(np.mean(total_intensity))
-    q025, q975 = np.quantile(
-        total_intensity,
-        [0.025, 0.975],
-    )
-
-    map_total = float(np.sum(rate_map))
-
-    fig, ax = plt.subplots(figsize=(7.0, 4.3))
-
-    ax.axvline(
-        map_total,
-        color="tab:green",
-        linestyle="-.",
-        linewidth=1.8,
-        label=rf"MAP total intensity = {map_total:.1f}",
-    )
-
-    ax.hist(
-        total_intensity,
-        bins=35,
-        density=True,
-        alpha=0.75,
-        edgecolor="white",
-        linewidth=0.5,
-        label="Posterior",
-    )
-
-    ax.axvline(
-        posterior_mean,
-        linewidth=1.6,
-        label=rf"Posterior mean = {posterior_mean:.1f}",
-    )
-
-    ax.axvline(
-        total_count,
-        color="0.15",
-        linestyle="--",
-        linewidth=1.6,
-        label=rf"Observed total = {total_count}",
-    )
-
-    ax.axvspan(
-        q025,
-        q975,
-        alpha=0.12,
-        label=rf"95\% interval [{q025:.0f}, {q975:.0f}]",
-    )
-
-    ax.set_xlabel(r"Total intensity $T=\sum_i \nu_i$")
-    ax.set_ylabel("Posterior density")
-    ax.set_title("Posterior distribution of total intensity")
-
-    ax.legend(
-        frameon=False,
-        loc="upper left",
-    )
-
-    fig.tight_layout()
-
-    save_figure(
-        fig,
-        "south_italy_simple_total_intensity",
-    )
-    plt.close(fig)
 
 
 def make_sample_figure(A, posterior, nbinx, nbiny):
-
     samples = posterior["posterior_rate_samples"]
     if not samples:
         return
-
-    norm = PowerNorm(
-        gamma=0.5,
-        vmin=0.0,
-        vmax=max(float(x.max()) for x in samples),
-    )
-
-    fig, axes = plt.subplots(2, 2, figsize=(8.7, 7.7), constrained_layout=True)
-
-    for j, (ax, sample) in enumerate(zip(axes.ravel(), samples), start=1):
-        plot_map(
-            fig, ax, sample, A, nbinx, nbiny,
-            f"Posterior draw {j}", r"$\nu_i$",
-            norm=norm, cmap='jet'
-        )
-
+    norm = PowerNorm(gamma=0.5, vmin=0.0,
+                     vmax=max(float(x.max()) for x in samples))
+    fig, axes = plt.subplots(2, 2, figsize=(9.5, 7.7),
+                             constrained_layout=True)
+    for j, (ax, sample) in enumerate(zip(axes.flat, samples), start=1):
+        plot_map(fig, ax, sample, A, f"Posterior intensity draw {j}",
+                 "Expected events/cell", norm=norm)
+    for ax in list(axes.flat)[len(samples):]:
+        ax.axis("off")
     save_figure(fig, "south_italy_simple_samples")
-    plt.close(fig)
+
+
+def make_total_intensity_figure(total_count, posterior, rate_map):
+    total = np.asarray(posterior["total_rate_trace"], dtype=float)
+    posterior_mean = float(total.mean())
+    q025, q975 = np.quantile(total, [0.025, 0.975])
+
+    fig, ax = plt.subplots(figsize=(7, 4.3))
+    ax.hist(total, bins=35, density=True, alpha=0.75,
+            edgecolor="white", linewidth=0.5, label="Posterior")
+    ax.axvline(rate_map.sum(), color="tab:green", linestyle="-.",
+               linewidth=1.8, label=f"MAP total = {rate_map.sum():.1f}")
+    ax.axvline(posterior_mean, linewidth=1.6,
+               label=f"Posterior mean = {posterior_mean:.1f}")
+    ax.axvline(total_count, color="0.15", linestyle="--", linewidth=1.6,
+               label=f"Observed total = {total_count}")
+    ax.axvspan(q025, q975, alpha=0.12,
+               label=f"95% interval [{q025:.0f}, {q975:.0f}]")
+    ax.set_xlabel(r"Total intensity $T=\sum_i \nu_i$")
+    ax.set_ylabel("Posterior density")
+    ax.set_title("Posterior distribution of total intensity")
+    ax.legend(frameon=False, loc="upper left")
+    fig.tight_layout()
+    save_figure(fig, "south_italy_simple_total_intensity")
 
 
 # ---------------------------------------------------------------------
@@ -485,7 +344,7 @@ def save_results(counts, f_map, rate_map, posterior, n_before, n_after):
         print(f"Fixed lambda               : {LAMBDA:g}", file=handle)
         print(f"rho [km]                   : {RHO_KM:g}", file=handle)
         print(f"Prior variance parameter   : {PRIOR_VARIANCE:g}", file=handle)
-        print(f"Prior mean                 : {PRIOR_MEAN:g}", file=handle)
+        print(f"Prior expected count/cell  : {PRIOR_MEAN:g}", file=handle)
         print(f"MCMC iterations            : {N_ITER}", file=handle)
         print(f"Burn-in                    : {BURN_IN}", file=handle)
         print(f"Retained samples           : {posterior['n_kept']}", file=handle)
@@ -516,7 +375,8 @@ def main():
     print(f"Fixed lambda               : {LAMBDA:g}")
     print(f"rho                         : {RHO_KM:g} km")
     print(f"Prior variance parameter   : {PRIOR_VARIANCE:g}")
-    print(f"Prior mean                 : {PRIOR_MEAN:g}")
+    print(f"Prior expected count/cell  : {PRIOR_MEAN:g}")
+    print(f"Latent Gaussian prior mean : {float(np.mean(A.calc.prior_mean)):.4f}")
     print("=" * 60)
 
     #sampler = prepare_sampler(counts, nbinx, nbiny)

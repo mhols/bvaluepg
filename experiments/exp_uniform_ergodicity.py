@@ -11,7 +11,9 @@ from pathlib import Path
 import sys
 
 import matplotlib.pyplot as plt
+from matplotlib.colors import Normalize, PowerNorm
 import numpy as np
+from scipy.special import expit
 
 
 # ---------------------------------------------------------------------
@@ -29,16 +31,79 @@ import polyagammapoisson.polyagammadensity as pgd
 import polyagammapoisson.syntheticdata as sd
 
 # ----------------------------------------------------------------------
-# Helpers
+# Figure style
 # ----------------------------------------------------------------------
 
-def save_plot(plot_name):
-    filename = (
-        f"uniform_ergodicity_{plot_name}.png")
+plt.rcParams.update(
+    {
+        "font.size": 10,
+        "axes.titlesize": 11,
+        "axes.labelsize": 10,
+        "xtick.labelsize": 9,
+        "ytick.labelsize": 9,
+        "legend.fontsize": 9,
+        "savefig.dpi": 300,
+        "axes.spines.top": False,
+        "axes.spines.right": False,
+    }
+)
 
-    path = PLOTS_DIR / filename
-    plt.savefig(path, dpi=300, bbox_inches="tight")
-    print(f"Saved plot to {path}")
+CHAIN_COLORS = {"low": "tab:blue", "medium": "tab:orange", "high": "tab:green"}
+CHAIN_LABELS = {"low": "Low", "medium": "Medium", "high": "High"}
+
+
+def save_figure(fig, name):
+    """Save the same figure as a vector PDF and a 300-dpi PNG."""
+    if save_plots:
+        for ext in ("pdf", "png"):
+            target = PLOTS_DIR / f"uniform_ergodicity_{name}.{ext}"
+            fig.savefig(target, bbox_inches="tight", dpi=300)
+            print(f"Saved figure: {target}")
+        plt.close(fig)
+
+
+def plot_field(fig, ax, values, title, label, cmap, norm):
+    """A clean map panel with a labelled colorbar."""
+    im = ax.imshow(
+        np.asarray(values).reshape(n, m),
+        origin="lower",
+        interpolation="nearest",
+        cmap=cmap,
+        norm=norm,
+        aspect="equal",
+    )
+    ax.set_title(title)
+    ax.set_xlabel("Grid column")
+    ax.set_ylabel("Grid row")
+    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+    cbar.set_label(label)
+    return im
+
+
+def style_axis(ax):
+    ax.grid(axis="y", color="0.85", linewidth=0.6, alpha=0.6)
+    ax.set_axisbelow(True)
+
+
+def make_boxplot(ax, values, labels):
+    """Style the comparison boxplots consistently across all diagnostics."""
+    bp = ax.boxplot(
+        values,
+        positions=np.arange(1, len(labels) + 1),
+        widths=0.50,
+        patch_artist=True,
+        showfliers=False,
+        medianprops={"color": "0.15", "linewidth": 1.4},
+        whiskerprops={"color": "0.35", "linewidth": 1.0},
+        capprops={"color": "0.35", "linewidth": 1.0},
+    )
+    for patch, key in zip(bp["boxes"], labels):
+        patch.set_facecolor(CHAIN_COLORS[key])
+        patch.set_alpha(0.50)
+        patch.set_edgecolor("0.3")
+    ax.set_xticks(np.arange(1, len(labels) + 1))
+    ax.set_xticklabels([CHAIN_LABELS[key] for key in labels])
+    style_axis(ax)
 
 
 # ---------------------------------------------------------------------
@@ -137,7 +202,7 @@ for labels, initial_value in initial_means.items():
     posterior_f_sum = np.zeros(M)
     posterior_rate_sum = np.zeros(M)
 
-
+    n_posterior = 0
     nsamples = 0
 
     for iteration, (f, lambda_sample) in enumerate(estim.sample_posterior(
@@ -151,20 +216,25 @@ for labels, initial_value in initial_means.items():
 
        
         mean_f_trace.append(np.mean(f))
-        rate = estim.field_from_f(f)
+        # Use the lambda belonging to THIS draw (global scale in this experiment).
+        rate = np.asarray(lambda_sample, dtype=float) * expit(f)
         lambda_trace.append(lambda_sample)
         total_rate_trace.append(np.sum(rate))   
     
-        if iteration > box_plot_burn_in:
+        if iteration >= box_plot_burn_in:
             posterior_f_sum += f
             posterior_rate_sum += rate
+            n_posterior += 1
 
 
 
         nsamples += 1
 
-    posterior_rate_mean = posterior_rate_sum / nsamples
-    posterior_f_mean = posterior_f_sum / nsamples
+    # These sums contain only draws after box_plot_burn_in.
+    if n_posterior == 0:
+        raise ValueError("box_plot_burn_in must be less than n_iter - burn_in")
+    posterior_rate_mean = posterior_rate_sum / n_posterior
+    posterior_f_mean = posterior_f_sum / n_posterior
 
 
     chains[labels] = {
@@ -179,207 +249,123 @@ for labels, initial_value in initial_means.items():
     print(f"Chain {labels} completed. Total samples: {nsamples}")
 
 # ----------------------------------------------------------------------
-# Plot the true latent field and the posterior mean latent field for each chain
-# ----------------------------------------------------------------------
-fig, axes = plt.subplots(2, 3, figsize=(11, 6))
-
-axes[0, 0].imshow(true_f.reshape(n, m), origin="lower")
-axes[0, 0].set_title("Latent field")
-
-axes[0, 1].imshow(true_rate.reshape(n, m), origin="lower")
-axes[0, 1].set_title("Poisson-Rate")
-
-axes[0, 2].imshow(observations, origin="lower")
-axes[0, 2].set_title("Observations")
-
-axes[1, 0].imshow(chains["low"]["posterior_f_mean"].reshape(n, m), origin="lower")
-axes[1, 0].set_title("Posterior mean f (low init)")
-
-axes[1, 1].imshow(chains["medium"]["posterior_f_mean"].reshape(n, m), origin="lower")
-axes[1, 1].set_title("Posterior mean f (medium init)")
-
-axes[1, 2].imshow(chains["high"]["posterior_f_mean"].reshape(n, m), origin="lower")
-axes[1, 2].set_title("Posterior mean f (high init)")
-
-if save_plots:
-    save_plot(plot_name="true_and_posterior_mean_fields")
-
-# ----------------------------------------------------------------------
-# Trace plot: spatial mean of f
+# 1. Synthetic truth, observations, and estimates for each initialization
 # ----------------------------------------------------------------------
 
-plt.figure(figsize=(9, 5))
+field_arrays = [true_f] + [chains[key]["posterior_f_mean"] for key in initial_means]
+f_norm = Normalize(
+    vmin=min(float(np.min(arr)) for arr in field_arrays),
+    vmax=max(float(np.max(arr)) for arr in field_arrays),
+)
+count_norm = PowerNorm(
+    gamma=0.5,
+    vmin=0.0,
+    vmax=max(float(np.max(true_rate)), float(np.max(observations))),
+)
 
-for label, chain in chains.items():
+fig, axes = plt.subplots(2, 3, figsize=(13.5, 7.8), constrained_layout=True)
 
-    plt.plot(
-        chain["mean_f_trace"],
-        label=label,
-        linewidth=1.0,
+plot_field(fig, axes[0, 0], true_f,
+           "(a) True latent field", r"$f_i$", "coolwarm", f_norm)
+plot_field(fig, axes[0, 1], true_rate,
+           "(b) True Poisson intensity", r"$\nu_i$", "viridis", count_norm)
+plot_field(fig, axes[0, 2], observations,
+           "(c) Observed counts", "Events/cell", "viridis", count_norm)
+
+for j, key in enumerate(initial_means):
+    plot_field(
+        fig, axes[1, j], chains[key]["posterior_f_mean"],
+        f"({chr(ord('d') + j)}) Posterior mean of $f$: {key} init",
+        r"$E[f_i\mid n]$", "coolwarm", f_norm,
     )
 
-plt.axhline(
-    prior_mean,
-    linestyle="--",
-    color="red",
-    label="Prior mean",
-)
-
-plt.axhline(
-    np.mean(true_f),
-    linestyle="--",
-    color="black",
-    label="True mean",
-)
-
-plt.xlabel("Iteration")
-plt.ylabel(r"$M^{-1}\sum_i f_i$")
-plt.title("Trace of the mean latent field")
-plt.legend()
-
-plt.tight_layout()
-if save_plots:  
-    save_plot(plot_name="trace_mean_f")
-
-
-
-# -----------------------------------------------------------------------
-# Trace plot: total number of events
-# -----------------------------------------------------------------------
-
-plt.figure(figsize=(9, 5))
-
-for label, chain in chains.items():
-
-    plt.plot(
-        chain["total_rate_trace"],
-        label=label,
-        linewidth=1.0,
-    )
-
-plt.axhline(
-    np.sum(true_rate),
-    linestyle="--",
-    color="black",
-    label="True total intensity",
-)
-
-plt.axhline(
-    np.sum(data),
-    linestyle=":",
-    color="red",
-    label="Observed total count",
-)
-
-plt.xlabel("Iteration")
-plt.ylabel(r"$T=\sum_i \nu_i$")
-plt.title("Trace of the total intensity")
-plt.legend()    
-plt.tight_layout()
-if save_plots:
-    save_plot(plot_name="trace_total_rate")
-
+save_figure(fig, "true_and_posterior_mean_fields")
 
 
 # ----------------------------------------------------------------------
-# Box plots
+# 2. Traces from the three chains
 # ----------------------------------------------------------------------
 
-# Mean f box plot
+def make_trace_figure(key, ylabel, title, filename, reference_lines):
+    fig, ax = plt.subplots(figsize=(9.0, 4.5), constrained_layout=True)
+    for label, chain in chains.items():
+        ax.plot(
+            np.arange(1, len(chain[key]) + 1), chain[key],
+            color=CHAIN_COLORS[label], linewidth=0.75, alpha=0.7,
+            label=f"{CHAIN_LABELS[label]} initialization",
+        )
+    for y, color, ls, ref_label in reference_lines:
+        ax.axhline(y, color=color, linestyle=ls, linewidth=1.5,
+                   label=ref_label)
+    ax.axvline(box_plot_burn_in, color="0.5", linewidth=1.1,
+               linestyle=":", label="Summary burn-in")
+    ax.set_xlabel("Iteration")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    style_axis(ax)
+    ax.legend(frameon=False, loc="best")
+    save_figure(fig, filename)
 
-plt.figure(figsize=(9, 5))
-labels = list(chains.keys())
 
-mean_f_box = [np.array(chains[label]["mean_f_trace"][box_plot_burn_in:]) for label in labels]
-mean_rate_box = [np.array(chains[label]["total_rate_trace"][box_plot_burn_in:]) for label in labels]
-mean_lambda_box = [np.array(chains[label]["lambda_trace"][box_plot_burn_in:]) for label in labels]
-
-plt.boxplot(
-    mean_f_box,
-    tick_labels=labels,
-    patch_artist=True,
+make_trace_figure(
+    "mean_f_trace", r"$M^{-1}\sum_i f_i$",
+    "Trace of the mean latent field", "trace_mean_f",
+    [(prior_mean, "0.45", "--", "Prior mean"),
+     (float(np.mean(true_f)), "0.15", "-.", "True spatial mean")],
 )
 
-plt.axhline(
-    np.mean(true_f),
-    linestyle="--",
-    color="black",
-    label="True mean",
+make_trace_figure(
+    "total_rate_trace", r"$T=\sum_i\nu_i$",
+    "Trace of the total intensity", "trace_total_rate",
+    [(float(np.sum(true_rate)), "0.15", "--", "True total intensity"),
+     (float(np.sum(data)), "tab:red", ":", "Observed total count")],
 )
 
-plt.xlabel("Chain")
-plt.ylabel(r"$M^{-1}\sum_i f_i$")
-plt.title("Posterior distribution of the mean latent field")
-plt.legend()
-plt.tight_layout()
-if save_plots:
-    save_plot(plot_name="box_mean_f")
+
+# ----------------------------------------------------------------------
+# 3. Posterior comparisons across the three initial values
+# ----------------------------------------------------------------------
+
+labels = list(chains)
+mean_f_box = [np.asarray(chains[key]["mean_f_trace"][box_plot_burn_in:])
+              for key in labels]
+mean_rate_box = [np.asarray(chains[key]["total_rate_trace"][box_plot_burn_in:])
+                 for key in labels]
+lambda_box = [np.asarray(chains[key]["lambda_trace"][box_plot_burn_in:])
+              for key in labels]
 
 
-# Intensity box plot
+def make_box_figure(values, ylabel, title, filename, reference_lines):
+    fig, ax = plt.subplots(figsize=(7.5, 4.5), constrained_layout=True)
+    make_boxplot(ax, values, labels)
+    for y, color, ls, ref_label in reference_lines:
+        ax.axhline(y, color=color, linestyle=ls, linewidth=1.5,
+                   label=ref_label)
+    ax.set_xlabel("Chain initialization")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend(frameon=False, loc="best")
+    save_figure(fig, filename)
 
-plt.figure(figsize=(9, 5))
-plt.boxplot(
-    mean_rate_box,
-    tick_labels=labels,
-    patch_artist=True,
-)   
 
-plt.axhline(
-    np.sum(true_rate),
-    linestyle="--",
-    color="black",
-    label="True total intensity",
-)   
-
-plt.axhline(
-    np.sum(data),
-    linestyle=":",
-    color="red",
-    label="Observed total count",
+make_box_figure(
+    mean_f_box, r"$M^{-1}\sum_i f_i$",
+    "Posterior mean latent-field statistic", "box_mean_f",
+    [(float(np.mean(true_f)), "0.15", "--", "True spatial mean")],
 )
-plt.xlabel("Chain")
-plt.ylabel(r"$T=\sum_i \nu_i$")
-plt.title("Posterior distribution of the total intensity")
-plt.legend()
-plt.tight_layout()
-if save_plots:
-    save_plot(plot_name="box_mean_total_rate")
 
-# Lambda box plot 
-
-lambda_samples = [np.array(chains[label]["lambda_trace"][box_plot_burn_in:]) for label in labels]
-
-
-plt.figure(figsize=(9, 5))
-plt.boxplot(
-    lambda_samples,
-    tick_labels=labels,
-    patch_artist=True,
+make_box_figure(
+    mean_rate_box, r"$T=\sum_i\nu_i$",
+    "Posterior total intensity", "box_mean_total_rate",
+    [(float(np.sum(true_rate)), "0.15", "--", "True total intensity"),
+     (float(np.sum(data)), "tab:red", ":", "Observed total count")],
 )
-plt.axhline(
-    true_lam,
-    linestyle="--",
-    color="black",
-    label="True lambda",
+
+make_box_figure(
+    lambda_box, r"$\lambda$",
+    "Posterior global intensity scale", "box_mean_lambda",
+    [(true_lam, "0.15", "--", "True global scale")],
 )
-plt.xlabel("Chain")
-plt.ylabel(r"$\lambda$")
-plt.title("Posterior distribution of the global rate parameter")
-plt.legend()
-plt.tight_layout()
-if save_plots:
-    save_plot(plot_name="box_mean_lambda")  
-plt.show()  
 
-
-
-
-
-
-
-
-
-
-
-
+if not save_plots:
+    plt.show()
