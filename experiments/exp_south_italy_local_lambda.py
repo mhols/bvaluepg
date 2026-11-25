@@ -279,7 +279,7 @@ def plot_map(fig, ax, values, A, title, colorbar_label,
         if vmax is not None:
             options["vmax"] = vmax
     im = A.imshow(np.asarray(values).ravel(order="C"), **options)
-    A.plot_coastlines(axis=ax, color="white", linewidth=0.65)
+    A.plot_coastlines(axis=ax, color="white", linewidth=0.65, zorder=3)
     ax.set_title(title)
     ax.set_xlabel(r"$x$ [km]")
     ax.set_ylabel(r"$y$ [km]")
@@ -303,38 +303,38 @@ def make_figures(A, counts, posterior):
     fig, axes = plt.subplots(1, 3, figsize=(14.5, 4.8),
                              constrained_layout=True)
     plot_map(fig, axes[0], observed, A,
-             "(a) Observed counts", "Events/cell", norm=intensity_norm)
+             "(a) Observed counts", "Count per cell", norm=intensity_norm)
     plot_map(fig, axes[1], rate_mean, A,
              "(b) Posterior mean intensity", r"$E[\nu_i\mid n]$",
              norm=intensity_norm)
     plot_map(fig, axes[2], rate_sd, A,
-             "(c) Posterior intensity SD", r"$\mathrm{SD}(\nu_i\mid n)$",
+             "(c) Posterior SD", r"$\mathrm{SD}(\nu_i\mid n)$",
              cmap="magma", norm=sd_norm)
     save_figure(fig, "main_local_lambda")
 
     # Visualize the spatial latent field separately from local Gamma effects.
-    fig, axes = plt.subplots(2, 2, figsize=(11, 8.7),
+    fig, axes = plt.subplots(2, 2, figsize=(8.7, 7.7),
                              constrained_layout=True)
     plot_map(fig, axes[0, 0], posterior["f_mean"], A,
-             "(a) Posterior mean of $f$", "Latent field", cmap="coolwarm")
+             "(a) Posterior mean of $f$", "Latent field")
     plot_map(fig, axes[0, 1], posterior["lam_mean"], A,
              r"(b) Posterior mean local $\lambda_i$", "Scale per cell")
     plot_map(fig, axes[1, 0], posterior["lam_sd"], A,
-             r"(c) Posterior SD of $\lambda_i$", "SD")
+             r"(c) Posterior SD of $\lambda_i$", "SD", cmap="magma")
     plot_map(fig, axes[1, 1], posterior["f_lam_corr"], A,
              r"(d) Posterior corr$(f_i,\lambda_i)$", "Correlation",
-             cmap="coolwarm", vmin=-1.0, vmax=1.0)
+             cmap="RdBu_r", vmin=-1.0, vmax=1.0)
     save_figure(fig, "components_and_confounding")
 
     rate_maps = posterior["posterior_rate_samples"]
     if rate_maps:
         norm = PowerNorm(gamma=0.5, vmin=0.0,
                          vmax=max(float(x.max()) for x in rate_maps))
-        fig, axes = plt.subplots(2, 2, figsize=(9.5, 7.7),
+        fig, axes = plt.subplots(2, 2, figsize=(8.7, 7.7),
                                  constrained_layout=True)
         for j, (ax, rate) in enumerate(zip(axes.flat, rate_maps), start=1):
-            plot_map(fig, ax, rate, A, f"Posterior intensity draw {j}",
-                     "Expected events/cell", norm=norm)
+            plot_map(fig, ax, rate, A, f"Posterior draw {j}",
+                     r"$\nu_i$", norm=norm)
         for ax in list(axes.flat)[len(rate_maps):]:
             ax.axis("off")
         save_figure(fig, "posterior_intensity_draws")
@@ -351,7 +351,7 @@ def make_figures(A, counts, posterior):
                label=f"Observed total = {int(counts.sum())}")
     ax.axvspan(q025, q975, alpha=0.12,
                label=f"95% interval [{q025:.0f}, {q975:.0f}]")
-    ax.set_xlabel(r"Total intensity $T=\sum_i \lambda_i\sigma(f_i)$")
+    ax.set_xlabel(r"Total intensity $T=\sum_i \nu_i$")
     ax.set_ylabel("Posterior density")
     ax.set_title("Posterior distribution of total intensity")
     ax.legend(frameon=False, loc="upper left")
@@ -362,16 +362,16 @@ def make_figures(A, counts, posterior):
     fields = ["total", "zero_cells", "cells_ge_10", "maximum"]
     names = ["Total events", "Empty cells", "Cells with >= 10 events",
              "Maximum cell count"]
-    fig, axes = plt.subplots(2, 2, figsize=(10.5, 7),
+    fig, axes = plt.subplots(2, 2, figsize=(8.7, 7.7),
                              constrained_layout=True)
     for ax, key, name in zip(axes.flat, fields, names):
         predicted = posterior["predictive_stats"][key]
         observed_val = posterior["observed_stats"][key]
-        ax.hist(predicted, bins=30, alpha=0.75, edgecolor="white", linewidth=0.4)
-        ax.axvline(observed_val, color="0.15", linestyle="--", linewidth=1.7,
+        ax.hist(predicted, bins=35, alpha=0.75, edgecolor="white", linewidth=0.5)
+        ax.axvline(observed_val, color="0.15", linestyle="--", linewidth=1.6,
                    label=f"Observed = {observed_val}")
         ax.set_title(name)
-        ax.set_xlabel("Posterior-predictive replicate")
+        ax.set_xlabel("Replicated statistic")
         ax.set_ylabel("Frequency")
         ax.legend(frameon=False, loc="upper left")
     save_figure(fig, "posterior_predictive_checks")

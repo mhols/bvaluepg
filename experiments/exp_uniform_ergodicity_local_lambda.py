@@ -19,7 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import Normalize, PowerNorm
 from scipy.special import expit
-import arziv as az
+import arviz as az
 
 import polyagammapoisson.covariance_kernels as ck
 import polyagammapoisson.polyagammadensity as pgd
@@ -89,11 +89,6 @@ def plot_grid(fig, ax, values, title, label, cmap, norm):
     return im
 
 
-def style_axis(ax):
-    ax.grid(axis="y", color="0.85", linewidth=0.6, alpha=0.6)
-    ax.set_axisbelow(True)
-
-
 def make_boxplot(ax, values, keys):
     bp = ax.boxplot(
         values, positions=np.arange(1, len(keys) + 1), widths=0.50,
@@ -108,7 +103,6 @@ def make_boxplot(ax, values, keys):
         patch.set_edgecolor("0.3")
     ax.set_xticks(np.arange(1, len(keys) + 1))
     ax.set_xticklabels([CHAIN_LABELS[k] for k in keys])
-    style_axis(ax)
 
 
 def make_model(precision):
@@ -215,14 +209,14 @@ def draw_fields(chains, true_f, true_rate, counts):
         vmax=max(float(true_rate.max()), float(counts.max())),
     )
     fig, axs = plt.subplots(2, 3, figsize=(13.5, 7.8), constrained_layout=True)
-    plot_grid(fig, axs[0, 0], true_f, "(a) True latent field", r"$f_i$", "coolwarm", f_norm)
+    plot_grid(fig, axs[0, 0], true_f, "(a) True latent field", r"$f_i$", "viridis", f_norm)
     plot_grid(fig, axs[0, 1], true_rate, "(b) True Poisson intensity", r"$\nu_i$", "viridis", rate_norm)
-    plot_grid(fig, axs[0, 2], counts, "(c) Observed counts", "Events/cell", "viridis", rate_norm)
+    plot_grid(fig, axs[0, 2], counts, "(c) Observed counts", "Count per cell", "viridis", rate_norm)
     for j, key in enumerate(INITIAL_MEANS):
         plot_grid(
             fig, axs[1, j], chains[key]["posterior_f_mean"],
             f"({chr(100 + j)}) Posterior mean of $f$: {key} init",
-            r"$E[f_i\mid n]$", "coolwarm", f_norm,
+            r"$E[f_i\mid n]$", "viridis", f_norm,
         )
     save_figure(fig, "true_and_posterior_mean_fields")
 
@@ -233,7 +227,7 @@ def draw_local_lambda_maps(chains, true_lambda):
         gamma=0.65, vmin=0.0,
         vmax=max(float(arr.max()) for arr in maps),
     )
-    fig, axs = plt.subplots(2, 2, figsize=(9.5, 8.0), constrained_layout=True)
+    fig, axs = plt.subplots(2, 2, figsize=(8.7, 7.7), constrained_layout=True)
     titles = [
         "(a) True local scales", "(b) Posterior mean: low init",
         "(c) Posterior mean: medium init", "(d) Posterior mean: high init",
@@ -246,7 +240,7 @@ def draw_local_lambda_maps(chains, true_lambda):
 def draw_intensity_maps(chains, true_rate):
     maps = [true_rate] + [chains[k]["posterior_rate_mean"] for k in INITIAL_MEANS]
     norm = PowerNorm(gamma=0.5, vmin=0.0, vmax=max(float(x.max()) for x in maps))
-    fig, axs = plt.subplots(2, 2, figsize=(9.5, 8.0), constrained_layout=True)
+    fig, axs = plt.subplots(2, 2, figsize=(8.7, 7.7), constrained_layout=True)
     titles = [
         "(a) True intensity", "(b) Posterior mean: low init",
         "(c) Posterior mean: medium init", "(d) Posterior mean: high init",
@@ -266,10 +260,9 @@ def draw_trace(chains, key, ylabel, title, filename, reference_lines):
             label=f"{CHAIN_LABELS[label]} initialization", rasterized=True,
         )
     for value, color, ls, caption in reference_lines:
-        ax.axhline(value, color=color, ls=ls, lw=1.5, label=caption)
+        ax.axhline(value, color=color, ls=ls, lw=1.6, label=caption)
     ax.axvline(SUMMARY_BURN_IN, color="0.45", ls=":", lw=1.2, label="Summary burn-in")
     ax.set(xlabel="Iteration", ylabel=ylabel, title=title)
-    style_axis(ax)
     ax.legend(frameon=False, loc="best")
     save_figure(fig, filename)
 
@@ -277,10 +270,10 @@ def draw_trace(chains, key, ylabel, title, filename, reference_lines):
 def draw_box(chains, key, ylabel, title, filename, reference_lines):
     keys = list(INITIAL_MEANS)
     values = [chains[k][key][SUMMARY_BURN_IN:] for k in keys]
-    fig, ax = plt.subplots(figsize=(7.5, 4.5), constrained_layout=True)
+    fig, ax = plt.subplots(figsize=(7.0, 4.3), constrained_layout=True)
     make_boxplot(ax, values, keys)
     for value, color, ls, caption in reference_lines:
-        ax.axhline(value, color=color, ls=ls, lw=1.5, label=caption)
+        ax.axhline(value, color=color, ls=ls, lw=1.6, label=caption)
     ax.set(xlabel="Chain initialization", ylabel=ylabel, title=title)
     ax.legend(frameon=False, loc="best")
     save_figure(fig, filename)
