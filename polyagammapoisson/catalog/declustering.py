@@ -17,6 +17,8 @@ import pandas as pd
 from .tgoebel_clustering_analysis import clustering, EqCat
 import os
 import scipy
+from pandas.testing import assert_frame_equal
+
 
 def load_horus(df):
     #df = pd.read_csv(path, low_memory=False, sep='|', skiprows=0)
@@ -62,9 +64,12 @@ def load_horus(df):
     else:
         df["event_id_num"] = np.nan
 
-    df = df.dropna(subset=["datetime", "lat", "lon", "mag"]).copy()
+    dff = df.dropna(subset=["datetime", "lat", "lon", "mag"]).copy()
+    if len(df) != len(dff):
+        raise Exception ('there have been columns withug  "needed" entries')
+    
 
-    return df
+    return dff
 
 
 def add_time_fields(df):
@@ -90,8 +95,14 @@ def add_time_fields(df):
         errors="coerce",
     )
 
-    df = df.dropna(subset=["datetime"]).copy()
-    df = df.sort_values("datetime").reset_index(drop=True)
+    dff = df.dropna(subset=["datetime"]).copy()
+    assert len(dff) == len(df), "lenght has chaged"
+    df = dff.sort_values("datetime").reset_index(drop=True)
+    if not df.equals(dff):
+        assert_frame_equal(df, dff)
+        raise Exception('order changed')
+
+
 
     # Decimal year. This is what clust_SoCal.ipynb expects when it does
     # selectEvents(tmin, tmax, 'Time') with values such as 1980 and 2012.
